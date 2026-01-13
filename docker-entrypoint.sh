@@ -8,7 +8,7 @@ case "${APP_MODE:-web}" in
     ;;
   worker)
     echo "Starting aiWriter background worker..."
-    exec node worker/index.js
+    exec node --import tsx worker/index.js
     ;;
   *)
     echo "Error: Unknown APP_MODE '${APP_MODE}'. Use 'web' or 'worker'."

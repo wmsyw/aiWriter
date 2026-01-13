@@ -29,8 +29,10 @@ RUN apk add --no-cache git libc6-compat && \
 COPY --from=builder --chown=appuser:nodejs /app/public ./public
 COPY --from=builder --chown=appuser:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=appuser:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=appuser:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=appuser:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:nodejs /app/worker ./worker
+COPY --from=builder --chown=appuser:nodejs /app/src ./src
+COPY --from=builder --chown=appuser:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
 
 USER appuser

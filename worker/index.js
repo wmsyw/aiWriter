@@ -1,13 +1,13 @@
 import 'dotenv/config';
-import PgBoss from 'pg-boss';
+import { PgBoss } from 'pg-boss';
 import { PrismaClient } from '@prisma/client';
 import { createAdapter, ProviderError } from '../src/server/adapters/providers.js';
 import { decryptApiKey } from '../src/server/crypto.js';
 import { renderTemplateString } from '../src/server/services/templates.js';
 import { buildMaterialContext } from '../src/server/services/materials.js';
 import { saveVersion, saveBranchVersions } from '../src/server/services/versioning.js';
-import { commitChapter, ensureNovelRepo } from '../src/server/services/git-backup.js';
-import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries, WEB_SEARCH_TOOL } from '../src/server/services/web-search.js';
+import { commitChapter } from '../src/server/services/git-backup.js';
+import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../src/server/services/web-search.js';
 
 const prisma = new PrismaClient();
 
