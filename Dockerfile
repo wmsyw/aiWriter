@@ -33,6 +33,8 @@ COPY --from=builder --chown=appuser:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:nodejs /app/worker ./worker
 COPY --from=builder --chown=appuser:nodejs /app/src ./src
 COPY --from=builder --chown=appuser:nodejs /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=appuser:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=appuser:nodejs /app/prisma.config.ts ./prisma.config.ts
 COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
 
 USER appuser
