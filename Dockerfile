@@ -11,7 +11,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db"
+ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db" \
+    SESSION_SECRET="build-time-placeholder-secret-32chars" \
+    APP_ENCRYPTION_KEY_B64="YnVpbGQtdGltZS1wbGFjZWhvbGRlci1rZXktMzJjaGFycw=="
 RUN npx prisma generate && npm run build
 
 FROM base AS runner
