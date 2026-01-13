@@ -28,7 +28,7 @@ export default function LoginPage() {
         throw new Error(data.error || '登录失败');
       }
 
-      router.push('/');
+      router.push('/novels');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
     } finally {
