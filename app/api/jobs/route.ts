@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     
     const job = await createJob(session.userId, data.type, data.input);
     
-    return NextResponse.json(job);
+    return NextResponse.json({ job });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

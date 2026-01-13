@@ -267,8 +267,10 @@ export default function ChapterEditorPage() {
       });
       if (res.ok) {
         const { job } = await res.json();
-        setActiveJobs(prev => [...prev, job]);
-        pollJob(job.id);
+        if (job?.id) {
+          setActiveJobs(prev => [...prev, job]);
+          pollJob(job.id);
+        }
         
         if (type === 'CHAPTER_GENERATE_BRANCHES') {
           setShowBranchPanel(true);
@@ -288,8 +290,10 @@ export default function ChapterEditorPage() {
       });
       if (res.ok) {
         const { job } = await res.json();
-        setActiveJobs(prev => [...prev, { ...job, type: 'WORKFLOW_EXECUTE' }]);
-        pollJob(job.id);
+        if (job?.id) {
+          setActiveJobs(prev => [...prev, { ...job, type: 'WORKFLOW_EXECUTE' }]);
+          pollJob(job.id);
+        }
       }
     } catch (err) {
       console.error('Failed to execute workflow', err);

@@ -852,7 +852,7 @@ async function handleBatchArticleAnalyze(job, { jobId, userId, input }) {
 }
 
 async function handleMaterialSearch(job, { jobId, userId, input }) {
-  const { novelId, keyword, searchCategories } = input;
+  const { novelId, keyword, searchCategories, materialTypeFilter } = input;
 
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
@@ -920,7 +920,9 @@ async function handleMaterialSearch(job, { jobId, userId, input }) {
   const createdIds = [];
   for (const item of materials) {
     const category = item.category || '设定';
-    const type = typeMap[category] || 'custom';
+    let type = materialTypeFilter && materialTypeFilter !== 'all' 
+      ? materialTypeFilter 
+      : (typeMap[category] || 'custom');
     const name = item.name || `${keyword} ${category}`;
     const highlights = Array.isArray(item.highlights) ? item.highlights : [];
     const sources = Array.isArray(item.sources) && item.sources.length > 0

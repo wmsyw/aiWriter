@@ -42,6 +42,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [showWorkflowExecution, setShowWorkflowExecution] = useState(false);
   const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [showWorkflowDropdown, setShowWorkflowDropdown] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -365,24 +366,41 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 添加章节
               </button>
               {workflows.length > 0 && (
-                <div className="relative group">
-                  <button className="btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowWorkflowDropdown(!showWorkflowDropdown)}
+                    className="btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+                  >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
                     调用工作流
+                    <svg className={`w-3 h-3 transition-transform ${showWorkflowDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
-                  <div className="absolute right-0 top-full mt-2 w-48 glass-card rounded-xl overflow-hidden z-20 hidden group-hover:block animate-fade-in">
-                    {workflows.map(wf => (
-                      <button
-                        key={wf.id}
-                        onClick={() => handleRunWorkflow(wf.id)}
-                        className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-sm text-gray-300 hover:text-white transition-colors"
-                      >
-                        {wf.name}
-                      </button>
-                    ))}
-                  </div>
+                  {showWorkflowDropdown && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setShowWorkflowDropdown(false)} 
+                      />
+                      <div className="absolute right-0 top-full mt-2 w-48 glass-card rounded-xl overflow-hidden z-20 animate-fade-in">
+                        {workflows.map(wf => (
+                          <button
+                            key={wf.id}
+                            onClick={() => {
+                              handleRunWorkflow(wf.id);
+                              setShowWorkflowDropdown(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-sm text-gray-300 hover:text-white transition-colors"
+                          >
+                            {wf.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

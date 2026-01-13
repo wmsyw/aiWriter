@@ -8,6 +8,7 @@ const searchSchema = z.object({
   novelId: z.string(),
   keyword: z.string().min(1).max(200),
   searchCategories: z.array(z.enum(['评价', '人物', '情节', '世界观', '设定'])).optional(),
+  materialTypeFilter: z.enum(['character', 'location', 'plotPoint', 'worldbuilding', 'custom']).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { novelId, keyword, searchCategories } = searchSchema.parse(body);
+    const { novelId, keyword, searchCategories, materialTypeFilter } = searchSchema.parse(body);
 
     const novel = await prisma.novel.findFirst({
       where: { id: novelId, userId: session.userId },
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
       novelId,
       keyword,
       searchCategories: searchCategories || ['评价', '人物', '情节', '世界观'],
+      materialTypeFilter,
     });
 
     return NextResponse.json({ job });

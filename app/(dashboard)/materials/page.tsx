@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import MaterialSearchModal from './MaterialSearchModal';
 
 type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'custom';
 
@@ -76,6 +77,7 @@ export default function MaterialsLibraryPage() {
   const [activeGenre, setActiveGenre] = useState<MaterialGenre | 'all'>('all');
   const [selectedNovel, setSelectedNovel] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -144,20 +146,31 @@ export default function MaterialsLibraryPage() {
           <h1 className="text-2xl font-bold text-white">素材库</h1>
           <p className="text-gray-400 text-sm mt-1">管理所有小说的角色、地点、情节点等创作素材</p>
         </div>
-        <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
-          {GENRES.map(genre => (
-            <button
-              key={genre.id}
-              onClick={() => setActiveGenre(genre.id)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                activeGenre === genre.id
-                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {genre.label}
-            </button>
-          ))}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsSearchModalOpen(true)}
+            className="btn-secondary px-4 py-2 rounded-xl flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            AI 联网搜索
+          </button>
+          <div className="flex bg-black/20 p-1 rounded-xl border border-white/5">
+            {GENRES.map(genre => (
+              <button
+                key={genre.id}
+                onClick={() => setActiveGenre(genre.id)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  activeGenre === genre.id
+                    ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {genre.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -300,6 +313,16 @@ export default function MaterialsLibraryPage() {
           ))}
         </div>
       )}
+
+      <MaterialSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        novels={novels}
+        onComplete={() => {
+          fetchData();
+          setIsSearchModalOpen(false);
+        }}
+      />
     </div>
   );
 }
