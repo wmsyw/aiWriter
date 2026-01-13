@@ -3,7 +3,7 @@ set -e
 
 if [ "${APP_MODE:-web}" = "web" ]; then
   echo "Running database migrations..."
-  npx prisma db push --skip-generate || echo "Migration failed with exit code $?"
+  npx prisma db push || echo "Migration failed with exit code $?"
 fi
 
 case "${APP_MODE:-web}" in
