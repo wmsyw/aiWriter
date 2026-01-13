@@ -20,7 +20,7 @@ const outlineInputSchema = z.object({
 
 const chapterInputSchema = z.object({
   chapterId: z.string(),
-  agentId: z.string(),
+  agentId: z.string().optional(),
   outline: z.string().max(MAX_FIELD_LENGTH).optional(),
   enableWebSearch: z.boolean().optional(),
 });

@@ -8,10 +8,13 @@ interface CreateNovelModalProps {
   onClose: () => void;
 }
 
+type NovelType = 'short' | 'long';
+
 export default function CreateNovelModal({ isOpen, onClose }: CreateNovelModalProps) {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [novelType, setNovelType] = useState<NovelType>('short');
   const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -27,7 +30,7 @@ export default function CreateNovelModal({ isOpen, onClose }: CreateNovelModalPr
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title, description }),
+        body: JSON.stringify({ title, description, type: novelType }),
       });
 
       if (res.ok) {
@@ -67,6 +70,63 @@ export default function CreateNovelModal({ isOpen, onClose }: CreateNovelModalPr
               autoFocus
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">
+              小说类型
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setNovelType('short')}
+                className={`relative group p-4 rounded-xl border transition-all duration-300 text-left overflow-hidden ${
+                  novelType === 'short'
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_20px_rgba(99,102,241,0.15)]'
+                    : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className={`absolute top-0 right-0 p-2 opacity-0 transition-opacity duration-300 ${novelType === 'short' ? 'opacity-100' : ''}`}>
+                  <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mb-3 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform duration-300">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="font-bold text-white mb-1">短篇小说</div>
+                <div className="text-xs text-gray-400 leading-relaxed">适合短篇故事、随笔，无复杂分卷结构</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNovelType('long')}
+                className={`relative group p-4 rounded-xl border transition-all duration-300 text-left overflow-hidden ${
+                  novelType === 'long'
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_20px_rgba(99,102,241,0.15)]'
+                    : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className={`absolute top-0 right-0 p-2 opacity-0 transition-opacity duration-300 ${novelType === 'long' ? 'opacity-100' : ''}`}>
+                  <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mb-3 w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform duration-300">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <div className="font-bold text-white mb-1">长篇连载</div>
+                <div className="text-xs text-gray-400 leading-relaxed">支持分卷管理、大纲生成、世界观设定</div>
+              </button>
+            </div>
           </div>
           
           <div className="space-y-2">

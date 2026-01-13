@@ -130,9 +130,12 @@ export default function ChapterEditorPage() {
   const [showBranchPanel, setShowBranchPanel] = useState(false);
   const [iterationRound, setIterationRound] = useState(1);
   const [feedback, setFeedback] = useState('');
+  const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
+  const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
+  const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set());
 
   useEffect(() => {
     const fetchChapter = async () => {
@@ -149,6 +152,24 @@ export default function ChapterEditorPage() {
       }
     };
     fetchChapter();
+    
+    const fetchWorkflows = async () => {
+      try {
+        const res = await fetch('/api/workflows');
+        if (res.ok) {
+          const data = await res.json();
+          setWorkflows(data.workflows || []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchWorkflows();
+
+    return () => {
+      pollIntervalsRef.current.forEach(clearInterval);
+      pollIntervalsRef.current.clear();
+    };
   }, [novelId, chapterId]);
 
   const fetchVersions = useCallback(async () => {
@@ -239,9 +260,7 @@ export default function ChapterEditorPage() {
         body: JSON.stringify({
           type,
           input: { 
-            novelId, 
-            chapterId, 
-            content,
+            chapterId,
             ...additionalInput
           },
         }),
@@ -260,6 +279,24 @@ export default function ChapterEditorPage() {
     }
   };
 
+  const executeWorkflow = async (workflowId: string) => {
+    try {
+      const res = await fetch('/api/workflows/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowId, chapterId }),
+      });
+      if (res.ok) {
+        const { job } = await res.json();
+        setActiveJobs(prev => [...prev, { ...job, type: 'WORKFLOW_EXECUTE' }]);
+        pollJob(job.id);
+      }
+    } catch (err) {
+      console.error('Failed to execute workflow', err);
+    }
+    setShowWorkflowMenu(false);
+  };
+
   const pollJob = (jobId: string) => {
     const interval = setInterval(async () => {
       try {
@@ -268,6 +305,7 @@ export default function ChapterEditorPage() {
           const { job } = await res.json();
           if (job.status === 'completed') {
             clearInterval(interval);
+            pollIntervalsRef.current.delete(interval);
             setActiveJobs(prev => prev.filter(j => j.id !== jobId));
             
             if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
@@ -283,14 +321,17 @@ export default function ChapterEditorPage() {
             }
           } else if (job.status === 'failed') {
              clearInterval(interval);
+             pollIntervalsRef.current.delete(interval);
              setActiveJobs(prev => prev.filter(j => j.id !== jobId));
              alert('任务执行失败');
           }
         }
-      } catch (err) {
+      } catch {
         clearInterval(interval);
+        pollIntervalsRef.current.delete(interval);
       }
     }, 2000);
+    pollIntervalsRef.current.add(interval);
   };
 
   const handleRestore = async (versionId: string) => {
@@ -696,8 +737,11 @@ export default function ChapterEditorPage() {
             <Button 
               variant="ghost" 
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={() => createJob('REVIEW_SCORE')}
-              loading={activeJobs.some(j => j.type === 'REVIEW_SCORE')}
+              onClick={() => {
+                createJob('REVIEW_SCORE');
+                createJob('CONSISTENCY_CHECK');
+              }}
+              loading={activeJobs.some(j => j.type === 'REVIEW_SCORE' || j.type === 'CONSISTENCY_CHECK')}
             >
               <Icons.CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> 
               <span className="ml-1.5">审阅</span>
@@ -712,6 +756,35 @@ export default function ChapterEditorPage() {
               <Icons.Wand2 className="w-3.5 h-3.5 text-purple-400" /> 
               <span className="ml-1.5">润色</span>
             </Button>
+            {workflows.length > 0 && (
+              <>
+                <div className="w-px h-4 bg-white/10 mx-1" />
+                <div className="relative">
+                  <Button 
+                    variant="ghost" 
+                    className="text-xs py-1.5 h-8 px-3 rounded-lg"
+                    onClick={() => setShowWorkflowMenu(!showWorkflowMenu)}
+                    loading={activeJobs.some(j => j.type === 'WORKFLOW_EXECUTE')}
+                  >
+                    <Icons.GitBranch className="w-3.5 h-3.5 text-cyan-400" /> 
+                    <span className="ml-1.5">工作流</span>
+                  </Button>
+                  {showWorkflowMenu && (
+                    <div className="absolute top-full right-0 mt-2 w-48 glass-card rounded-xl overflow-hidden z-30 animate-fade-in">
+                      {workflows.map(wf => (
+                        <button
+                          key={wf.id}
+                          onClick={() => executeWorkflow(wf.id)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-sm text-gray-300 hover:text-white transition-colors"
+                        >
+                          {wf.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           
           <button 
@@ -734,10 +807,11 @@ export default function ChapterEditorPage() {
       <div className="flex flex-1 overflow-hidden relative">
         <main className="flex-1 relative flex flex-col h-full bg-[#0f1117] transition-all duration-300">
           {focusMode && (
-            <div className="absolute top-4 right-4 z-50 opacity-0 hover:opacity-100 transition-opacity">
+            <div className="absolute top-4 right-4 z-50">
                <button 
                 onClick={() => setFocusMode(false)}
-                className="p-2 rounded-full bg-black/50 text-white/50 hover:text-white backdrop-blur-md border border-white/10"
+                className="p-2 rounded-full bg-black/50 text-white/70 hover:text-white backdrop-blur-md border border-white/10 hover:bg-black/70 transition-all"
+                title="退出专注模式"
                >
                  <Icons.Minimize className="w-5 h-5" />
                </button>

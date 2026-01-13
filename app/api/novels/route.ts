@@ -5,6 +5,8 @@ import { getSessionUser } from '@/src/server/middleware/audit';
 
 const createSchema = z.object({
   title: z.string().min(1),
+  description: z.string().optional(),
+  type: z.enum(['short', 'long']).default('short'),
 });
 
 export async function GET(request: NextRequest) {
@@ -26,10 +28,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title } = createSchema.parse(body);
+    const { title, description, type } = createSchema.parse(body);
 
     const novel = await prisma.novel.create({
-      data: { userId: session.userId, title },
+      data: { userId: session.userId, title, description, type },
     });
 
     return NextResponse.json({ novel });

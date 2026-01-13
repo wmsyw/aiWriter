@@ -44,6 +44,9 @@ model Novel {
   userId          String
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   title           String
+  description     String?         @db.Text
+  type            String          @default("short") // "short" or "long"
+  outline         String?         @db.Text
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   chapters        Chapter[]
@@ -137,6 +140,7 @@ model AgentDefinition {
   userId           String
   name             String
   description      String?
+  category         String?  // "writing", "review", "utility"
   templateId       String?
   providerConfigId String?
   model            String?
@@ -146,6 +150,29 @@ model AgentDefinition {
   updatedAt        DateTime @updatedAt
 
   @@index([userId])
+}
+
+model Workflow {
+  id          String         @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  steps       WorkflowStep[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model WorkflowStep {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  agentKey   String
+  order      Int
+  config     Json?
+
+  @@index([workflowId])
 }
 
 model MemorySnapshot {

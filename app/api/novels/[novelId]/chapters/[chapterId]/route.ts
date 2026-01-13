@@ -65,3 +65,24 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update chapter' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ novelId: string; chapterId: string }> }
+) {
+  const session = await getSessionUser();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { novelId, chapterId } = await params;
+
+  const novel = await prisma.novel.findFirst({
+    where: { id: novelId, userId: session.userId },
+  });
+  if (!novel) return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
+
+  await prisma.chapter.delete({
+    where: { id: chapterId, novelId },
+  });
+
+  return NextResponse.json({ success: true });
+}

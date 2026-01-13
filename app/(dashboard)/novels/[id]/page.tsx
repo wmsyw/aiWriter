@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import OutlineGeneratorModal from './OutlineGeneratorModal';
 
 interface Chapter {
   id: string;
@@ -16,6 +17,8 @@ interface Novel {
   id: string;
   title: string;
   description?: string;
+  type?: 'short' | 'long';
+  outline?: string;
   updatedAt: string;
 }
 
@@ -25,13 +28,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [activeTab, setActiveTab] = useState<'chapters' | 'materials' | 'settings'>('chapters');
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'chapters' | 'outline' | 'materials' | 'settings'>('chapters');
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [editedDescription, setEditedDescription] = useState('');
+  const [editedOutline, setEditedOutline] = useState('');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showOutlineGenerator, setShowOutlineGenerator] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +52,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setNovel(novelData);
           setEditedTitle(novelData.title);
           setEditedDescription(novelData.description || '');
+          setEditedOutline(novelData.outline || '');
         }
         
         if (chaptersRes.ok) {
@@ -78,9 +85,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
       if (res.ok) {
         setNovel(prev => prev ? { ...prev, title: editedTitle } : null);
+      } else {
+        setError('更新标题失败');
       }
-    } catch (error) {
-      console.error('Failed to update title', error);
+    } catch {
+      setError('更新标题失败，请重试');
     } finally {
       setIsEditingTitle(false);
     }
@@ -96,11 +105,13 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({ description: editedDescription }),
       });
 
-      if (res.ok) {
+      if (!res.ok) {
+        setError('更新简介失败');
+      } else {
         setNovel(prev => prev ? { ...prev, description: editedDescription } : null);
       }
-    } catch (error) {
-      console.error('Failed to update description', error);
+    } catch {
+      setError('更新简介失败，请重试');
     }
   };
 
@@ -109,13 +120,52 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       const res = await fetch(`/api/novels/${id}`, { method: 'DELETE' });
       if (res.ok) {
         router.push('/novels');
+      } else {
+        setError('删除小说失败');
       }
-    } catch (error) {
-      console.error('Failed to delete novel', error);
+    } catch {
+      setError('删除小说失败，请重试');
+    }
+  };
+
+  const handleDeleteChapter = async (chapterId: string) => {
+    if (!confirm('确定要删除此章节吗？此操作不可撤销。')) return;
+    try {
+      const res = await fetch(`/api/novels/${id}/chapters/${chapterId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setChapters(chapters.filter(c => c.id !== chapterId));
+      } else {
+        setError('删除章节失败');
+      }
+    } catch {
+      setError('删除章节失败，请重试');
+    }
+  };
+
+  const handleUpdateOutline = async () => {
+    if (editedOutline === (novel?.outline || '')) return;
+    try {
+      const res = await fetch(`/api/novels/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outline: editedOutline }),
+      });
+      if (res.ok) {
+        setNovel(prev => prev ? { ...prev, outline: editedOutline } : null);
+      } else {
+        setError('更新大纲失败');
+      }
+    } catch {
+      setError('更新大纲失败，请重试');
     }
   };
 
   const handleCreateChapter = async () => {
+    if (novel?.type === 'long' && !novel?.outline) {
+      setError('长篇小说需要先创建大纲才能添加章节');
+      setActiveTab('outline');
+      return;
+    }
     try {
       const res = await fetch(`/api/novels/${id}/chapters`, {
         method: 'POST',
@@ -129,9 +179,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       if (res.ok) {
         const data = await res.json();
         setChapters([...chapters, data.chapter]);
+      } else {
+        setError('创建章节失败');
       }
-    } catch (error) {
-      console.error('Failed to create chapter', error);
+    } catch {
+      setError('创建章节失败，请重试');
     }
   };
 
@@ -156,6 +208,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen p-8 max-w-7xl mx-auto space-y-8">
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500/90 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slide-up">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="hover:bg-white/20 rounded p-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       <div className="flex flex-col gap-6">
         <Link 
           href="/novels" 
@@ -218,21 +280,61 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <div className="space-y-6">
-        <div className="flex items-center gap-1 border-b border-white/10">
-          {(['chapters', 'materials', 'settings'] as const).map((tab) => (
+        <div className="flex items-center gap-2 border-b border-white/10 pb-1">
+          {(novel?.type === 'long' 
+            ? ['chapters', 'outline', 'materials', 'settings'] as const
+            : ['chapters', 'materials', 'settings'] as const
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 text-sm font-medium capitalize border-b-2 transition-colors ${
+              className={`px-6 py-3 text-sm font-medium rounded-t-xl transition-all relative ${
                 activeTab === tab 
-                  ? 'border-indigo-500 text-indigo-400' 
-                  : 'border-transparent text-gray-400 hover:text-white'
+                  ? 'text-white bg-white/5 border-b-2 border-indigo-500' 
+                  : 'text-gray-400 hover:text-white hover:bg-white/5 border-b-2 border-transparent'
               }`}
             >
-              {tab === 'chapters' ? '章节' : tab === 'materials' ? '素材' : '设置'}
+              {tab === 'chapters' && <span className="mr-2">📚</span>}
+              {tab === 'outline' && <span className="mr-2">🗺️</span>}
+              {tab === 'materials' && <span className="mr-2">📦</span>}
+              {tab === 'settings' && <span className="mr-2">⚙️</span>}
+              {tab === 'chapters' ? '章节列表' : tab === 'outline' ? '大纲规划' : tab === 'materials' ? '素材管理' : '高级设置'}
             </button>
           ))}
         </div>
+
+        {activeTab === 'outline' && novel?.type === 'long' && (
+          <div className="animate-slide-up max-w-4xl">
+            <div className="glass-card p-6 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">小说大纲</h3>
+                <div className="flex items-center gap-2">
+                  {!novel.outline && (
+                    <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-lg">
+                      需要先创建大纲才能添加章节
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setShowOutlineGenerator(true)}
+                    className="btn-primary px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    AI 生成大纲
+                  </button>
+                </div>
+              </div>
+              <textarea
+                className="glass-input w-full px-4 py-3 rounded-xl h-96 resize-none"
+                placeholder="在这里编写你的小说大纲...&#10;&#10;建议包含：&#10;- 故事主线&#10;- 主要角色&#10;- 章节规划&#10;- 关键情节点"
+                value={editedOutline}
+                onChange={(e) => setEditedOutline(e.target.value)}
+                onBlur={handleUpdateOutline}
+              />
+            </div>
+          </div>
+        )}
 
         {activeTab === 'chapters' && (
           <div className="space-y-4 animate-slide-up">
@@ -254,25 +356,54 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 {chapters.map((chapter) => (
                   <div 
                     key={chapter.id}
-                    className="glass-card p-4 rounded-xl flex items-center gap-4 group hover:border-indigo-500/30 transition-all cursor-move"
+                    className="glass-card p-4 rounded-xl flex items-center gap-4 group hover:border-indigo-500/30 transition-all duration-300 hover:translate-x-1"
                   >
-                    <div className="text-gray-500 cursor-grab active:cursor-grabbing p-1">
+                    <div className="text-gray-600 cursor-move p-2 hover:bg-white/5 rounded-lg transition-colors">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                       </svg>
                     </div>
                     
-                    <div className="flex-1">
-                      <h3 className="text-white font-medium">{chapter.title}</h3>
-                      <p className="text-xs text-gray-500">{chapter.wordCount || 0} 字</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-3 mb-1">
+                        <h3 className="text-white font-medium truncate text-lg group-hover:text-indigo-400 transition-colors">
+                          {chapter.title}
+                        </h3>
+                        <span className="text-xs text-gray-500 font-mono">
+                          {new Date(chapter.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                         <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                           (chapter.wordCount || 0) > 2000 
+                             ? 'border-green-500/30 text-green-400 bg-green-500/10'
+                             : 'border-gray-700 text-gray-500 bg-gray-800/50'
+                         }`}>
+                           {chapter.wordCount || 0} 字
+                         </span>
+                      </div>
                     </div>
 
-                    <Link
-                      href={`/novels/${id}/chapters/${chapter.id}`}
-                      className="opacity-0 group-hover:opacity-100 btn-secondary px-3 py-1.5 rounded-lg text-xs transition-all"
-                    >
-                      编辑
-                    </Link>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
+                      <Link
+                        href={`/novels/${id}/chapters/${chapter.id}`}
+                        className="p-2 hover:bg-indigo-500/20 rounded-lg text-gray-400 hover:text-indigo-400 transition-colors"
+                        title="编辑章节"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteChapter(chapter.id)}
+                        className="p-2 hover:bg-red-500/20 rounded-lg text-gray-400 hover:text-red-400 transition-colors"
+                        title="删除章节"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -388,6 +519,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      <OutlineGeneratorModal
+        isOpen={showOutlineGenerator}
+        onClose={() => setShowOutlineGenerator(false)}
+        novelId={id}
+        onGenerated={(outline) => {
+          setEditedOutline(outline);
+          handleUpdateOutline();
+        }}
+      />
     </div>
   );
 }
