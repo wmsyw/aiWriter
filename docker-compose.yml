@@ -9,7 +9,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -38,8 +38,8 @@ services:
       retries: 3
       start_period: 15s
     volumes:
-      - uploads:/app/data/uploads
-      - novels:/app/data/novels
+      - ./data/uploads:/app/data/uploads
+      - ./data/novels:/app/data/novels
 
   worker:
     image: ghcr.io/wmsyw/aiwriter:${IMAGE_TAG:-latest}
@@ -54,10 +54,5 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - uploads:/app/data/uploads
-      - novels:/app/data/novels
-
-volumes:
-  postgres_data:
-  uploads:
-  novels:
+      - ./data/uploads:/app/data/uploads
+      - ./data/novels:/app/data/novels
