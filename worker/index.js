@@ -918,11 +918,17 @@ async function processJob(job) {
 
 async function main() {
   const boss = new PgBoss(process.env.DATABASE_URL);
+  
+  boss.on('error', (error) => {
+    console.error('pg-boss error:', error.message);
+  });
+  
   await boss.start();
   console.log('Worker started');
 
   for (const jobType of Object.values(JobType)) {
     if (handlers[jobType]) {
+      await boss.createQueue(jobType);
       boss.work(jobType, { teamSize: 1, teamConcurrency: 1 }, processJob);
       console.log(`Registered handler for ${jobType}`);
     }
