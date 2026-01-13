@@ -59,6 +59,7 @@ const JobType = {
   CHARACTER_CHAT: 'CHARACTER_CHAT',
   ARTICLE_ANALYZE: 'ARTICLE_ANALYZE',
   BATCH_ARTICLE_ANALYZE: 'BATCH_ARTICLE_ANALYZE',
+  MATERIAL_SEARCH: 'MATERIAL_SEARCH',
 };
 
 const JobStatus = {
@@ -850,6 +851,114 @@ async function handleBatchArticleAnalyze(job, { jobId, userId, input }) {
   };
 }
 
+async function handleMaterialSearch(job, { jobId, userId, input }) {
+  const { novelId, keyword, searchCategories } = input;
+
+  const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
+  if (!novel) throw new Error('Novel not found');
+
+  const categories = Array.isArray(searchCategories) && searchCategories.length > 0
+    ? searchCategories
+    : ['评价', '人物', '情节', '世界观', '设定'];
+
+  const searchConfig = await getUserSearchConfig(userId);
+  if (!searchConfig.enabled) throw new Error('Web search disabled');
+
+  const useModelSearch = searchConfig.provider === 'model';
+  if (!useModelSearch && !searchConfig.apiKey) throw new Error('Web search API key missing');
+
+  const { config, adapter } = await getProviderAndAdapter(userId);
+
+  const categoryContexts = [];
+  const sourcesByCategory = {};
+
+  if (!useModelSearch) {
+    for (const category of categories) {
+      const query = `${keyword} ${category}`;
+      const response = await webSearch(searchConfig.provider, searchConfig.apiKey, query, 5);
+      const results = response.results || [];
+      sourcesByCategory[category] = results.map(r => ({ title: r.title, url: r.url }));
+      const formatted = formatSearchResultsForContext(results.slice(0, 5));
+      if (formatted) {
+        categoryContexts.push(`【${category}】\n${formatted}`);
+      }
+    }
+  }
+
+  const contextBlock = categoryContexts.length > 0
+    ? `\n\n搜索结果：\n${categoryContexts.join('\n\n')}`
+    : '';
+
+  const prompt = `你是同人文写作的资料整理助手，请根据关键词整理素材并输出JSON。\n关键词：${keyword}\n分类：${categories.join('、')}\n${contextBlock}\n\n请输出JSON，格式如下：\n{\n  "materials": [\n    {\n      "category": "评价",\n      "name": "${keyword} 读者评价",\n      "type": "custom",\n      "description": "...",\n      "highlights": ["..."],\n      "sources": [{"title": "...", "url": "..."}]\n    }\n  ]\n}\n\n要求：\n- 每个category只生成一条material\n- type映射：人物->character，情节->plotPoint，世界观->worldbuilding，评价/设定->custom\n- description以2-4段总结\n- highlights列出3-6条要点\n- sources尽量给出可追溯来源\n- 只输出JSON，不要附加解释文本。`;
+
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: config.defaultModel || 'gpt-4',
+    temperature: 0.3,
+    maxTokens: 4000,
+    webSearch: useModelSearch,
+  }));
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.content);
+  } catch (err) {
+    throw new Error('Invalid material search response');
+  }
+
+  const materials = Array.isArray(parsed?.materials) ? parsed.materials : [];
+  if (materials.length === 0) throw new Error('No materials generated');
+
+  const typeMap = {
+    评价: 'custom',
+    人物: 'character',
+    情节: 'plotPoint',
+    世界观: 'worldbuilding',
+    设定: 'custom',
+  };
+
+  const createdIds = [];
+  for (const item of materials) {
+    const category = item.category || '设定';
+    const type = typeMap[category] || 'custom';
+    const name = item.name || `${keyword} ${category}`;
+    const highlights = Array.isArray(item.highlights) ? item.highlights : [];
+    const sources = Array.isArray(item.sources) && item.sources.length > 0
+      ? item.sources
+      : (sourcesByCategory[category] || []);
+    const sourceUrl = sources[0]?.url || null;
+
+    const material = await prisma.material.create({
+      data: {
+        novelId,
+        userId,
+        type,
+        name,
+        genre: '通用',
+        searchGroup: keyword,
+        sourceUrl,
+        data: {
+          description: item.description || '',
+          attributes: {
+            highlights,
+            sources,
+          },
+        },
+      },
+    });
+
+    createdIds.push(material.id);
+  }
+
+  await trackUsage(userId, jobId, config.providerType, config.defaultModel || 'gpt-4', response.usage);
+
+  return {
+    materialsCreated: createdIds.length,
+    materialIds: createdIds,
+    webSearchUsed: true,
+  };
+}
+
 const handlers = {
   [JobType.OUTLINE_GENERATE]: handleOutlineGenerate,
   [JobType.CHAPTER_GENERATE]: handleChapterGenerate,
@@ -862,6 +971,7 @@ const handlers = {
   [JobType.CHARACTER_CHAT]: handleCharacterChat,
   [JobType.ARTICLE_ANALYZE]: handleArticleAnalyze,
   [JobType.BATCH_ARTICLE_ANALYZE]: handleBatchArticleAnalyze,
+  [JobType.MATERIAL_SEARCH]: handleMaterialSearch,
 };
 
 const RETRY_LIMIT = 3;

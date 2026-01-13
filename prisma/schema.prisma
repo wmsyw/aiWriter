@@ -105,21 +105,24 @@ model LorebookEntry {
 }
 
 model Material {
-  id        String   @id @default(cuid())
-  novelId   String
-  novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  userId    String
-  type      String
-  name      String
-  genre     String   @default("通用")
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  novelId     String
+  novel       Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  userId      String
+  type        String
+  name        String
+  genre       String   @default("通用")
+  searchGroup String?
+  sourceUrl   String?
+  data        Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([novelId])
   @@index([userId])
   @@index([type])
   @@index([genre])
+  @@index([searchGroup])
 }
 
 model PromptTemplate {

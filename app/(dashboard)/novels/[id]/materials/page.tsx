@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import MaterialSearchModal from './MaterialSearchModal';
 
 type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'custom';
 
@@ -33,6 +34,7 @@ export default function MaterialsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   useEffect(() => {
     fetchMaterials();
@@ -99,15 +101,26 @@ export default function MaterialsPage() {
           <h1 className="text-3xl font-bold text-gradient mb-2">素材库</h1>
           <p className="text-gray-400">管理你的故事元素、角色和世界观设定</p>
         </div>
-        <button 
-          onClick={handleOpenCreate}
-          className="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          添加素材
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsSearchModalOpen(true)}
+            className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            AI 联网搜索
+          </button>
+          <button 
+            onClick={handleOpenCreate}
+            className="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            添加素材
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm">
@@ -178,6 +191,16 @@ export default function MaterialsPage() {
           defaultType={activeTab === 'all' ? 'character' : activeTab}
         />
       )}
+
+      <MaterialSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        novelId={novelId}
+        onComplete={() => {
+          fetchMaterials();
+          setIsSearchModalOpen(false);
+        }}
+      />
     </div>
   );
 }

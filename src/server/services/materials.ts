@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db';
 
 export type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'custom';
@@ -27,6 +28,8 @@ export interface Material {
   type: MaterialType;
   name: string;
   genre: MaterialGenre;
+  searchGroup?: string | null;
+  sourceUrl?: string | null;
   data: MaterialData;
   createdAt: Date;
   updatedAt: Date;
@@ -38,12 +41,16 @@ export interface CreateMaterialInput {
   type: MaterialType;
   name: string;
   genre?: MaterialGenre;
+  searchGroup?: string | null;
+  sourceUrl?: string | null;
   data: MaterialData;
 }
 
 export interface UpdateMaterialInput {
   name?: string;
   genre?: MaterialGenre;
+  searchGroup?: string | null;
+  sourceUrl?: string | null;
   data?: MaterialData;
 }
 
@@ -55,7 +62,9 @@ export async function createMaterial(input: CreateMaterialInput): Promise<Materi
       type: input.type,
       name: input.name,
       genre: input.genre || '通用',
-      data: input.data as any,
+      searchGroup: input.searchGroup || null,
+      sourceUrl: input.sourceUrl || null,
+      data: input.data as Prisma.InputJsonValue,
     },
   }) as unknown as Material;
 }
@@ -83,7 +92,9 @@ export async function updateMaterial(id: string, input: UpdateMaterialInput): Pr
   const updateData: any = {};
   if (input.name !== undefined) updateData.name = input.name;
   if (input.genre !== undefined) updateData.genre = input.genre;
-  if (input.data !== undefined) updateData.data = input.data;
+  if (input.searchGroup !== undefined) updateData.searchGroup = input.searchGroup;
+  if (input.sourceUrl !== undefined) updateData.sourceUrl = input.sourceUrl;
+  if (input.data !== undefined) updateData.data = input.data as Prisma.InputJsonValue;
   
   return prisma.material.update({ where: { id }, data: updateData }) as unknown as Material;
 }
@@ -153,7 +164,7 @@ export async function importMaterials(
       userId,
       type: m.type,
       name: m.name,
-      data: m.data as any,
+      data: m.data as Prisma.InputJsonValue,
     })),
   });
   return created.count;

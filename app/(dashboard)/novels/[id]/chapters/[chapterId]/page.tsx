@@ -66,13 +66,13 @@ interface Branch {
   id: string;
   content: string;
   createdAt: string;
-  status?: 'pending' | 'completed' | 'failed';
+  status?: 'pending' | 'succeeded' | 'failed';
 }
 
 interface Job {
   id: string;
   type: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'processing' | 'succeeded' | 'failed';
 }
 
 function Button({ 
@@ -303,7 +303,7 @@ export default function ChapterEditorPage() {
         const res = await fetch(`/api/jobs/${jobId}`);
         if (res.ok) {
           const { job } = await res.json();
-          if (job.status === 'completed') {
+          if (job.status === 'succeeded') {
             clearInterval(interval);
             pollIntervalsRef.current.delete(interval);
             setActiveJobs(prev => prev.filter(j => j.id !== jobId));

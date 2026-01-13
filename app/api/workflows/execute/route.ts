@@ -6,7 +6,7 @@ import { createJob } from '@/src/server/services/jobs';
 
 const executeSchema = z.object({
   workflowId: z.string(),
-  chapterId: z.string(),
+  chapterId: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
