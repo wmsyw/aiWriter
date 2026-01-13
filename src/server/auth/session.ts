@@ -23,7 +23,7 @@ export const sessionOptions: SessionOptions = {
   password: getSessionSecret(),
   cookieName: 'aiwriter_session',
   cookieOptions: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && process.env.HTTPS_ENABLED === 'true',
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 7,

@@ -30,6 +30,7 @@ interface Provider {
   name: string;
   providerType: string;
   defaultModel?: string;
+  models?: string[];
 }
 
 export default function AgentsPage() {
@@ -40,6 +41,7 @@ export default function AgentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentAgent, setCurrentAgent] = useState<Partial<Agent>>({});
   const [saving, setSaving] = useState(false);
+  const [customModel, setCustomModel] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -71,6 +73,7 @@ export default function AgentsPage() {
   const handleOpenModal = (agent?: Agent) => {
     if (agent) {
       setCurrentAgent(agent);
+      setCustomModel('');
     } else {
       setCurrentAgent({
         name: '',
@@ -80,6 +83,7 @@ export default function AgentsPage() {
           maxTokens: 1000,
         }
       });
+      setCustomModel('');
     }
     setIsModalOpen(true);
   };
@@ -259,13 +263,46 @@ export default function AgentsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-300">Model</label>
-                  <input
-                    type="text"
-                    value={currentAgent.model || ''}
-                    onChange={e => setCurrentAgent({...currentAgent, model: e.target.value})}
-                    className="w-full glass-input px-4 py-2 rounded-lg"
-                    placeholder="e.g. gpt-4-turbo"
-                  />
+                  {(() => {
+                    const selectedProvider = providers.find(p => p.id === currentAgent.providerConfigId);
+                    const availableModels = selectedProvider?.models || [];
+                    return (
+                      <div className="space-y-2">
+                        {availableModels.length > 0 && (
+                          <select
+                            value={currentAgent.model || ''}
+                            onChange={e => {
+                              setCurrentAgent({...currentAgent, model: e.target.value});
+                              setCustomModel('');
+                            }}
+                            className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
+                          >
+                            <option value="" className="bg-gray-900">选择模型...</option>
+                            {availableModels.map((model: string) => (
+                              <option key={model} value={model} className="bg-gray-900">{model}</option>
+                            ))}
+                            <option value="__custom__" className="bg-gray-900">自定义模型...</option>
+                          </select>
+                        )}
+                        {(availableModels.length === 0 || currentAgent.model === '__custom__') && (
+                          <input
+                            type="text"
+                            value={currentAgent.model === '__custom__' ? customModel : (currentAgent.model || '')}
+                            onChange={e => {
+                              if (currentAgent.model === '__custom__') {
+                                setCustomModel(e.target.value);
+                                setCurrentAgent({...currentAgent, model: e.target.value});
+                              } else {
+                                setCurrentAgent({...currentAgent, model: e.target.value});
+                              }
+                            }}
+                            className="w-full glass-input px-4 py-2 rounded-lg"
+                            placeholder="输入模型名称，如 gpt-4o"
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

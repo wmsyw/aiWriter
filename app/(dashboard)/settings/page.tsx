@@ -8,15 +8,17 @@ type ProviderConfig = {
   providerType: string;
   baseURL: string;
   defaultModel?: string;
+  models?: string[];
   createdAt: string;
 };
 
 type Tab = 'providers' | 'account' | 'preferences';
 
 const PROVIDER_TYPES = [
-  { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
-  { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', models: ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'] },
-  { value: 'gemini', label: 'Gemini', defaultURL: 'https://generativelanguage.googleapis.com/v1beta', models: ['gemini-2.5-flash-preview-05-20', 'gemini-2.0-flash', 'gemini-1.5-pro'] },
+  { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-5', 'gpt-5-mini', 'gpt-5-turbo', 'gpt-4o', 'gpt-4o-mini'] },
+  { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', defaultModels: ['claude-4-5-sonnet-20260115', 'claude-4-5-opus-20260115', 'claude-4-5-haiku-20260115', 'claude-sonnet-4-20250514'] },
+  { value: 'gemini', label: 'Gemini', defaultURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModels: ['gemini-3-preview-0113', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'] },
+  { value: 'custom', label: '自定义', defaultURL: '', defaultModels: [] },
 ];
 
 export default function SettingsPage() {
@@ -31,6 +33,8 @@ export default function SettingsPage() {
     baseURL: 'https://api.openai.com/v1',
     apiKey: '',
     defaultModel: '',
+    models: [] as string[],
+    newModel: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -124,18 +128,23 @@ export default function SettingsPage() {
       ...prev,
       providerType: type,
       baseURL: provider?.defaultURL || '',
-      defaultModel: provider?.models[0] || '',
+      defaultModel: provider?.defaultModels[0] || '',
+      models: provider?.defaultModels || [],
+      newModel: '',
     }));
   };
 
   const openCreateModal = () => {
     setEditingProvider(null);
+    const defaultProvider = PROVIDER_TYPES[0];
     setFormData({
       name: '',
       providerType: 'openai',
       baseURL: 'https://api.openai.com/v1',
       apiKey: '',
-      defaultModel: 'gpt-4o',
+      defaultModel: 'gpt-5',
+      models: defaultProvider.defaultModels,
+      newModel: '',
     });
     setError('');
     setShowModal(true);
@@ -149,6 +158,8 @@ export default function SettingsPage() {
       baseURL: provider.baseURL,
       apiKey: '',
       defaultModel: provider.defaultModel || '',
+      models: provider.models || [],
+      newModel: '',
     });
     setError('');
     setShowModal(true);
@@ -163,11 +174,12 @@ export default function SettingsPage() {
       const method = editingProvider ? 'PUT' : 'POST';
       const url = editingProvider ? `/api/providers/${editingProvider.id}` : '/api/providers';
       
-      const body: Record<string, string> = {
+      const body: Record<string, unknown> = {
         name: formData.name,
         providerType: formData.providerType,
         baseURL: formData.baseURL,
         defaultModel: formData.defaultModel,
+        models: formData.models,
       };
       
       if (formData.apiKey) {
@@ -722,13 +734,64 @@ export default function SettingsPage() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">模型列表</label>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {formData.models.map((model) => (
+                      <span key={model} className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-white/10 text-sm">
+                        {model}
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, models: prev.models.filter(m => m !== model) }))}
+                          className="text-gray-400 hover:text-red-400"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.newModel}
+                      onChange={(e) => setFormData(prev => ({ ...prev, newModel: e.target.value }))}
+                      className="flex-1 glass-input px-4 py-2 rounded-xl text-sm"
+                      placeholder="输入模型名称，如 gpt-4o"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formData.newModel.trim()) {
+                          e.preventDefault();
+                          if (!formData.models.includes(formData.newModel.trim())) {
+                            setFormData(prev => ({ ...prev, models: [...prev.models, prev.newModel.trim()], newModel: '' }));
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (formData.newModel.trim() && !formData.models.includes(formData.newModel.trim())) {
+                          setFormData(prev => ({ ...prev, models: [...prev.models, prev.newModel.trim()], newModel: '' }));
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm"
+                    >
+                      添加
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">默认模型</label>
                 <select
                   value={formData.defaultModel}
                   onChange={(e) => setFormData(prev => ({ ...prev, defaultModel: e.target.value }))}
                   className="w-full glass-input px-4 py-3 rounded-xl"
                 >
-                  {PROVIDER_TYPES.find(p => p.value === formData.providerType)?.models.map((model) => (
+                  <option value="">选择默认模型</option>
+                  {formData.models.map((model: string) => (
                     <option key={model} value={model}>{model}</option>
                   ))}
                 </select>

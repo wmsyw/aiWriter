@@ -9,10 +9,11 @@ import { verifyCsrf } from '@/src/server/middleware/csrf';
 
 const createSchema = z.object({
   name: z.string().min(1),
-  providerType: z.enum(['openai', 'claude', 'gemini']),
+  providerType: z.string().min(1),
   baseURL: z.string().url().optional(),
   apiKey: z.string().min(1),
   defaultModel: z.string().optional(),
+  models: z.array(z.string()).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
       providerType: true,
       baseURL: true,
       defaultModel: true,
+      models: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -50,14 +52,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = createSchema.parse(body);
 
-    if (data.baseURL) {
-      try {
-        getProviderBaseURL(data.providerType, data.baseURL);
-      } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 400 });
-      }
-    }
-
     const encryptedKey = encryptApiKey(data.apiKey);
     const baseURL = data.baseURL || getProviderBaseURL(data.providerType);
 
@@ -69,6 +63,7 @@ export async function POST(request: NextRequest) {
         baseURL,
         apiKeyCiphertext: encryptedKey,
         defaultModel: data.defaultModel,
+        models: data.models || [],
       },
     });
 
@@ -83,6 +78,7 @@ export async function POST(request: NextRequest) {
       providerType: config.providerType,
       baseURL: config.baseURL,
       defaultModel: config.defaultModel,
+      models: config.models,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

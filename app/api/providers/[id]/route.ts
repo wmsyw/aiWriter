@@ -7,10 +7,11 @@ import { AuditActions } from '@/src/server/services/audit';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  providerType: z.enum(['openai', 'claude', 'gemini']).optional(),
+  providerType: z.string().min(1).optional(),
   baseURL: z.string().url().optional(),
   apiKey: z.string().min(1).optional(),
   defaultModel: z.string().optional(),
+  models: z.array(z.string()).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       providerType: true,
       baseURL: true,
       defaultModel: true,
+      models: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -68,6 +70,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (parsed.data.providerType !== undefined) updateData.providerType = parsed.data.providerType;
   if (parsed.data.baseURL !== undefined) updateData.baseURL = parsed.data.baseURL;
   if (parsed.data.defaultModel !== undefined) updateData.defaultModel = parsed.data.defaultModel;
+  if (parsed.data.models !== undefined) updateData.models = parsed.data.models;
   if (parsed.data.apiKey) {
     updateData.apiKeyCiphertext = encryptApiKey(parsed.data.apiKey);
   }
@@ -81,6 +84,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       providerType: true,
       baseURL: true,
       defaultModel: true,
+      models: true,
       createdAt: true,
       updatedAt: true,
     },
