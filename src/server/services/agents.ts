@@ -1,25 +1,20 @@
 import { prisma } from '../db';
+import { z } from 'zod';
+import { Prisma } from '@prisma/client';
+import type { AgentDefinition as PrismaAgentDefinition } from '@prisma/client';
 
-export interface AgentParams {
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-}
+const AgentParamsSchema = z.object({
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().min(1).max(200000).optional(),
+  topP: z.number().min(0).max(1).optional(),
+  frequencyPenalty: z.number().min(-2).max(2).optional(),
+  presencePenalty: z.number().min(-2).max(2).optional(),
+}).nullable();
 
-export interface AgentDefinition {
-  id: string;
-  userId: string;
-  name: string;
-  description: string | null;
-  templateId: string | null;
-  providerConfigId: string | null;
-  model: string | null;
-  params: AgentParams | null;
-  isBuiltIn: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+export type AgentParams = z.infer<typeof AgentParamsSchema>;
+
+export interface AgentDefinition extends Omit<PrismaAgentDefinition, 'params'> {
+  params: AgentParams;
 }
 
 export interface CreateAgentInput {
@@ -93,8 +88,20 @@ export const BUILT_IN_AGENTS = {
   },
 };
 
+function parseParams(params: Prisma.JsonValue | null): AgentParams {
+  const result = AgentParamsSchema.safeParse(params);
+  return result.success ? result.data : null;
+}
+
+function toAgentDefinition(agent: PrismaAgentDefinition): AgentDefinition {
+  return {
+    ...agent,
+    params: parseParams(agent.params),
+  };
+}
+
 export async function createAgent(input: CreateAgentInput): Promise<AgentDefinition> {
-  return prisma.agentDefinition.create({
+  const agent = await prisma.agentDefinition.create({
     data: {
       userId: input.userId,
       name: input.name,
@@ -102,24 +109,27 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentDefinit
       templateId: input.templateId || null,
       providerConfigId: input.providerConfigId || null,
       model: input.model || null,
-      params: input.params as any || null,
+      params: (input.params ?? Prisma.JsonNull) as Prisma.InputJsonValue,
       isBuiltIn: input.isBuiltIn || false,
     },
-  }) as unknown as AgentDefinition;
+  });
+  return toAgentDefinition(agent);
 }
 
 export async function getAgent(id: string): Promise<AgentDefinition | null> {
-  return prisma.agentDefinition.findUnique({ where: { id } }) as unknown as AgentDefinition | null;
+  const agent = await prisma.agentDefinition.findUnique({ where: { id } });
+  return agent ? toAgentDefinition(agent) : null;
 }
 
 export async function listAgents(userId: string, options?: { includeBuiltIn?: boolean }): Promise<AgentDefinition[]> {
-  const where: any = { userId };
+  const where: Prisma.AgentDefinitionWhereInput = { userId };
   if (options?.includeBuiltIn === false) where.isBuiltIn = false;
   
-  return prisma.agentDefinition.findMany({
+  const agents = await prisma.agentDefinition.findMany({
     where,
     orderBy: [{ isBuiltIn: 'desc' }, { name: 'asc' }],
-  }) as unknown as AgentDefinition[];
+  });
+  return agents.map(toAgentDefinition);
 }
 
 export async function updateAgent(id: string, input: UpdateAgentInput): Promise<AgentDefinition> {
@@ -127,21 +137,23 @@ export async function updateAgent(id: string, input: UpdateAgentInput): Promise<
   if (!agent) throw new Error('Agent not found');
   
   if (agent.isBuiltIn) {
-    const allowedUpdates: any = {};
+    const allowedUpdates: Prisma.AgentDefinitionUpdateInput = {};
     if (input.providerConfigId !== undefined) allowedUpdates.providerConfigId = input.providerConfigId;
     if (input.model !== undefined) allowedUpdates.model = input.model;
-    return prisma.agentDefinition.update({ where: { id }, data: allowedUpdates }) as unknown as AgentDefinition;
+    const updated = await prisma.agentDefinition.update({ where: { id }, data: allowedUpdates });
+    return toAgentDefinition(updated);
   }
   
-  const updateData: any = {};
+  const updateData: Prisma.AgentDefinitionUpdateInput = {};
   if (input.name !== undefined) updateData.name = input.name;
   if (input.description !== undefined) updateData.description = input.description;
   if (input.templateId !== undefined) updateData.templateId = input.templateId;
   if (input.providerConfigId !== undefined) updateData.providerConfigId = input.providerConfigId;
   if (input.model !== undefined) updateData.model = input.model;
-  if (input.params !== undefined) updateData.params = input.params;
+  if (input.params !== undefined) updateData.params = input.params as Prisma.InputJsonValue;
   
-  return prisma.agentDefinition.update({ where: { id }, data: updateData }) as unknown as AgentDefinition;
+  const updated = await prisma.agentDefinition.update({ where: { id }, data: updateData });
+  return toAgentDefinition(updated);
 }
 
 export async function deleteAgent(id: string): Promise<void> {
@@ -152,36 +164,45 @@ export async function deleteAgent(id: string): Promise<void> {
 }
 
 export async function getAgentByName(userId: string, name: string): Promise<AgentDefinition | null> {
-  return prisma.agentDefinition.findFirst({ where: { userId, name } }) as unknown as AgentDefinition | null;
+  const agent = await prisma.agentDefinition.findFirst({ where: { userId, name } });
+  return agent ? toAgentDefinition(agent) : null;
 }
 
 export async function seedBuiltInAgents(userId: string): Promise<number> {
   const templates = await prisma.promptTemplate.findMany({ where: { userId } });
   const templateMap = new Map(templates.map(t => [t.name, t.id]));
-  let count = 0;
   
-  for (const [key, agentDef] of Object.entries(BUILT_IN_AGENTS)) {
-    const existing = await prisma.agentDefinition.findFirst({
-      where: { userId, name: agentDef.name, isBuiltIn: true },
-    });
-    
-    if (!existing) {
-      const templateId = templateMap.get(agentDef.templateName) || null;
-      await prisma.agentDefinition.create({
-        data: {
-          userId,
-          name: agentDef.name,
-          description: agentDef.description,
-          templateId,
-          params: agentDef.defaultParams as any,
-          isBuiltIn: true,
-        },
+  const builtInNames = Object.values(BUILT_IN_AGENTS).map(a => a.name);
+  const existingAgents = await prisma.agentDefinition.findMany({
+    where: { 
+      userId, 
+      isBuiltIn: true,
+      name: { in: builtInNames }
+    },
+    select: { name: true }
+  });
+  
+  const existingNames = new Set(existingAgents.map(a => a.name));
+  const agentsToCreate: Prisma.AgentDefinitionCreateManyInput[] = [];
+
+  for (const agentDef of Object.values(BUILT_IN_AGENTS)) {
+    if (!existingNames.has(agentDef.name)) {
+      agentsToCreate.push({
+        userId,
+        name: agentDef.name,
+        description: agentDef.description,
+        templateId: templateMap.get(agentDef.templateName) || null,
+        params: agentDef.defaultParams as Prisma.InputJsonValue,
+        isBuiltIn: true,
       });
-      count++;
     }
   }
+
+  if (agentsToCreate.length > 0) {
+    await prisma.agentDefinition.createMany({ data: agentsToCreate });
+  }
   
-  return count;
+  return agentsToCreate.length;
 }
 
 export async function initializeUserAgents(userId: string): Promise<{ templates: number; agents: number }> {

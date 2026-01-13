@@ -22,7 +22,13 @@ export async function GET(req: NextRequest) {
   const session = await getSessionUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const list = await agents.listAgents(session.userId);
+  let list = await agents.listAgents(session.userId);
+  
+  if (list.length === 0) {
+    await agents.initializeUserAgents(session.userId);
+    list = await agents.listAgents(session.userId);
+  }
+  
   return NextResponse.json(list);
 }
 

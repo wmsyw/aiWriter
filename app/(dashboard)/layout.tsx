@@ -2,10 +2,56 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { getJobStatusLabel, getJobStatusClassName, getJobTypeLabel } from '@/app/components/JobStatusBadge';
+
+interface Notification {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('/api/jobs');
+        if (res.ok) {
+          const jobs = await res.json();
+          setNotifications((Array.isArray(jobs) ? jobs : []).slice(0, 5));
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications', error);
+      }
+    };
+    fetchNotifications();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -16,8 +62,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  const unreadCount = notifications.filter(n => n.status === 'queued' || n.status === 'running').length;
+
   const navItems = [
-    { name: '仪表盘', href: '/', icon: (
+    { name: '仪表盘', href: '/dashboard', icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
@@ -72,9 +120,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-[120px] animate-float-delayed"></div>
       </div>
 
-      <aside className="w-72 glass-panel border-r border-white/5 flex flex-col fixed h-full z-40 transition-all duration-300">
-        <div className="p-8 pb-4">
-          <Link href="/" className="flex items-center gap-3 group">
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside 
+        ref={sidebarRef}
+        className={`w-72 glass-panel border-r border-white/5 flex flex-col fixed h-full z-40 transition-transform duration-300 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div className="p-6 lg:p-8 pb-4">
+          <Link href="/dashboard" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform duration-300">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -86,7 +146,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </div>
         
-        <div className="px-6 mb-6">
+        <div className="px-4 lg:px-6 mb-6">
           <Link href="/novels/create" className="btn-primary w-full py-3 flex items-center justify-center gap-2 group">
             <svg className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -95,9 +155,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </div>
         
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto py-2 custom-scrollbar">
+        <nav className="flex-1 px-3 lg:px-4 space-y-1.5 overflow-y-auto py-2 custom-scrollbar">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.name}
@@ -119,22 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="p-4 border-t border-white/5 bg-black/20">
-           <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/10 relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/10 rounded-full blur-xl group-hover:bg-indigo-500/20 transition-all"></div>
-             <div className="text-xs font-medium text-indigo-300 mb-2 flex items-center gap-2 relative z-10">
-               <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-               专业版套餐
-             </div>
-             <div className="w-full h-1.5 bg-gray-700/50 rounded-full overflow-hidden mb-2">
-               <div className="w-3/4 h-full bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full shadow-[0_0_10px_rgba(129,140,248,0.5)]"></div>
-             </div>
-             <div className="flex justify-between text-[10px] text-gray-400 relative z-10">
-               <span>已用 75k</span>
-               <span>上限 100k</span>
-             </div>
-           </div>
-           
-           <div className="mt-4 flex items-center gap-3 px-2">
+            <div className="flex items-center gap-3 px-2">
              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs text-white shadow-lg ring-2 ring-white/10">
                作者
              </div>
@@ -155,27 +200,76 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="flex-1 ml-72 flex flex-col min-h-screen relative z-10">
-        <header className="h-16 flex items-center justify-between px-8 sticky top-0 z-30 backdrop-blur-sm bg-[var(--color-dark-bg)]/80 border-b border-white/5">
+      <main className="flex-1 lg:ml-72 flex flex-col min-h-screen relative z-10">
+        <header className="h-16 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 backdrop-blur-sm bg-[var(--color-dark-bg)]/80 border-b border-white/5">
            <div className="flex items-center gap-4">
-              <div className="text-gray-400 text-sm breadcrumbs">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/5 text-gray-400 hover:text-white"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div className="text-gray-400 text-sm breadcrumbs hidden sm:block">
                 <span className="text-gray-600">应用</span>
                 <span className="mx-2">/</span>
                 <span className="font-medium text-white">{navItems.find(i => i.href === pathname)?.name || '仪表盘'}</span>
               </div>
            </div>
            
-           <div className="flex items-center gap-4">
-             <button className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/5 text-gray-400 hover:text-white relative">
-               <span className="absolute top-2 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-[var(--color-dark-bg)]"></span>
+           <div className="flex items-center gap-4 relative" ref={notificationRef}>
+             <button 
+               onClick={() => setShowNotifications(!showNotifications)}
+               className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/5 text-gray-400 hover:text-white relative"
+             >
+               {unreadCount > 0 && (
+                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[var(--color-dark-bg)]"></span>
+               )}
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                </svg>
              </button>
+             
+             {showNotifications && (
+               <div className="absolute right-0 top-12 w-80 glass-card rounded-xl shadow-2xl border border-white/10 overflow-hidden animate-fade-in">
+                 <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                   <h3 className="font-bold text-white">通知</h3>
+                   <Link href="/jobs" className="text-xs text-indigo-400 hover:text-indigo-300">
+                     查看全部
+                   </Link>
+                 </div>
+                 <div className="max-h-80 overflow-y-auto">
+                   {notifications.length === 0 ? (
+                     <div className="p-6 text-center text-gray-500 text-sm">
+                       暂无通知
+                     </div>
+                   ) : (
+                     notifications.map((n) => (
+                       <Link
+                         key={n.id}
+                         href="/jobs"
+                         className="block p-4 hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0"
+                       >
+<div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-white">{getJobTypeLabel(n.type)}</span>
+                            <span className={`text-xs ${getJobStatusClassName(n.status)}`}>
+                              {getJobStatusLabel(n.status)}
+                            </span>
+                          </div>
+                         <div className="text-xs text-gray-500">
+                           {new Date(n.createdAt).toLocaleString('zh-CN')}
+                         </div>
+                       </Link>
+                     ))
+                   )}
+                 </div>
+               </div>
+             )}
            </div>
         </header>
 
-        <div className="p-8 animate-fade-in max-w-7xl mx-auto w-full">
+        <div className="p-4 lg:p-8 animate-fade-in max-w-7xl mx-auto w-full">
           {children}
         </div>
       </main>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSession } from '@/src/server/auth/session';
+import { getSessionUser } from '@/src/server/middleware/audit';
 import { createJob, listJobs } from '@/src/server/services/jobs';
 
 const MAX_PAYLOAD_SIZE = 100 * 1024;
@@ -118,8 +118,8 @@ const createJobSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getSessionUser();
+  if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const body = await req.json();
@@ -147,8 +147,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await getSessionUser();
+  if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const jobs = await listJobs(session.userId);
   return NextResponse.json(jobs);

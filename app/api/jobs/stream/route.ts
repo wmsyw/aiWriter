@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server';
-import { getSession } from '@/src/server/auth/session';
+import { getSessionUser } from '@/src/server/middleware/audit';
 import { prisma } from '@/src/server/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session.userId) {
+  const session = await getSessionUser();
+  if (!session?.userId) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
       await sendJobs(true);
 
-      intervalId = setInterval(() => sendJobs(false), 2000);
+      intervalId = setInterval(() => sendJobs(false), 5000);
     },
     cancel() {
       isAborted = true;
