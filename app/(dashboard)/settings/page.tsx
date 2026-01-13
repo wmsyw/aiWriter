@@ -15,9 +15,9 @@ type ProviderConfig = {
 type Tab = 'providers' | 'account' | 'preferences';
 
 const PROVIDER_TYPES = [
-  { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-5', 'gpt-5-mini', 'gpt-5-turbo', 'gpt-4o', 'gpt-4o-mini'] },
-  { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', defaultModels: ['claude-4-5-sonnet-20260115', 'claude-4-5-opus-20260115', 'claude-4-5-haiku-20260115', 'claude-sonnet-4-20250514'] },
-  { value: 'gemini', label: 'Gemini', defaultURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModels: ['gemini-3-preview-0113', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'] },
+  { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-5', 'gpt-5。1', 'gpt-5.2', 'gpt-5-mini'] },
+  { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', defaultModels: ['claude-4-5-sonnet-20260115', 'claude-4-5-opus-20260115', 'claude-4-5-haiku-20260115'] },
+  { value: 'gemini', label: 'Gemini', defaultURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModels: ['gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'] },
   { value: 'custom', label: '自定义', defaultURL: '', defaultModels: [] },
 ];
 
@@ -38,7 +38,7 @@ export default function SettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  
+
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -94,11 +94,11 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!preferencesLoaded) return;
-    
+
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
-    
+
     saveTimerRef.current = setTimeout(() => {
       savePreferences(preferences);
     }, 500);
@@ -173,7 +173,7 @@ export default function SettingsPage() {
     try {
       const method = editingProvider ? 'PUT' : 'POST';
       const url = editingProvider ? `/api/providers/${editingProvider.id}` : '/api/providers';
-      
+
       const body: Record<string, unknown> = {
         name: formData.name,
         providerType: formData.providerType,
@@ -181,7 +181,7 @@ export default function SettingsPage() {
         defaultModel: formData.defaultModel,
         models: formData.models,
       };
-      
+
       if (formData.apiKey) {
         body.apiKey = formData.apiKey;
       }
@@ -194,8 +194,8 @@ export default function SettingsPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        const errorMessage = typeof data.error === 'string' 
-          ? data.error 
+        const errorMessage = typeof data.error === 'string'
+          ? data.error
           : data.details?.formErrors?.join(', ') || data.error?.formErrors?.join(', ') || '保存失败';
         throw new Error(errorMessage);
       }
@@ -211,7 +211,7 @@ export default function SettingsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这个服务商配置吗?')) return;
-    
+
     try {
       const res = await fetch(`/api/providers/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('删除失败');
@@ -250,8 +250,8 @@ export default function SettingsPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        const errorMessage = typeof data.error === 'string' 
-          ? data.error 
+        const errorMessage = typeof data.error === 'string'
+          ? data.error
           : data.error?.formErrors?.join(', ') || '修改密码失败';
         throw new Error(errorMessage);
       }
@@ -297,7 +297,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-<div className="flex gap-2" role="tablist" aria-label="设置选项">
+      <div className="flex gap-2" role="tablist" aria-label="设置选项">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -306,11 +306,10 @@ export default function SettingsPage() {
             aria-selected={activeTab === tab.id}
             aria-controls={`panel-${tab.id}`}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${activeTab === tab.id
+              ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              }`}
           >
             {tab.icon}
             {tab.name}
@@ -318,7 +317,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-{activeTab === 'providers' && (
+      {activeTab === 'providers' && (
         <div id="panel-providers" role="tabpanel" aria-labelledby="tab-providers" className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -361,11 +360,10 @@ export default function SettingsPage() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          provider.providerType === 'openai' ? 'bg-green-500/20 text-green-400' :
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${provider.providerType === 'openai' ? 'bg-green-500/20 text-green-400' :
                           provider.providerType === 'claude' ? 'bg-orange-500/20 text-orange-400' :
-                          'bg-blue-500/20 text-blue-400'
-                        }`}>
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
                           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
@@ -373,11 +371,10 @@ export default function SettingsPage() {
                         <div>
                           <h3 className="text-lg font-semibold text-white">{provider.name}</h3>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              provider.providerType === 'openai' ? 'bg-green-500/20 text-green-400' :
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${provider.providerType === 'openai' ? 'bg-green-500/20 text-green-400' :
                               provider.providerType === 'claude' ? 'bg-orange-500/20 text-orange-400' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
+                                'bg-blue-500/20 text-blue-400'
+                              }`}>
                               {providerInfo?.label || provider.providerType}
                             </span>
                             {provider.defaultModel && (
@@ -421,7 +418,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-{activeTab === 'account' && (
+      {activeTab === 'account' && (
         <div id="panel-account" role="tabpanel" aria-labelledby="tab-account" className="max-w-xl">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-white">账号安全</h2>
@@ -430,7 +427,7 @@ export default function SettingsPage() {
 
           <div className="glass-card rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4">修改密码</h3>
-            
+
             <form onSubmit={handlePasswordChange} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">当前密码</label>
@@ -488,7 +485,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-{activeTab === 'preferences' && (
+      {activeTab === 'preferences' && (
         <div id="panel-preferences" role="tabpanel" aria-labelledby="tab-preferences" className="max-w-xl">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-white">偏好设置</h2>
@@ -504,7 +501,7 @@ export default function SettingsPage() {
                     <div className="text-white font-medium">自动保存</div>
                     <div className="text-gray-400 text-sm">每隔一段时间自动保存章节内容</div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setPreferences(p => ({ ...p, autoSave: !p.autoSave }))}
                     className={`relative w-12 h-6 rounded-full transition-colors ${preferences.autoSave ? 'bg-indigo-500' : 'bg-gray-700'}`}
                   >
@@ -516,7 +513,7 @@ export default function SettingsPage() {
                     <div className="text-white font-medium">字数统计</div>
                     <div className="text-gray-400 text-sm">在编辑器底部显示字数统计</div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setPreferences(p => ({ ...p, wordCount: !p.wordCount }))}
                     className={`relative w-12 h-6 rounded-full transition-colors ${preferences.wordCount ? 'bg-indigo-500' : 'bg-gray-700'}`}
                   >
@@ -528,7 +525,7 @@ export default function SettingsPage() {
                     <div className="text-white font-medium">行号显示</div>
                     <div className="text-gray-400 text-sm">在编辑器左侧显示行号</div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setPreferences(p => ({ ...p, lineNumbers: !p.lineNumbers }))}
                     className={`relative w-12 h-6 rounded-full transition-colors ${preferences.lineNumbers ? 'bg-indigo-500' : 'bg-gray-700'}`}
                   >
@@ -543,7 +540,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">默认生成字数</label>
-                  <select 
+                  <select
                     value={preferences.defaultWordCount}
                     onChange={(e) => setPreferences(p => ({ ...p, defaultWordCount: e.target.value }))}
                     className="w-full glass-input px-4 py-3 rounded-xl"
@@ -556,7 +553,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">写作风格</label>
-                  <select 
+                  <select
                     value={preferences.writingStyle}
                     onChange={(e) => setPreferences(p => ({ ...p, writingStyle: e.target.value }))}
                     className="w-full glass-input px-4 py-3 rounded-xl"
@@ -579,19 +576,19 @@ export default function SettingsPage() {
                     <div className="text-white font-medium">启用网络搜索</div>
                     <div className="text-gray-400 text-sm">允许 AI 在写作时联网查询信息</div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setPreferences(p => ({ ...p, webSearchEnabled: !p.webSearchEnabled }))}
                     className={`relative w-12 h-6 rounded-full transition-colors ${preferences.webSearchEnabled ? 'bg-indigo-500' : 'bg-gray-700'}`}
                   >
                     <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${preferences.webSearchEnabled ? 'right-1' : 'left-1'}`}></span>
                   </button>
                 </div>
-                
+
                 {preferences.webSearchEnabled && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">搜索服务商</label>
-                      <select 
+                      <select
                         value={preferences.webSearchProvider}
                         onChange={(e) => setPreferences(p => ({ ...p, webSearchProvider: e.target.value as 'tavily' | 'exa' | 'model' }))}
                         className="w-full glass-input px-4 py-3 rounded-xl"
@@ -608,9 +605,9 @@ export default function SettingsPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">
                           搜索 API 密钥
-                          <a 
-                            href={preferences.webSearchProvider === 'tavily' ? 'https://tavily.com' : 'https://exa.ai'} 
-                            target="_blank" 
+                          <a
+                            href={preferences.webSearchProvider === 'tavily' ? 'https://tavily.com' : 'https://exa.ai'}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="ml-2 text-indigo-400 hover:text-indigo-300 text-xs"
                           >
@@ -636,7 +633,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">界面语言</label>
-                  <select 
+                  <select
                     value={preferences.language}
                     onChange={(e) => setPreferences(p => ({ ...p, language: e.target.value }))}
                     className="w-full glass-input px-4 py-3 rounded-xl"
@@ -652,8 +649,8 @@ export default function SettingsPage() {
         </div>
       )}
 
-{showModal && (
-        <div 
+      {showModal && (
+        <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
           role="dialog"
           aria-modal="true"
@@ -696,11 +693,10 @@ export default function SettingsPage() {
                       key={type.value}
                       type="button"
                       onClick={() => handleProviderTypeChange(type.value)}
-                      className={`px-4 py-3 rounded-xl border transition-all ${
-                        formData.providerType === type.value
-                          ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400'
-                          : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
-                      }`}
+                      className={`px-4 py-3 rounded-xl border transition-all ${formData.providerType === type.value
+                        ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400'
+                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                        }`}
                     >
                       {type.label}
                     </button>
