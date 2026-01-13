@@ -17,7 +17,7 @@ services:
       retries: 5
 
   web:
-    image: ghcr.io/${GITHUB_REPOSITORY:-aiwriter/aiwriter}:${IMAGE_TAG:-latest}
+    image: ghcr.io/wmsyw/aiwriter:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -42,7 +42,7 @@ services:
       - novels:/app/data/novels
 
   worker:
-    image: ghcr.io/${GITHUB_REPOSITORY:-aiwriter/aiwriter}:${IMAGE_TAG:-latest}
+    image: ghcr.io/wmsyw/aiwriter:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       - APP_MODE=worker
