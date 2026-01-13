@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { PgBoss } from 'pg-boss';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 import { createAdapter, ProviderError } from '../src/server/adapters/providers.js';
 import { decryptApiKey } from '../src/server/crypto.js';
 import { renderTemplateString } from '../src/server/services/templates.js';
@@ -9,7 +11,9 @@ import { saveVersion, saveBranchVersions } from '../src/server/services/versioni
 import { commitChapter } from '../src/server/services/git-backup.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../src/server/services/web-search.js';
 
-const prisma = new PrismaClient();
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 const MAX_CONCURRENT_AI_CALLS = 4;
 let activeAICalls = 0;
