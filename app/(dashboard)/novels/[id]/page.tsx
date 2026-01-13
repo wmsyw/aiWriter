@@ -47,7 +47,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         
         if (chaptersRes.ok) {
           const chaptersData = await chaptersRes.json();
-          setChapters(chaptersData);
+          setChapters(chaptersData.chapters || []);
         }
       } catch (error) {
         console.error('Failed to fetch novel details', error);
@@ -95,8 +95,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       });
 
       if (res.ok) {
-        const newChapter = await res.json();
-        setChapters([...chapters, newChapter]);
+        const data = await res.json();
+        setChapters([...chapters, data.chapter]);
       }
     } catch (error) {
       console.error('Failed to create chapter', error);

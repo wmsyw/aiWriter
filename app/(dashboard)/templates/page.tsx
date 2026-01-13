@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 
+type VariableValue = string | number | boolean | string[];
+
 interface Variable {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description?: string;
   required?: boolean;
-  defaultValue?: any;
+  defaultValue?: VariableValue;
 }
 
 interface Template {
@@ -23,7 +25,7 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<'variables' | 'preview'>('variables');
-  const [previewData, setPreviewData] = useState<Record<string, any>>({});
+  const [previewData, setPreviewData] = useState<Record<string, VariableValue>>({});
   const [previewResult, setPreviewResult] = useState<string>('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -368,7 +370,7 @@ export default function TemplatesPage() {
                         <label className="text-xs text-gray-500 font-mono">{v.name}</label>
                         <input
                           type="text"
-                          value={previewData[v.name] || ''}
+                          value={String(previewData[v.name] ?? '')}
                           onChange={(e) => setPreviewData({ ...previewData, [v.name]: e.target.value })}
                           className="glass-input w-full px-3 py-2 rounded-lg text-sm"
                           placeholder={`${v.name} 的值`}

@@ -178,7 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/5 bg-black/20">
+        <div className="p-4 border-t border-white/5 bg-black/20 flex-shrink-0">
             <div className="flex items-center gap-3 px-2">
              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs text-white shadow-lg ring-2 ring-white/10">
                作者

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { BUILT_IN_AGENTS } from '@/src/constants/agents';
 
 interface Agent {
   id: string;
@@ -42,6 +43,7 @@ export default function AgentsPage() {
   const [saving, setSaving] = useState(false);
   const [customModel, setCustomModel] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -77,6 +79,7 @@ export default function AgentsPage() {
       const isCustom = Boolean(agent.model && providerModels.length > 0 && !providerModels.includes(agent.model));
       setUseCustomModel(isCustom);
       setCustomModel(isCustom && agent.model ? agent.model : '');
+      setShowTemplateSelector(false);
     } else {
       setCurrentAgent({
         name: '',
@@ -88,8 +91,21 @@ export default function AgentsPage() {
       });
       setUseCustomModel(false);
       setCustomModel('');
+      setShowTemplateSelector(true);
     }
     setIsModalOpen(true);
+  };
+
+  const handleSelectBuiltInTemplate = (key: string) => {
+    const template = BUILT_IN_AGENTS[key];
+    const matchingTemplate = templates.find(t => t.name === template.templateName);
+    setCurrentAgent({
+      name: template.name,
+      description: template.description,
+      templateId: matchingTemplate?.id,
+      params: template.defaultParams,
+    });
+    setShowTemplateSelector(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -208,9 +224,9 @@ export default function AgentsPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="glass-card w-full max-w-2xl rounded-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto animate-slide-up">
-            <div className="flex items-center justify-between mb-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="glass-card w-full max-w-2xl rounded-2xl p-6 md:p-8 animate-slide-up my-auto">
+            <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-white">
                 {currentAgent.id ? '编辑助手' : '创建助手'}
               </h2>
@@ -223,6 +239,30 @@ export default function AgentsPage() {
                 </svg>
               </button>
             </div>
+
+            {!currentAgent.id && showTemplateSelector && (
+              <div className="mb-6">
+                <label className="text-sm font-medium text-gray-300 mb-3 block">从内置模板创建</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                  {Object.entries(BUILT_IN_AGENTS).map(([key, template]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleSelectBuiltInTemplate(key)}
+                      className="p-3 rounded-lg bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-500/30 transition-all text-left"
+                    >
+                      <div className="text-sm font-medium text-white truncate">{template.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{template.description}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                  <div className="flex-1 h-px bg-white/10"></div>
+                  <span>或从空白创建</span>
+                  <div className="flex-1 h-px bg-white/10"></div>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSave} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -23,7 +23,7 @@ export default function NovelsPage() {
       const res = await fetch('/api/novels');
       if (res.ok) {
         const data = await res.json();
-        setNovels(data);
+        setNovels(data.novels || []);
       }
     } catch (error) {
       console.error('Failed to fetch novels', error);
