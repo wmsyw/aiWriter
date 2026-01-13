@@ -1,12 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ 
-  subsets: ["latin"],
-  display: "swap",
-  fallback: ["PingFang SC", "Microsoft YaHei", "Noto Sans SC", "system-ui", "sans-serif"],
-});
 
 export const metadata: Metadata = {
   title: "AI Writer - 创作你的杰作",
@@ -20,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={inter.className}>{children}</body>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }
