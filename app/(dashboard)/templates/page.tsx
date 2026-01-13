@@ -51,7 +51,7 @@ export default function TemplatesPage() {
   const handleCreateNew = () => {
     const newTemplate: Template = {
       id: 'new',
-      name: 'Untitled Template',
+      name: '未命名模板',
       content: '',
       variables: [],
       updatedAt: new Date().toISOString(),
@@ -63,7 +63,7 @@ export default function TemplatesPage() {
 
   const handleSelectTemplate = (template: Template) => {
     if (hasChanges) {
-      if (!confirm('You have unsaved changes. Discard them?')) return;
+      if (!confirm('有未保存的更改，确定要放弃吗？')) return;
     }
     setSelectedTemplate(JSON.parse(JSON.stringify(template)));
     setHasChanges(false);
@@ -110,7 +110,7 @@ export default function TemplatesPage() {
 
   const handleRunPreview = async () => {
     if (!selectedTemplate || selectedTemplate.id === 'new') {
-      alert('Please save the template first to run a preview.');
+      alert('请先保存模板后再进行预览。');
       return;
     }
 
@@ -172,14 +172,14 @@ export default function TemplatesPage() {
     if (!selectedTemplate) return;
     const tag = `{{ ${varName} }}`;
     navigator.clipboard.writeText(tag);
-    alert(`Copied "${tag}" to clipboard! Paste it in the editor.`);
+    alert(`已复制 "${tag}" 到剪贴板，请粘贴到编辑器中。`);
   };
 
   return (
     <div className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-4 p-4 md:p-8 animate-fade-in">
       <div className="w-full md:w-64 flex-shrink-0 flex flex-col glass-card rounded-2xl overflow-hidden">
         <div className="p-4 border-b border-white/10 flex justify-between items-center">
-          <h2 className="font-semibold text-white">Templates</h2>
+          <h2 className="font-semibold text-white">模板列表</h2>
           <button 
             onClick={handleCreateNew}
             className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
@@ -210,7 +210,7 @@ export default function TemplatesPage() {
           ))}
           {templates.length === 0 && !isLoading && (
             <div className="text-center py-8 text-gray-500 text-sm">
-              No templates yet.
+              暂无模板
             </div>
           )}
         </div>
@@ -237,7 +237,7 @@ export default function TemplatesPage() {
                   (!hasChanges || isSaving) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? '保存中...' : '保存'}
               </button>
             </div>
             
@@ -249,12 +249,12 @@ export default function TemplatesPage() {
                   setHasChanges(true);
                 }}
                 className="w-full h-full bg-transparent text-gray-300 font-mono text-sm resize-none outline-none focus:ring-0 leading-relaxed custom-scrollbar"
-                placeholder="Write your template here... Use {{ variableName }} for dynamic content."
+                placeholder="在此编写模板内容... 使用 {{ 变量名 }} 插入动态内容。"
                 spellCheck={false}
               />
             </div>
             <div className="absolute bottom-4 right-4 text-xs text-gray-600 pointer-events-none">
-              LiquidJS Syntax Supported
+              支持 LiquidJS 语法
             </div>
           </>
         ) : (
@@ -262,7 +262,7 @@ export default function TemplatesPage() {
             <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p>Select a template or create a new one</p>
+            <p>选择一个模板或创建新模板</p>
           </div>
         )}
       </div>
@@ -277,7 +277,7 @@ export default function TemplatesPage() {
                   sidebarTab === 'variables' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
-                Variables
+                变量
               </button>
               <button
                 onClick={() => setSidebarTab('preview')}
@@ -285,7 +285,7 @@ export default function TemplatesPage() {
                   sidebarTab === 'preview' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
-                Preview
+                预览
               </button>
             </div>
 
@@ -293,17 +293,17 @@ export default function TemplatesPage() {
               {sidebarTab === 'variables' ? (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-medium text-gray-300">Defined Variables</h3>
+                    <h3 className="text-sm font-medium text-gray-300">已定义变量</h3>
                     <button 
                       onClick={addVariable}
                       className="text-xs text-indigo-400 hover:text-indigo-300"
                     >
-                      + Add New
+                      + 添加
                     </button>
                   </div>
                   
                   {selectedTemplate.variables?.length === 0 ? (
-                    <p className="text-xs text-gray-500 italic">No variables defined.</p>
+                    <p className="text-xs text-gray-500 italic">暂无变量</p>
                   ) : (
                     <div className="space-y-3">
                       {selectedTemplate.variables?.map((variable, idx) => (
@@ -319,7 +319,7 @@ export default function TemplatesPage() {
                             <div className="flex gap-2">
                               <button 
                                 onClick={() => insertVariableToContent(variable.name)}
-                                title="Copy to clipboard"
+                                title="复制到剪贴板"
                                 className="text-gray-500 hover:text-white"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -341,10 +341,10 @@ export default function TemplatesPage() {
                             onChange={(e) => updateVariable(idx, 'type', e.target.value)}
                             className="bg-black/20 w-full text-xs rounded-lg px-2 py-1 outline-none text-gray-400 border border-white/5"
                           >
-                            <option value="string">String</option>
-                            <option value="number">Number</option>
-                            <option value="boolean">Boolean</option>
-                            <option value="array">Array</option>
+                            <option value="string">字符串</option>
+                            <option value="number">数字</option>
+                            <option value="boolean">布尔值</option>
+                            <option value="array">数组</option>
                           </select>
                         </div>
                       ))}
@@ -352,16 +352,16 @@ export default function TemplatesPage() {
                   )}
                   
                   <div className="mt-8 pt-4 border-t border-white/10">
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">How to use</h3>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">使用说明</h3>
                     <p className="text-xs text-gray-500 leading-relaxed">
-                      Use <code className="bg-white/10 px-1 rounded text-gray-300">{`{{ variableName }}`}</code> to insert variables into your template. 
-                      You can also use loops and conditionals like <code className="bg-white/10 px-1 rounded text-gray-300">{`{% if ... %}`}</code>.
+                      使用 <code className="bg-white/10 px-1 rounded text-gray-300">{`{{ 变量名 }}`}</code> 在模板中插入变量。
+                      也可以使用循环和条件语句，如 <code className="bg-white/10 px-1 rounded text-gray-300">{`{% if ... %}`}</code>。
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Test Data</h3>
+                  <h3 className="text-sm font-medium text-gray-300 mb-2">测试数据</h3>
                   <div className="space-y-3">
                     {selectedTemplate.variables?.map((v) => (
                       <div key={v.name} className="space-y-1">
@@ -371,12 +371,12 @@ export default function TemplatesPage() {
                           value={previewData[v.name] || ''}
                           onChange={(e) => setPreviewData({ ...previewData, [v.name]: e.target.value })}
                           className="glass-input w-full px-3 py-2 rounded-lg text-sm"
-                          placeholder={`Value for ${v.name}`}
+                          placeholder={`${v.name} 的值`}
                         />
                       </div>
                     ))}
                     {(!selectedTemplate.variables || selectedTemplate.variables.length === 0) && (
-                      <p className="text-xs text-gray-500 italic">No variables to configure.</p>
+                      <p className="text-xs text-gray-500 italic">暂无变量可配置</p>
                     )}
                   </div>
                   
@@ -385,7 +385,7 @@ export default function TemplatesPage() {
                     disabled={isPreviewLoading}
                     className="w-full btn-secondary py-2 rounded-xl text-sm flex items-center justify-center gap-2 mt-4"
                   >
-                    {isPreviewLoading ? 'Rendering...' : 'Run Preview'}
+                    {isPreviewLoading ? '渲染中...' : '运行预览'}
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -394,7 +394,7 @@ export default function TemplatesPage() {
                   
                   {previewResult && (
                     <div className="mt-6 space-y-2">
-                      <h3 className="text-sm font-medium text-gray-300">Result</h3>
+                      <h3 className="text-sm font-medium text-gray-300">渲染结果</h3>
                       <div className="bg-black/30 rounded-xl p-4 text-sm text-gray-300 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto border border-white/10">
                         {previewResult}
                       </div>
@@ -406,7 +406,7 @@ export default function TemplatesPage() {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-8 text-center opacity-50">
-            <p>Select a template to configure variables and preview.</p>
+            <p>选择模板以配置变量和预览</p>
           </div>
         )}
       </div>

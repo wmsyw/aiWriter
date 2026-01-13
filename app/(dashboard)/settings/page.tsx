@@ -318,7 +318,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'providers' && (
-        <div id="panel-providers" role="tabpanel" aria-labelledby="tab-providers" className="space-y-6">
+        <div id="panel-providers" role="tabpanel" aria-labelledby="tab-providers" className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl font-bold text-white">AI 服务商配置</h2>
@@ -419,7 +419,7 @@ export default function SettingsPage() {
       )}
 
       {activeTab === 'account' && (
-        <div id="panel-account" role="tabpanel" aria-labelledby="tab-account" className="max-w-xl">
+        <div id="panel-account" role="tabpanel" aria-labelledby="tab-account" className="max-w-xl animate-fade-in">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-white">账号安全</h2>
             <p className="text-gray-400 text-sm mt-1">修改密码和账号安全设置</p>
@@ -486,7 +486,7 @@ export default function SettingsPage() {
       )}
 
       {activeTab === 'preferences' && (
-        <div id="panel-preferences" role="tabpanel" aria-labelledby="tab-preferences" className="max-w-xl">
+        <div id="panel-preferences" role="tabpanel" aria-labelledby="tab-preferences" className="max-w-xl animate-fade-in">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-white">偏好设置</h2>
             <p className="text-gray-400 text-sm mt-1">自定义编辑器和界面设置</p>

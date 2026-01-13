@@ -41,6 +41,7 @@ export default function AgentsPage() {
   const [currentAgent, setCurrentAgent] = useState<Partial<Agent>>({});
   const [saving, setSaving] = useState(false);
   const [customModel, setCustomModel] = useState('');
+  const [useCustomModel, setUseCustomModel] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -71,7 +72,11 @@ export default function AgentsPage() {
   const handleOpenModal = (agent?: Agent) => {
     if (agent) {
       setCurrentAgent(agent);
-      setCustomModel('');
+      const provider = providers.find(p => p.id === agent.providerConfigId);
+      const providerModels = provider?.models || [];
+      const isCustom = Boolean(agent.model && providerModels.length > 0 && !providerModels.includes(agent.model));
+      setUseCustomModel(isCustom);
+      setCustomModel(isCustom && agent.model ? agent.model : '');
     } else {
       setCurrentAgent({
         name: '',
@@ -81,6 +86,7 @@ export default function AgentsPage() {
           maxTokens: 1000,
         }
       });
+      setUseCustomModel(false);
       setCustomModel('');
     }
     setIsModalOpen(true);
@@ -268,10 +274,17 @@ export default function AgentsPage() {
                       <div className="space-y-2">
                         {availableModels.length > 0 && (
                           <select
-                            value={currentAgent.model || ''}
+                            value={useCustomModel ? '__custom__' : (currentAgent.model || '')}
                             onChange={e => {
-                              setCurrentAgent({...currentAgent, model: e.target.value});
-                              setCustomModel('');
+                              if (e.target.value === '__custom__') {
+                                setUseCustomModel(true);
+                                setCustomModel('');
+                                setCurrentAgent({...currentAgent, model: ''});
+                              } else {
+                                setUseCustomModel(false);
+                                setCustomModel('');
+                                setCurrentAgent({...currentAgent, model: e.target.value});
+                              }
                             }}
                             className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
                           >
@@ -282,17 +295,16 @@ export default function AgentsPage() {
                             <option value="__custom__" className="bg-gray-900">自定义模型...</option>
                           </select>
                         )}
-                        {(availableModels.length === 0 || currentAgent.model === '__custom__') && (
+                        {(availableModels.length === 0 || useCustomModel) && (
                           <input
                             type="text"
-                            value={currentAgent.model === '__custom__' ? customModel : (currentAgent.model || '')}
+                            value={useCustomModel ? customModel : (currentAgent.model || '')}
                             onChange={e => {
-                              if (currentAgent.model === '__custom__') {
-                                setCustomModel(e.target.value);
-                                setCurrentAgent({...currentAgent, model: e.target.value});
-                              } else {
-                                setCurrentAgent({...currentAgent, model: e.target.value});
+                              const value = e.target.value;
+                              if (useCustomModel) {
+                                setCustomModel(value);
                               }
+                              setCurrentAgent({...currentAgent, model: value});
                             }}
                             className="w-full glass-input px-4 py-2 rounded-lg"
                             placeholder="输入模型名称，如 gpt-4o"

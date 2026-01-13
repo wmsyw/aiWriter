@@ -231,10 +231,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                </svg>
              </button>
              
-             {showNotifications && (
-               <div className="absolute right-0 top-12 w-80 glass-card rounded-xl shadow-2xl border border-white/10 overflow-hidden animate-fade-in">
-                 <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                   <h3 className="font-bold text-white">通知</h3>
+{showNotifications && (
+                <div className="absolute right-0 top-12 w-80 bg-gray-900/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/10 overflow-hidden animate-fade-in">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+                    <h3 className="font-bold text-white">通知</h3>
                    <Link href="/jobs" className="text-xs text-indigo-400 hover:text-indigo-300">
                      查看全部
                    </Link>

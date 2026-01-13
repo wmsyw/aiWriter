@@ -64,15 +64,15 @@ export default function AdminPage() {
   }
 
   const tabs = [
-    { id: 'users', label: 'Users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
-    { id: 'audit', label: 'Audit Log', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-    { id: 'pricing', label: 'Model Pricing', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { id: 'usage', label: 'Usage Stats', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+    { id: 'users', label: '用户管理', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+    { id: 'audit', label: '审计日志', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { id: 'pricing', label: '模型定价', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { id: 'usage', label: '使用统计', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
   ];
 
   return (
     <div className="p-8 animate-fade-in">
-      <h1 className="text-3xl font-bold text-gradient mb-8">Admin Panel</h1>
+      <h1 className="text-3xl font-bold text-gradient mb-8">管理后台</h1>
 
       <div className="flex gap-2 mb-8">
         {tabs.map(tab => (
@@ -101,33 +101,33 @@ export default function AdminPage() {
         <>
           {activeTab === 'users' && (
             <div className="glass-card rounded-2xl p-6">
-              <h2 className="text-xl font-semibold mb-4">User Management</h2>
-              <p className="text-gray-400">User management features coming soon.</p>
-              <p className="text-gray-500 mt-2 text-sm">Current implementation uses direct database access.</p>
+              <h2 className="text-xl font-semibold mb-4">用户管理</h2>
+              <p className="text-gray-400">用户管理功能即将上线</p>
+              <p className="text-gray-500 mt-2 text-sm">当前版本使用数据库直接管理</p>
             </div>
           )}
 
           {activeTab === 'audit' && (
             <div className="glass-card rounded-2xl p-6">
-              <h2 className="text-xl font-semibold mb-4">Audit Log</h2>
+              <h2 className="text-xl font-semibold mb-4">审计日志</h2>
               <div className="space-y-2">
                 {auditEvents.length === 0 ? (
-                  <p className="text-gray-400">No audit events found.</p>
+                  <p className="text-gray-400">暂无审计记录</p>
                 ) : (
                   <table className="w-full">
                     <thead>
                       <tr className="text-left text-gray-400 border-b border-white/10">
-                        <th className="pb-2">Time</th>
-                        <th className="pb-2">Action</th>
-                        <th className="pb-2">Resource</th>
-                        <th className="pb-2">Status</th>
+                        <th className="pb-2">时间</th>
+                        <th className="pb-2">操作</th>
+                        <th className="pb-2">资源</th>
+                        <th className="pb-2">状态</th>
                       </tr>
                     </thead>
                     <tbody>
                       {auditEvents.slice(0, 50).map(event => (
                         <tr key={event.id} className="border-b border-white/5">
                           <td className="py-2 text-sm text-gray-400">
-                            {new Date(event.createdAt).toLocaleString()}
+                            {new Date(event.createdAt).toLocaleString('zh-CN')}
                           </td>
                           <td className="py-2 font-mono text-sm">{event.action}</td>
                           <td className="py-2 text-sm">
@@ -138,7 +138,7 @@ export default function AdminPage() {
                             <span className={`px-2 py-0.5 rounded text-xs ${
                               event.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                             }`}>
-                              {event.success ? 'Success' : 'Failed'}
+                              {event.success ? '成功' : '失败'}
                             </span>
                           </td>
                         </tr>
@@ -153,12 +153,12 @@ export default function AdminPage() {
           {activeTab === 'pricing' && (
             <div className="glass-card rounded-2xl p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Model Pricing</h2>
+                <h2 className="text-xl font-semibold">模型定价</h2>
                 <button className="btn-primary px-4 py-2 rounded-lg text-sm">
-                  Add Model
+                  添加模型
                 </button>
               </div>
-              <p className="text-gray-400 mb-4">Configure token prices per model for cost tracking.</p>
+              <p className="text-gray-400 mb-4">配置各模型的 Token 价格以追踪成本</p>
               
               <div className="grid gap-4">
                 {[
@@ -175,8 +175,8 @@ export default function AdminPage() {
                       <p className="font-medium">{price.model}</p>
                     </div>
                     <div className="text-right text-sm">
-                      <p className="text-gray-400">Input: ${price.promptPrice}/M tokens</p>
-                      <p className="text-gray-400">Output: ${price.completionPrice}/M tokens</p>
+                      <p className="text-gray-400">输入: ${price.promptPrice}/百万Token</p>
+                      <p className="text-gray-400">输出: ${price.completionPrice}/百万Token</p>
                     </div>
                   </div>
                 ))}
@@ -186,22 +186,22 @@ export default function AdminPage() {
 
           {activeTab === 'usage' && (
             <div className="glass-card rounded-2xl p-6">
-              <h2 className="text-xl font-semibold mb-4">Usage Statistics</h2>
+              <h2 className="text-xl font-semibold mb-4">使用统计</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="p-4 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-xl">
-                  <p className="text-gray-400 text-sm">Total Tokens</p>
+                  <p className="text-gray-400 text-sm">总 Token 数</p>
                   <p className="text-2xl font-bold">0</p>
                 </div>
                 <div className="p-4 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl">
-                  <p className="text-gray-400 text-sm">Total Cost</p>
+                  <p className="text-gray-400 text-sm">总费用</p>
                   <p className="text-2xl font-bold">$0.00</p>
                 </div>
                 <div className="p-4 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl">
-                  <p className="text-gray-400 text-sm">Jobs Completed</p>
+                  <p className="text-gray-400 text-sm">已完成任务</p>
                   <p className="text-2xl font-bold">0</p>
                 </div>
               </div>
-              <p className="text-gray-400">Detailed usage analytics will appear here as you use the platform.</p>
+              <p className="text-gray-400">使用平台后，详细的使用分析将在此显示</p>
             </div>
           )}
         </>
