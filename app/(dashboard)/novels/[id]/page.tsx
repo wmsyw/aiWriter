@@ -29,7 +29,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
+  const [editedDescription, setEditedDescription] = useState('');
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,6 +45,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           const novelData = await novelRes.json();
           setNovel(novelData);
           setEditedTitle(novelData.title);
+          setEditedDescription(novelData.description || '');
         }
         
         if (chaptersRes.ok) {
@@ -80,6 +83,35 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       console.error('Failed to update title', error);
     } finally {
       setIsEditingTitle(false);
+    }
+  };
+
+  const handleUpdateDescription = async () => {
+    if (editedDescription === (novel?.description || '')) return;
+
+    try {
+      const res = await fetch(`/api/novels/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: editedDescription }),
+      });
+
+      if (res.ok) {
+        setNovel(prev => prev ? { ...prev, description: editedDescription } : null);
+      }
+    } catch (error) {
+      console.error('Failed to update description', error);
+    }
+  };
+
+  const handleDeleteNovel = async () => {
+    try {
+      const res = await fetch(`/api/novels/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        router.push('/novels');
+      }
+    } catch (error) {
+      console.error('Failed to delete novel', error);
     }
   };
 
@@ -259,12 +291,35 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         )}
 
         {activeTab === 'materials' && (
-          <div className="animate-slide-up py-12 text-center">
-            <div className="glass-card p-8 rounded-2xl inline-block max-w-sm">
-              <h3 className="text-xl font-bold text-white mb-2">素材功能即将上线</h3>
-              <p className="text-gray-400">
-                在这里整理你的角色、地点和情节笔记。
+          <div className="animate-slide-up">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-white">素材库</h2>
+              <Link
+                href={`/novels/${id}/materials`}
+                className="btn-primary px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                打开素材库
+              </Link>
+            </div>
+            <div className="glass-card p-8 rounded-2xl text-center">
+              <div className="w-16 h-16 mx-auto bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">管理你的创作素材</h3>
+              <p className="text-gray-400 mb-6">
+                在素材库中整理角色、地点、情节要点和世界观设定。
               </p>
+              <Link
+                href={`/novels/${id}/materials`}
+                className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+              >
+                进入素材库 →
+              </Link>
             </div>
           </div>
         )}
@@ -289,7 +344,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     <textarea 
                       className="glass-input w-full px-4 py-2 rounded-xl h-32 resize-none"
                       placeholder="添加简介..."
-                      defaultValue={novel.description}
+                      value={editedDescription}
+                      onChange={(e) => setEditedDescription(e.target.value)}
+                      onBlur={handleUpdateDescription}
                     />
                   </div>
                 </div>
@@ -297,10 +354,36 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
               <div className="pt-6 border-t border-white/10">
                 <h3 className="text-lg font-bold text-red-400 mb-4">危险区域</h3>
-                <button className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-colors">
+                <button 
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-colors"
+                >
                   删除小说
                 </button>
               </div>
+
+              {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4 space-y-4">
+                    <h3 className="text-lg font-bold text-white">确认删除</h3>
+                    <p className="text-gray-400">确定要删除《{novel.title}》吗？此操作不可撤销，所有章节和素材都将被永久删除。</p>
+                    <div className="flex gap-3 justify-end">
+                      <button 
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        取消
+                      </button>
+                      <button 
+                        onClick={handleDeleteNovel}
+                        className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
+                      >
+                        确认删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

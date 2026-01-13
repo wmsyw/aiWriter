@@ -5,7 +5,7 @@ import { getSessionUser } from '@/src/server/middleware/audit';
 
 const createSchema = z.object({
   title: z.string().min(1),
-  content: z.string(),
+  content: z.string().optional().default(''),
   order: z.number().int().min(0),
 });
 

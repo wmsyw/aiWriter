@@ -155,7 +155,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </div>
         
-        <nav className="flex-1 px-3 lg:px-4 space-y-1.5 overflow-y-auto py-2 custom-scrollbar">
+        <nav className="flex-1 px-3 lg:px-4 space-y-1.5 overflow-y-auto py-2 custom-scrollbar mb-[88px]">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             return (
@@ -178,7 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/5 bg-black/20 flex-shrink-0">
+        <div className="absolute bottom-0 left-0 w-full p-4 border-t border-white/5 bg-black/20 backdrop-blur-md">
             <div className="flex items-center gap-3 px-2">
              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs text-white shadow-lg ring-2 ring-white/10">
                作者

@@ -15,12 +15,12 @@ interface Material {
 }
 
 const TABS: { id: MaterialType | 'all'; label: string }[] = [
-  { id: 'all', label: 'All Materials' },
-  { id: 'character', label: 'Characters' },
-  { id: 'location', label: 'Locations' },
-  { id: 'plotPoint', label: 'Plot Points' },
-  { id: 'worldbuilding', label: 'Worldbuilding' },
-  { id: 'custom', label: 'Custom' },
+  { id: 'all', label: '全部素材' },
+  { id: 'character', label: '角色' },
+  { id: 'location', label: '地点' },
+  { id: 'plotPoint', label: '情节点' },
+  { id: 'worldbuilding', label: '世界观' },
+  { id: 'custom', label: '自定义' },
 ];
 
 export default function MaterialsPage() {
@@ -96,8 +96,8 @@ export default function MaterialsPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gradient mb-2">Materials Library</h1>
-          <p className="text-gray-400">Manage your story elements, characters, and world details.</p>
+          <h1 className="text-3xl font-bold text-gradient mb-2">素材库</h1>
+          <p className="text-gray-400">管理你的故事元素、角色和世界观设定</p>
         </div>
         <button 
           onClick={handleOpenCreate}
@@ -106,7 +106,7 @@ export default function MaterialsPage() {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add Material
+          添加素材
         </button>
       </div>
 
@@ -133,7 +133,7 @@ export default function MaterialsPage() {
           </svg>
           <input
             type="text"
-            placeholder="Search materials..."
+            placeholder="搜索素材..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="glass-input w-full pl-10 pr-4 py-2 rounded-xl text-sm"
@@ -164,8 +164,8 @@ export default function MaterialsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
-          <p className="text-xl font-medium text-gray-300">No materials found</p>
-          <p className="text-sm text-gray-500 mt-1">Create your first {activeTab !== 'all' ? activeTab.toLowerCase() : 'material'} to get started.</p>
+          <p className="text-xl font-medium text-gray-300">暂无素材</p>
+          <p className="text-sm text-gray-500 mt-1">创建你的第一个{activeTab !== 'all' ? TABS.find(t => t.id === activeTab)?.label : '素材'}开始吧</p>
         </div>
       )}
 
@@ -215,8 +215,28 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
   };
 
   const getExcerpt = (data: Record<string, any>) => {
-    const text = Object.values(data).filter(v => typeof v === 'string').join(' ');
-    return text.length > 100 ? text.slice(0, 100) + '...' : text || 'No details provided.';
+    const parts: string[] = [];
+    if (typeof data.description === 'string' && data.description) {
+      parts.push(data.description);
+    }
+    if (data.attributes && typeof data.attributes === 'object') {
+      Object.values(data.attributes).forEach(v => {
+        if (typeof v === 'string' && v) parts.push(v);
+      });
+    }
+    const text = parts.join(' ');
+    return text.length > 100 ? text.slice(0, 100) + '...' : text || '暂无详情';
+  };
+
+  const getTypeLabel = (type: MaterialType) => {
+    const labels: Record<MaterialType, string> = {
+      character: '角色',
+      location: '地点',
+      plotPoint: '情节点',
+      worldbuilding: '世界观',
+      custom: '自定义',
+    };
+    return labels[type] || type;
   };
 
   return (
@@ -231,8 +251,8 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
           <div className="p-2.5 rounded-xl bg-white/5 text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500/10 transition-all duration-300">
             {getIcon(material.type)}
           </div>
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider bg-white/5 px-2 py-1 rounded-lg">
-            {material.type}
+          <span className="text-xs font-medium text-gray-500 bg-white/5 px-2 py-1 rounded-lg">
+            {getTypeLabel(material.type)}
           </span>
         </div>
         
@@ -288,7 +308,7 @@ function MaterialModal({
   };
 
   const addAttribute = () => {
-    const key = prompt('Enter attribute name (e.g., Age, Role, Climate):');
+    const key = prompt('输入属性名称（例如：年龄、职业、气候）：');
     if (key) {
       setAttributes(prev => ({ ...prev, [key]: '' }));
     }
@@ -310,7 +330,7 @@ function MaterialModal({
       <div className="glass-card w-full max-w-2xl p-8 rounded-2xl relative z-10 animate-slide-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-bold text-gradient">
-            {initialData ? 'Edit Material' : 'Create Material'}
+            {initialData ? '编辑素材' : '创建素材'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -322,19 +342,19 @@ function MaterialModal({
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">Name</label>
+              <label className="block text-sm font-medium text-gray-300">名称</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="glass-input w-full px-4 py-3 rounded-xl"
-                placeholder="E.g., John Doe, The Dark Tower..."
+                placeholder="例如：张三、黑暗塔..."
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">Type</label>
+              <label className="block text-sm font-medium text-gray-300">类型</label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as MaterialType)}
@@ -348,24 +368,24 @@ function MaterialModal({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">Description</label>
+            <label className="block text-sm font-medium text-gray-300">描述</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="glass-input w-full px-4 py-3 rounded-xl min-h-[150px] resize-none"
-              placeholder="Detailed description..."
+              placeholder="详细描述..."
             />
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-300">Attributes</label>
+              <label className="block text-sm font-medium text-gray-300">属性</label>
               <button 
                 type="button" 
                 onClick={addAttribute}
                 className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors"
               >
-                + Add Attribute
+                + 添加属性
               </button>
             </div>
             
@@ -389,13 +409,13 @@ function MaterialModal({
                     value={value}
                     onChange={(e) => handleAttributeChange(key, e.target.value)}
                     className="bg-transparent w-full text-sm outline-none border-none p-0 focus:ring-0"
-                    placeholder="Value..."
+                    placeholder="值..."
                   />
                 </div>
               ))}
               {Object.keys(attributes).length === 0 && (
                 <div className="col-span-full text-center py-4 border border-dashed border-white/10 rounded-xl text-gray-500 text-sm">
-                  No attributes added. Click "+ Add Attribute" to define custom fields.
+                  暂无属性。点击"+ 添加属性"来定义自定义字段。
                 </div>
               )}
             </div>
@@ -407,14 +427,14 @@ function MaterialModal({
               onClick={onClose}
               className="btn-secondary px-6 py-2.5 rounded-xl text-sm"
             >
-              Cancel
+              取消
             </button>
             <button
               type="submit"
               disabled={isSaving}
               className="btn-primary px-6 py-2.5 rounded-xl text-sm flex items-center gap-2"
             >
-              {isSaving ? 'Saving...' : initialData ? 'Update Material' : 'Create Material'}
+              {isSaving ? '保存中...' : initialData ? '更新素材' : '创建素材'}
             </button>
           </div>
         </form>

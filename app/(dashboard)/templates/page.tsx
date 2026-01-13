@@ -30,6 +30,7 @@ export default function TemplatesPage() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -154,7 +155,7 @@ export default function TemplatesPage() {
     setHasChanges(true);
   };
 
-  const updateVariable = (index: number, field: keyof Variable, value: any) => {
+  const updateVariable = (index: number, field: keyof Variable, value: VariableValue) => {
     if (!selectedTemplate) return;
     const newVars = [...(selectedTemplate.variables || [])];
     newVars[index] = { ...newVars[index], [field]: value };
@@ -177,6 +178,39 @@ export default function TemplatesPage() {
     alert(`已复制 "${tag}" 到剪贴板，请粘贴到编辑器中。`);
   };
 
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    
+    const newTemplates = [...templates];
+    const draggedItem = newTemplates[draggedIndex];
+    newTemplates.splice(draggedIndex, 1);
+    newTemplates.splice(index, 0, draggedItem);
+    setTemplates(newTemplates);
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = async () => {
+    if (draggedIndex === null) return;
+    setDraggedIndex(null);
+    
+    const orderData = templates.map((t, i) => ({ id: t.id, order: i }));
+    try {
+      await fetch('/api/templates/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: orderData }),
+      });
+    } catch (error) {
+      console.error('Failed to save order:', error);
+      fetchTemplates();
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-4 p-4 md:p-8 animate-fade-in">
       <div className="w-full md:w-64 flex-shrink-0 flex flex-col glass-card rounded-2xl overflow-hidden">
@@ -194,21 +228,36 @@ export default function TemplatesPage() {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {isLoading ? (
             [1, 2, 3].map(i => <div key={i} className="h-10 bg-white/5 rounded-xl animate-pulse" />)
-          ) : templates.map(template => (
-            <button
+          ) : templates.map((template, index) => (
+            <div
               key={template.id}
-              onClick={() => handleSelectTemplate(template)}
-              className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all ${
-                selectedTemplate?.id === template.id
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragEnd={handleDragEnd}
+              className={`flex items-center gap-2 rounded-xl transition-all ${
+                draggedIndex === index ? 'opacity-50' : ''
               }`}
             >
-              <div className="font-medium truncate">{template.name}</div>
-              <div className="text-xs opacity-60 truncate">
-                {new Date(template.updatedAt).toLocaleDateString()}
+              <div className="p-1 text-gray-600 cursor-grab active:cursor-grabbing">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                </svg>
               </div>
-            </button>
+              <button
+                onClick={() => handleSelectTemplate(template)}
+                className={`flex-1 text-left px-3 py-2.5 rounded-lg text-sm transition-all ${
+                  selectedTemplate?.id === template.id
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <div className="font-medium truncate">{template.name}</div>
+                <div className="text-xs opacity-60 truncate">
+                  {new Date(template.updatedAt).toLocaleDateString()}
+                </div>
+              </button>
+            </div>
           ))}
           {templates.length === 0 && !isLoading && (
             <div className="text-center py-8 text-gray-500 text-sm">
