@@ -1,0 +1,208 @@
+import { prisma } from '../db';
+
+export interface AgentParams {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+}
+
+export interface AgentDefinition {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  templateId: string | null;
+  providerConfigId: string | null;
+  model: string | null;
+  params: AgentParams | null;
+  isBuiltIn: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateAgentInput {
+  userId: string;
+  name: string;
+  description?: string;
+  templateId?: string;
+  providerConfigId?: string;
+  model?: string;
+  params?: AgentParams;
+  isBuiltIn?: boolean;
+}
+
+export interface UpdateAgentInput {
+  name?: string;
+  description?: string;
+  templateId?: string;
+  providerConfigId?: string;
+  model?: string;
+  params?: AgentParams;
+}
+
+export const BUILT_IN_AGENTS = {
+  CHAPTER_WRITER: {
+    name: '章节写手',
+    description: '根据大纲和上下文生成小说章节，支持多种网文类型',
+    templateName: '章节写作',
+    defaultParams: { temperature: 0.8, maxTokens: 8000, topP: 0.95, frequencyPenalty: 0.1, presencePenalty: 0.1 },
+  },
+  REVIEWER: {
+    name: '章节评审',
+    description: '从多个维度专业评审章节质量，给出评分和改进建议',
+    templateName: '章节评审',
+    defaultParams: { temperature: 0.3, maxTokens: 4000 },
+  },
+  HUMANIZER: {
+    name: '去AI化润色',
+    description: '改写AI生成的内容，使其更自然、更有"人味"',
+    templateName: '去AI化改写',
+    defaultParams: { temperature: 0.9, maxTokens: 8000, frequencyPenalty: 0.4, presencePenalty: 0.4 },
+  },
+  MEMORY_EXTRACTOR: {
+    name: '记忆提取器',
+    description: '从章节中提取结构化信息，维护故事连贯性',
+    templateName: '记忆提取',
+    defaultParams: { temperature: 0.2, maxTokens: 4000 },
+  },
+  CONSISTENCY_CHECKER: {
+    name: '一致性检查',
+    description: '检查章节与已有设定的一致性，发现矛盾和漏洞',
+    templateName: '一致性检查',
+    defaultParams: { temperature: 0.2, maxTokens: 4000 },
+  },
+  CHARACTER_CHAT: {
+    name: '角色对话',
+    description: '与小说中的角色进行对话，测试角色设定和性格',
+    templateName: '角色对话',
+    defaultParams: { temperature: 0.8, maxTokens: 2000, topP: 0.9 },
+  },
+  OUTLINE_GENERATOR: {
+    name: '大纲生成器',
+    description: '根据关键词、主题、风格等要求自动生成完整小说大纲',
+    templateName: '大纲生成',
+    defaultParams: { temperature: 0.7, maxTokens: 8000, topP: 0.95 },
+  },
+  ARTICLE_ANALYZER: {
+    name: '文章分析器',
+    description: '分析上传的文章，提取要素、写作技巧和总结，存入专属素材库',
+    templateName: '文章分析',
+    defaultParams: { temperature: 0.3, maxTokens: 6000 },
+  },
+};
+
+export async function createAgent(input: CreateAgentInput): Promise<AgentDefinition> {
+  return prisma.agentDefinition.create({
+    data: {
+      userId: input.userId,
+      name: input.name,
+      description: input.description || null,
+      templateId: input.templateId || null,
+      providerConfigId: input.providerConfigId || null,
+      model: input.model || null,
+      params: input.params as any || null,
+      isBuiltIn: input.isBuiltIn || false,
+    },
+  }) as unknown as AgentDefinition;
+}
+
+export async function getAgent(id: string): Promise<AgentDefinition | null> {
+  return prisma.agentDefinition.findUnique({ where: { id } }) as unknown as AgentDefinition | null;
+}
+
+export async function listAgents(userId: string, options?: { includeBuiltIn?: boolean }): Promise<AgentDefinition[]> {
+  const where: any = { userId };
+  if (options?.includeBuiltIn === false) where.isBuiltIn = false;
+  
+  return prisma.agentDefinition.findMany({
+    where,
+    orderBy: [{ isBuiltIn: 'desc' }, { name: 'asc' }],
+  }) as unknown as AgentDefinition[];
+}
+
+export async function updateAgent(id: string, input: UpdateAgentInput): Promise<AgentDefinition> {
+  const agent = await getAgent(id);
+  if (!agent) throw new Error('Agent not found');
+  
+  if (agent.isBuiltIn) {
+    const allowedUpdates: any = {};
+    if (input.providerConfigId !== undefined) allowedUpdates.providerConfigId = input.providerConfigId;
+    if (input.model !== undefined) allowedUpdates.model = input.model;
+    return prisma.agentDefinition.update({ where: { id }, data: allowedUpdates }) as unknown as AgentDefinition;
+  }
+  
+  const updateData: any = {};
+  if (input.name !== undefined) updateData.name = input.name;
+  if (input.description !== undefined) updateData.description = input.description;
+  if (input.templateId !== undefined) updateData.templateId = input.templateId;
+  if (input.providerConfigId !== undefined) updateData.providerConfigId = input.providerConfigId;
+  if (input.model !== undefined) updateData.model = input.model;
+  if (input.params !== undefined) updateData.params = input.params;
+  
+  return prisma.agentDefinition.update({ where: { id }, data: updateData }) as unknown as AgentDefinition;
+}
+
+export async function deleteAgent(id: string): Promise<void> {
+  const agent = await getAgent(id);
+  if (!agent) throw new Error('Agent not found');
+  if (agent.isBuiltIn) throw new Error('Cannot delete built-in agents');
+  await prisma.agentDefinition.delete({ where: { id } });
+}
+
+export async function getAgentByName(userId: string, name: string): Promise<AgentDefinition | null> {
+  return prisma.agentDefinition.findFirst({ where: { userId, name } }) as unknown as AgentDefinition | null;
+}
+
+export async function seedBuiltInAgents(userId: string): Promise<number> {
+  const templates = await prisma.promptTemplate.findMany({ where: { userId } });
+  const templateMap = new Map(templates.map(t => [t.name, t.id]));
+  let count = 0;
+  
+  for (const [key, agentDef] of Object.entries(BUILT_IN_AGENTS)) {
+    const existing = await prisma.agentDefinition.findFirst({
+      where: { userId, name: agentDef.name, isBuiltIn: true },
+    });
+    
+    if (!existing) {
+      const templateId = templateMap.get(agentDef.templateName) || null;
+      await prisma.agentDefinition.create({
+        data: {
+          userId,
+          name: agentDef.name,
+          description: agentDef.description,
+          templateId,
+          params: agentDef.defaultParams as any,
+          isBuiltIn: true,
+        },
+      });
+      count++;
+    }
+  }
+  
+  return count;
+}
+
+export async function initializeUserAgents(userId: string): Promise<{ templates: number; agents: number }> {
+  const { seedBuiltInTemplates } = await import('./templates');
+  const templates = await seedBuiltInTemplates(userId);
+  const agents = await seedBuiltInAgents(userId);
+  return { templates, agents };
+}
+
+export async function duplicateAgent(id: string, newName: string): Promise<AgentDefinition> {
+  const agent = await getAgent(id);
+  if (!agent) throw new Error('Agent not found');
+  
+  return createAgent({
+    userId: agent.userId,
+    name: newName,
+    description: agent.description || undefined,
+    templateId: agent.templateId || undefined,
+    providerConfigId: agent.providerConfigId || undefined,
+    model: agent.model || undefined,
+    params: agent.params || undefined,
+    isBuiltIn: false,
+  });
+}

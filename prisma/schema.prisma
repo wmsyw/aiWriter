@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  password         String
+  role             String           @default("user")
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  preferences      Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  providerConfigs  ProviderConfig[]
+  novels           Novel[]
+
+  @@index([resetToken])
+}
+
+model ProviderConfig {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  providerType    String
+  baseURL         String
+  apiKeyCiphertext String
+  defaultModel    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Novel {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  chapters        Chapter[]
+  materials       Material[]
+  lorebookEntries LorebookEntry[]
+
+  @@index([userId])
+}
+
+model Chapter {
+  id               String           @id @default(cuid())
+  novelId          String
+  novel            Novel            @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  title            String
+  order            Int
+  content          String           @db.Text
+  currentVersionId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  versions         ChapterVersion[]
+
+  @@unique([novelId, order])
+  @@index([novelId])
+}
+
+model ChapterVersion {
+  id              String   @id @default(cuid())
+  chapterId       String
+  chapter         Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  content         String   @db.Text
+  isBranch        Boolean  @default(false)
+  branchNumber    Int?
+  parentVersionId String?
+  createdAt       DateTime @default(now())
+
+  @@index([chapterId])
+  @@index([chapterId, isBranch])
+}
+
+model LorebookEntry {
+  id                String   @id @default(cuid())
+  novelId           String
+  novel             Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  keys              String[]
+  content           String   @db.Text
+  priority          Int      @default(50)
+  isEnabled         Boolean  @default(true)
+  insertionPosition String   @default("before")
+  activationRules   Json?
+  category          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([novelId])
+  @@index([novelId, isEnabled])
+}
+
+model Material {
+  id        String   @id @default(cuid())
+  novelId   String
+  novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String
+  name      String
+  genre     String   @default("通用")
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([novelId])
+  @@index([userId])
+  @@index([type])
+  @@index([genre])
+}
+
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  content   String   @db.Text
+  variables Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model AgentDefinition {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  description      String?
+  templateId       String?
+  providerConfigId String?
+  model            String?
+  params           Json?
+  isBuiltIn        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model MemorySnapshot {
+  id        String   @id @default(cuid())
+  chapterId String
+  novelId   String
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([chapterId])
+  @@index([novelId])
+}
+
+model JobChunk {
+  id        String   @id @default(cuid())
+  jobId     String
+  seq       Int
+  kind      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([jobId, seq])
+}
+
+model UsageRecord {
+  id               String   @id @default(cuid())
+  userId           String
+  jobId            String?
+  provider         String
+  model            String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  estimatedCost    Float?
+  createdAt        DateTime @default(now())
+
+  @@unique([jobId, provider, model])
+  @@index([userId])
+  @@index([jobId])
+}
+
+model ModelPrice {
+  id                    String   @id @default(cuid())
+  provider              String
+  model                 String
+  promptTokenPrice      Float
+  completionTokenPrice  Float
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([provider, model])
+}
+
+model Job {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String
+  status       String   @default("queued")
+  input        Json?
+  output       Json?
+  error        String?
+  attemptCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model FileObject {
+  id        String   @id @default(cuid())
+  userId    String
+  novelId   String?
+  filename  String
+  mimeType  String
+  size      Int
+  path      String
+  sha256    String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([novelId])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  success     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model ArticleAnalysis {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  content   String   @db.Text
+  genre     String?
+  analysis  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model AnalysisTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  aspects     Json
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model RateLimit {
+  key       String   @id
+  count     Int      @default(1)
+  resetTime DateTime
+
+  @@index([resetTime])
+}

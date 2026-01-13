@@ -1,0 +1,200 @@
+import { prisma } from '../db';
+import { diffChars } from 'diff';
+import type { PrismaClient, Prisma } from '@prisma/client';
+
+type TxClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+
+export interface VersionInfo {
+  id: string;
+  chapterId: string;
+  content: string;
+  isBranch: boolean;
+  branchNumber: number | null;
+  parentVersionId: string | null;
+  createdAt: Date;
+}
+
+export interface BranchInfo {
+  branchNumber: number;
+  versionId: string;
+  preview: string;
+  createdAt: Date;
+}
+
+export interface DiffResult {
+  added: number;
+  removed: number;
+  changes: Array<{ value: string; added?: boolean; removed?: boolean }>;
+}
+
+export async function saveVersion(chapterId: string, content: string, tx?: TxClient): Promise<VersionInfo> {
+  const client = tx || prisma;
+  
+  if (tx) {
+    const version = await client.chapterVersion.create({
+      data: { chapterId, content },
+    });
+    await client.chapter.update({
+      where: { id: chapterId },
+      data: { currentVersionId: version.id },
+    });
+    return version as unknown as VersionInfo;
+  }
+  
+  return prisma.$transaction(async (txClient) => {
+    const version = await txClient.chapterVersion.create({
+      data: { chapterId, content },
+    });
+
+    await txClient.chapter.update({
+      where: { id: chapterId },
+      data: { currentVersionId: version.id },
+    });
+
+    return version as unknown as VersionInfo;
+  });
+}
+
+export async function saveBranchVersions(
+  chapterId: string,
+  branches: Array<{ content: string; branchNumber: number }>,
+  parentVersionId?: string | null
+): Promise<VersionInfo[]> {
+  return prisma.$transaction(async (tx) => {
+    const versions: VersionInfo[] = [];
+    for (const branch of branches) {
+      const version = await tx.chapterVersion.create({
+        data: {
+          chapterId,
+          content: branch.content,
+          isBranch: true,
+          branchNumber: branch.branchNumber,
+          parentVersionId: parentVersionId || null,
+        },
+      });
+      versions.push(version as unknown as VersionInfo);
+    }
+    return versions;
+  });
+}
+
+export async function getBranches(chapterId: string): Promise<BranchInfo[]> {
+  const branches = await prisma.chapterVersion.findMany({
+    where: { chapterId, isBranch: true },
+    orderBy: [{ createdAt: 'desc' }, { branchNumber: 'asc' }],
+  });
+  
+  return branches.map(b => ({
+    branchNumber: b.branchNumber || 0,
+    versionId: b.id,
+    preview: b.content.slice(0, 500),
+    createdAt: b.createdAt,
+  }));
+}
+
+export async function selectBranch(chapterId: string, versionId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const branch = await tx.chapterVersion.findUnique({ where: { id: versionId } });
+    if (!branch) throw new Error('Branch not found');
+    if (branch.chapterId !== chapterId) throw new Error('Branch does not belong to this chapter');
+    
+    const newVersion = await tx.chapterVersion.create({
+      data: {
+        chapterId,
+        content: branch.content,
+        isBranch: false,
+        parentVersionId: versionId,
+      },
+    });
+    
+    await tx.chapter.update({
+      where: { id: chapterId },
+      data: { content: branch.content, currentVersionId: newVersion.id },
+    });
+    
+    if (branch.parentVersionId) {
+      await tx.chapterVersion.updateMany({
+        where: { chapterId, parentVersionId: branch.parentVersionId, isBranch: true },
+        data: { isBranch: false },
+      });
+    }
+  });
+}
+
+export async function getVersions(chapterId: string): Promise<VersionInfo[]> {
+  return prisma.chapterVersion.findMany({
+    where: { chapterId },
+    orderBy: { createdAt: 'desc' },
+  }) as unknown as VersionInfo[];
+}
+
+export async function getVersion(versionId: string): Promise<VersionInfo | null> {
+  return prisma.chapterVersion.findUnique({ where: { id: versionId } }) as unknown as VersionInfo | null;
+}
+
+export async function getVersionDiff(versionId1: string, versionId2: string): Promise<DiffResult> {
+  const [v1, v2] = await Promise.all([
+    prisma.chapterVersion.findUnique({ where: { id: versionId1 } }),
+    prisma.chapterVersion.findUnique({ where: { id: versionId2 } }),
+  ]);
+
+  if (!v1 || !v2) throw new Error('One or both versions not found');
+
+  const changes = diffChars(v1.content, v2.content);
+  
+  let added = 0;
+  let removed = 0;
+  
+  for (const change of changes) {
+    if (change.added) added += change.value.length;
+    else if (change.removed) removed += change.value.length;
+  }
+
+  return { added, removed, changes };
+}
+
+export async function restoreVersion(chapterId: string, versionId: string): Promise<void> {
+  const version = await prisma.chapterVersion.findUnique({ where: { id: versionId } });
+
+  if (!version) throw new Error('Version not found');
+  if (version.chapterId !== chapterId) throw new Error('Version does not belong to this chapter');
+
+  const newVersion = await prisma.chapterVersion.create({
+    data: { chapterId, content: version.content },
+  });
+
+  await prisma.chapter.update({
+    where: { id: chapterId },
+    data: { content: version.content, currentVersionId: newVersion.id },
+  });
+}
+
+export async function deleteVersion(versionId: string): Promise<void> {
+  const version = await prisma.chapterVersion.findUnique({
+    where: { id: versionId },
+    include: {
+      chapter: {
+        include: { _count: { select: { versions: true } } },
+      },
+    },
+  });
+
+  if (!version) throw new Error('Version not found');
+  if (version.chapter._count.versions <= 1) throw new Error('Cannot delete the only version');
+
+  if (version.chapter.currentVersionId === versionId) {
+    const latestOther = await prisma.chapterVersion.findFirst({
+      where: { chapterId: version.chapterId, id: { not: versionId } },
+      orderBy: { createdAt: 'desc' },
+    });
+    
+    if (latestOther) {
+      await prisma.chapter.update({
+        where: { id: version.chapterId },
+        data: { currentVersionId: latestOther.id },
+      });
+    }
+  }
+
+  await prisma.chapterVersion.delete({ where: { id: versionId } });
+}
