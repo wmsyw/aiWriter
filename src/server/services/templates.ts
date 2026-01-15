@@ -1043,91 +1043,43 @@ export const BUILT_IN_TEMPLATES = {
 3. **剧情节点**：关键转折和重大事件
 4. **伏笔设计**：前后呼应的伏笔安排
 
-## 输出格式（JSON）
+## 输出格式
 
-{
-  "title_suggestions": ["建议书名1", "建议书名2", "建议书名3"],
-  
-  "synopsis": "一句话简介（50字以内）",
-  
-  "detailed_synopsis": "详细简介（200-300字）",
-  
-  "core_selling_points": [
-    "卖点1：xxx",
-    "卖点2：xxx",
-    "卖点3：xxx"
-  ],
-  
-  "protagonist": {
-    "name": "主角名（如用户未指定则建议）",
-    "background": "身份背景",
-    "personality": "性格特点",
-    "golden_finger": "金手指/外挂设定",
-    "growth_path": "成长路线概述",
-    "ultimate_goal": "最终目标"
-  },
-  
-  "supporting_characters": [
-    {
-      "name": "角色名",
-      "role": "女主|兄弟|导师|反派|...",
-      "relationship": "与主角关系",
-      "brief": "简要设定"
-    }
-  ],
-  
-  "world_setting": {
-    "type": "世界类型",
-    "power_system": "力量体系简述",
-    "major_factions": ["势力1", "势力2"],
-    "special_rules": "特殊规则或设定"
-  },
-  
-  "story_arcs": [
-    {
-      "arc_number": 1,
-      "arc_name": "卷名/篇章名",
-      "chapter_range": "第1-30章",
-      "word_count": "约10万字",
-      "summary": "本卷概述",
-      "key_events": [
-        "关键事件1",
-        "关键事件2"
-      ],
-      "climax": "本卷高潮",
-      "protagonist_growth": "主角在本卷的成长",
-      "hooks": ["本卷爽点1", "本卷爽点2"]
-    }
-  ],
-  
-  "chapter_outline": [
-    {
-      "chapter": 1,
-      "title": "章节标题",
-      "summary": "本章概要（50-100字）",
-      "key_points": ["要点1", "要点2"],
-      "hook": "本章钩子/悬念"
-    }
-  ],
-  
-  "foreshadowing": [
-    {
-      "setup_chapter": 5,
-      "payoff_chapter": 50,
-      "content": "伏笔内容"
-    }
-  ],
-  
-  "estimated_structure": {
-    "total_chapters": 100,
-    "total_words": "约50万字",
-    "arcs_count": 3,
-    "pacing_notes": "节奏说明"
-  }
-}
+请使用 **Markdown** 格式输出完整大纲：
+
+# 《[建议书名]》大纲
+
+> **一句话简介**: ...
+> **核心卖点**: ...
+
+## 1. 核心设定
+- **主角**: [姓名] - [背景/性格/金手指]
+- **世界观**: [一句话描述]
+- **力量体系**: [简述]
+
+## 2. 角色列表
+- **[主角名]**: ...
+- **[重要配角1]**: ...
+
+## 3. 故事分卷大纲
+
+### 第一卷：[卷名]
+**本卷概要**: ...
+**关键剧情**:
+- [事件1]
+- [事件2]
+**本卷爽点**: ...
+
+### 第二卷：...
+
+## 4. 章节细纲（前20章）
+### 第1章：...
+...
+
+## 5. 伏笔与长线
+...
 
 ## 生成原则
-
 1. **商业性**：考虑读者喜好和市场需求
 2. **可执行性**：大纲要具体可落地，不能太空泛
 3. **一致性**：各部分设定要相互呼应，逻辑自洽
@@ -1283,31 +1235,33 @@ export const BUILT_IN_TEMPLATES = {
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
 
-## 输出格式（JSON）
-{
-  "premise": "故事核心前提",
-  "tone": "基调/风格",
-  "hook": "核心卖点",
-  "story_arcs": [
-    {
-      "arc_number": 1,
-      "arc_name": "篇章名",
-      "summary": "本篇概述（100-150字）",
-      "main_conflict": "主要冲突",
-      "turning_points": ["关键转折1", "关键转折2"],
-      "new_characters": [
-        { "name": "新角色名", "role": "角色定位", "brief": "一句话设定" }
-      ]
-    }
-  ],
-  "estimated_structure": {
-    "total_chapters": 100,
-    "total_words": "约50万字",
-    "arcs_count": 3
-  }
-}
+## 输出格式
 
-请严格输出 JSON。`,
+请使用 **Markdown** 格式输出粗略大纲。
+
+# 《[建议书名]》粗略大纲
+
+> **核心前提**: [故事核心前提]
+> **基调/风格**: [基调]
+> **核心卖点**: [Hook]
+
+## 整体结构预估
+- **总字数**: ...
+- **总卷数**: ...
+
+## 第一卷：[卷名]
+**剧情概述**: [本卷概述]
+**核心冲突**: ...
+**关键转折**:
+1. ...
+2. ...
+**新登场角色**:
+- **[角色名]**: [角色定位]，[一句话设定]
+...
+
+## 第二卷：[卷名]
+...
+`,
     variables: [
       { name: 'keywords', type: 'string' as const, description: '关键词' },
       { name: 'theme', type: 'string' as const, description: '主题' },
@@ -1327,28 +1281,34 @@ export const BUILT_IN_TEMPLATES = {
 ## 粗略大纲
 {{rough_outline}}
 
-## 输出格式（JSON）
-{
-  "story_arcs": [
-    {
-      "arc_number": 1,
-      "arc_name": "篇章名",
-      "chapter_range": "第1-30章",
-      "summary": "详细概述（200字以内）",
-      "key_events": ["事件1", "事件2"],
-      "climax": "本篇高潮",
-      "hooks": ["爽点1", "爽点2"],
-      "new_characters": [
-        { "name": "新角色名", "role": "角色定位", "brief": "一句话设定" }
-      ]
-    }
-  ],
-  "foreshadowing": [
-    { "setup_arc": 1, "payoff_arc": 3, "content": "伏笔内容" }
-  ]
-}
+## 输出格式
 
-请严格输出 JSON。`,
+请使用 **Markdown** 格式输出细纲。
+
+# 详细大纲扩展
+
+## 第一卷：[卷名]
+
+### 1. 剧情概要
+[详细概述，200字左右]
+
+### 2. 关键事件演变
+- **事件1**: ...
+- **事件2**: ...
+- **高潮**: ...
+
+### 3. 爽点与钩子
+- ...
+
+### 4. 本卷新角色
+- **[角色名]**: [角色定位]，[一句话设定]
+- **[角色名]**: [角色定位]，[一句话设定]
+
+### 5. 伏笔埋设
+- [伏笔内容] -> [预计回收点]
+
+## 第二卷：...
+`,
     variables: [
       { name: 'rough_outline', type: 'string' as const, required: true, description: '粗略大纲 JSON' },
     ],
@@ -1361,22 +1321,22 @@ export const BUILT_IN_TEMPLATES = {
 ## 细纲
 {{detailed_outline}}
 
-## 输出格式（JSON）
-{
-  "chapters": [
-    {
-      "chapter_number": 1,
-      "title": "章节标题",
-      "summary": "本章概要（80-120字）",
-      "key_scenes": ["场景1", "场景2"],
-      "characters": ["角色1", "角色2"],
-      "word_target": 2500,
-      "cliffhanger": "本章钩子"
-    }
-  ]
-}
+## 输出格式
 
-请严格输出 JSON。`,
+请使用 **Markdown** 格式输出章节大纲。
+
+# 章节大纲
+
+## 第1章：[章节标题]
+- **剧情概要**: ...
+- **核心场景**: ...
+- **出场人物**: [角色1]、[角色2]
+- **字数预估**: [例如：2500字]
+- **章末悬念**: ...
+
+## 第2章：[章节标题]
+...
+`,
     variables: [
       { name: 'detailed_outline', type: 'string' as const, required: true, description: '细纲 JSON' },
     ],
