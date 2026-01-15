@@ -104,7 +104,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="min-h-screen bg-[var(--color-dark-bg)] flex font-sans">
+    <div className="h-screen overflow-hidden bg-[var(--color-dark-bg)] flex font-sans">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[120px] animate-float"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-[120px] animate-float-delayed"></div>
@@ -190,7 +190,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="flex-1 lg:ml-72 flex flex-col min-h-screen relative z-10">
+      <main className="flex-1 lg:ml-72 flex flex-col min-h-screen relative z-10 overflow-y-auto">
         <header className="h-16 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 backdrop-blur-sm bg-[var(--color-dark-bg)]/80 border-b border-white/5">
            <div className="flex items-center gap-4">
               <button

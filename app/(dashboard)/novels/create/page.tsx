@@ -426,11 +426,14 @@ function NovelWizardContent() {
     if (!idToUse) return;
     setWorldBuildingLoading(true);
     try {
+      const keywordsArray = formData.keywords.length > 0 
+        ? formData.keywords 
+        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
       const output = await runJob('WIZARD_WORLD_BUILDING', {
         novelId: idToUse,
         theme: formData.theme,
         genre: formData.genre,
-        keywords: formData.keywordsInput || formData.keywords.join(', '),
+        keywords: keywordsArray,
         protagonist: formData.protagonist,
         worldSetting: formData.worldSetting,
         specialRequirements: formData.specialRequirements,
@@ -450,14 +453,17 @@ function NovelWizardContent() {
     if (!idToUse) return;
     setCharacterLoading(true);
     try {
+      const keywordsArray = formData.keywords.length > 0 
+        ? formData.keywords 
+        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
       const output = await runJob('WIZARD_CHARACTERS', {
         novelId: idToUse,
         theme: formData.theme,
         genre: formData.genre,
-        keywords: formData.keywordsInput || formData.keywords.join(', '),
+        keywords: keywordsArray,
         protagonist: formData.protagonist,
         worldSetting: formData.worldSetting,
-        characterCount: 1, // Just main character focus for this field
+        characterCount: 1,
       });
       if (output && output.characters && output.characters.length > 0) {
         const char = output.characters[0];
