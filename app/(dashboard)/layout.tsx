@@ -119,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <aside 
         ref={sidebarRef}
-        className={`w-72 glass-panel border-r border-white/5 flex flex-col fixed h-full z-40 transition-transform duration-300 ${
+        className={`w-72 glass-panel border-r border-white/5 flex flex-col fixed top-0 left-0 h-screen z-40 transition-transform duration-300 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >

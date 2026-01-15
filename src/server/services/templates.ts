@@ -1235,32 +1235,29 @@ export const BUILT_IN_TEMPLATES = {
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
 
-## 输出格式
+## 生成要求
+1. 结构清晰，逻辑连贯
+2. 每个大纲块要有明确的冲突和转折
+3. 符合网文爽点节奏
 
-请使用 **Markdown** 格式输出粗略大纲。
-
-# 《[建议书名]》粗略大纲
-
-> **核心前提**: [故事核心前提]
-> **基调/风格**: [基调]
-> **核心卖点**: [Hook]
-
-## 整体结构预估
-- **总字数**: ...
-- **总卷数**: ...
-
-## 第一卷：[卷名]
-**剧情概述**: [本卷概述]
-**核心冲突**: ...
-**关键转折**:
-1. ...
-2. ...
-**新登场角色**:
-- **[角色名]**: [角色定位]，[一句话设定]
-...
-
-## 第二卷：[卷名]
-...
+## 输出格式（JSON）
+请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
+{
+  "blocks": [
+    {
+      "id": "A",
+      "title": "开篇/第一卷标题",
+      "content": "本段落的核心剧情梗概...",
+      "level": "rough"
+    },
+    {
+      "id": "B",
+      "title": "发展/第二卷标题",
+      "content": "...",
+      "level": "rough"
+    }
+  ]
+}
 `,
     variables: [
       { name: 'keywords', type: 'string' as const, description: '关键词' },
@@ -1276,69 +1273,83 @@ export const BUILT_IN_TEMPLATES = {
 
   OUTLINE_DETAILED: {
     name: '细纲生成',
-    content: `你是专业策划编辑，请基于粗略大纲扩展细纲，为每个篇章生成细节剧情。
+    content: `你是专业策划编辑，请对指定的粗略大纲块进行扩展，生成详细的事件节点。
 
-## 粗略大纲
-{{rough_outline}}
+## 待扩展板块
+标题：{{target_title}}
+内容：{{target_content}}
+ID：{{target_id}}
 
-## 输出格式
+## 全文背景
+{{rough_outline_context}}
 
-请使用 **Markdown** 格式输出细纲。
+## 生成要求
+1. 将该板块拆解为 3-5 个具体的事件节点
+2. 丰富细节，补充人物互动和矛盾冲突
+3. 确保与前后文逻辑连贯
 
-# 详细大纲扩展
-
-## 第一卷：[卷名]
-
-### 1. 剧情概要
-[详细概述，200字左右]
-
-### 2. 关键事件演变
-- **事件1**: ...
-- **事件2**: ...
-- **高潮**: ...
-
-### 3. 爽点与钩子
-- ...
-
-### 4. 本卷新角色
-- **[角色名]**: [角色定位]，[一句话设定]
-- **[角色名]**: [角色定位]，[一句话设定]
-
-### 5. 伏笔埋设
-- [伏笔内容] -> [预计回收点]
-
-## 第二卷：...
+## 输出格式（JSON）
+请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
+{
+  "children": [
+    {
+      "id": "{{target_id}}a",
+      "title": "细分事件标题",
+      "content": "详细剧情描述...",
+      "level": "detailed"
+    },
+    {
+      "id": "{{target_id}}b",
+      "title": "...",
+      "content": "...",
+      "level": "detailed"
+    }
+  ]
+}
 `,
     variables: [
-      { name: 'rough_outline', type: 'string' as const, required: true, description: '粗略大纲 JSON' },
+      { name: 'target_title', type: 'string' as const, required: true, description: '目标块标题' },
+      { name: 'target_content', type: 'string' as const, required: true, description: '目标块内容' },
+      { name: 'target_id', type: 'string' as const, required: true, description: '目标块ID' },
+      { name: 'rough_outline_context', type: 'string' as const, description: '粗略大纲上下文' },
     ],
   },
 
   OUTLINE_CHAPTERS: {
     name: '章节大纲生成',
-    content: `你是资深剧情规划师，请基于细纲生成逐章大纲。
+    content: `你是资深剧情规划师，请基于细纲块生成具体的章节大纲。
 
-## 细纲
-{{detailed_outline}}
+## 待生成细纲块
+标题：{{target_title}}
+内容：{{target_content}}
+ID：{{target_id}}
 
-## 输出格式
+## 全文背景
+{{detailed_outline_context}}
 
-请使用 **Markdown** 格式输出章节大纲。
+## 生成要求
+1. 将该细纲拆分为若干章节（通常 3-5 章）
+2. 每章要有明确的看点、冲突和悬念（钩子）
+3. 字数预估要合理
 
-# 章节大纲
-
-## 第1章：[章节标题]
-- **剧情概要**: ...
-- **核心场景**: ...
-- **出场人物**: [角色1]、[角色2]
-- **字数预估**: [例如：2500字]
-- **章末悬念**: ...
-
-## 第2章：[章节标题]
-...
+## 输出格式（JSON）
+请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
+{
+  "children": [
+    {
+      "id": "{{target_id}}1",
+      "title": "章节标题",
+      "content": "章节详细大纲，包含核心场景、出场人物、爽点等...",
+      "level": "chapter"
+    }
+  ]
+}
 `,
     variables: [
-      { name: 'detailed_outline', type: 'string' as const, required: true, description: '细纲 JSON' },
+      { name: 'target_title', type: 'string' as const, required: true, description: '目标块标题' },
+      { name: 'target_content', type: 'string' as const, required: true, description: '目标块内容' },
+      { name: 'target_id', type: 'string' as const, required: true, description: '目标块ID' },
+      { name: 'detailed_outline_context', type: 'string' as const, description: '细纲上下文' },
     ],
   },
 

@@ -45,6 +45,93 @@ const INSPIRATION_PRESETS = [
   },
 ];
 
+interface OutlineNode {
+  id: string;
+  title: string;
+  content: string;
+  level: 'rough' | 'detailed' | 'chapter';
+  children: OutlineNode[];
+  isExpanded?: boolean;
+  isGenerating?: boolean;
+}
+
+const OutlineTreeNode = ({ 
+  node, 
+  onToggle, 
+  onGenerateNext,
+  onUpdate
+}: { 
+  node: OutlineNode; 
+  onToggle: (id: string) => void;
+  onGenerateNext: (node: OutlineNode) => void;
+  onUpdate: (id: string, content: string) => void;
+}) => {
+  const isLeaf = node.level === 'chapter';
+  const padding = node.level === 'rough' ? 0 : node.level === 'detailed' ? 24 : 48;
+  const nextLevelName = node.level === 'rough' ? '细纲' : '章节';
+
+  return (
+    <div className="mb-2 transition-all duration-300">
+      <div 
+        className={`glass-panel p-4 rounded-xl flex items-start gap-3 hover:bg-white/5 transition-colors ${node.level === 'rough' ? 'border-indigo-500/30' : ''}`}
+        style={{ marginLeft: padding }}
+      >
+        <button 
+          onClick={() => onToggle(node.id)}
+          className="mt-1 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white transition-colors flex-shrink-0"
+        >
+          {(node.children && node.children.length > 0) || !isLeaf ? (
+            <span className={`transform transition-transform duration-200 inline-block ${node.isExpanded ? 'rotate-90' : ''}`}>▶</span>
+          ) : <span className="w-2 h-2 rounded-full bg-gray-600"/>}
+        </button>
+        
+        <div className="flex-1 space-y-2 min-w-0">
+          <div className="flex items-center justify-between gap-4">
+            <h4 className="font-bold text-gray-200 truncate flex-1">
+              <span className="text-indigo-400 mr-2">{node.id}</span>
+              {node.title}
+            </h4>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {node.children && node.children.length > 0 && <span className="text-green-400">✓</span>}
+              {!isLeaf && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onGenerateNext(node); }}
+                  disabled={node.isGenerating}
+                  className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-2 py-1 rounded transition-colors border border-indigo-500/30 disabled:opacity-50"
+                >
+                  {node.isGenerating ? '生成中...' : `生成${nextLevelName}`}
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="relative group">
+            <textarea
+              className="w-full bg-transparent text-sm text-gray-400 leading-relaxed resize-none focus:outline-none focus:text-gray-200 transition-colors"
+              value={node.content}
+              onChange={(e) => onUpdate(node.id, e.target.value)}
+              rows={node.content.length > 100 ? 4 : 2}
+            />
+          </div>
+        </div>
+      </div>
+      
+      {node.isExpanded && node.children && node.children.length > 0 && (
+        <div className="animate-fade-in mt-2">
+          {node.children.map(child => (
+            <OutlineTreeNode 
+              key={child.id} 
+              node={child} 
+              onToggle={onToggle}
+              onGenerateNext={onGenerateNext}
+              onUpdate={onUpdate}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function NovelWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,7 +169,82 @@ function NovelWizardContent() {
     outlineMode: 'simple',
   });
 
-  const stepLabels = ['基础设定', '核心设定', '粗略大纲', '细纲扩展', '章节大纲', '完成'];
+  const [outlineTree, setOutlineTree] = useState<OutlineNode[]>([]);
+  const stepLabels = ['基础设定', '核心设定', '粗略大纲', '大纲细化', '完成'];
+
+  // Helper to parse JSON from AI response
+  const safeParseJSON = (text: string) => {
+    try {
+      const cleanText = text.replace(/```json\n|\n```/g, '').replace(/```/g, '').trim();
+      const start = cleanText.indexOf('{');
+      const end = cleanText.lastIndexOf('}');
+      if (start === -1 || end === -1) return null;
+      return JSON.parse(cleanText.substring(start, end + 1));
+    } catch (e) {
+      console.error('Failed to parse JSON', e);
+      return null;
+    }
+  };
+
+  const toggleNode = (id: string) => {
+    const toggleRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, isExpanded: !node.isExpanded };
+        }
+        if (node.children.length > 0) {
+          return { ...node, children: toggleRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    setOutlineTree(prev => toggleRecursive(prev));
+  };
+
+  const updateNodeChildren = (id: string, children: OutlineNode[]) => {
+    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, children, isExpanded: true, isGenerating: false };
+        }
+        if (node.children.length > 0) {
+          return { ...node, children: updateRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    setOutlineTree(prev => updateRecursive(prev));
+  };
+
+  const setNodeGenerating = (id: string, isGenerating: boolean) => {
+    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, isGenerating };
+        }
+        if (node.children.length > 0) {
+          return { ...node, children: updateRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    setOutlineTree(prev => updateRecursive(prev));
+  };
+
+  const updateNodeContent = (id: string, content: string) => {
+    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, content };
+        }
+        if (node.children.length > 0) {
+          return { ...node, children: updateRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    setOutlineTree(prev => updateRecursive(prev));
+  };
 
   useEffect(() => () => {
     if (pollTimerRef.current) {
@@ -118,7 +280,7 @@ function NovelWizardContent() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          wizardStatus: overrideStatus || (nextStep >= 5 ? 'completed' : 'in_progress'),
+          wizardStatus: overrideStatus || (nextStep >= 4 ? 'completed' : 'in_progress'),
           wizardStep: nextStep,
         }),
       });
@@ -310,6 +472,10 @@ function NovelWizardContent() {
   };
 
   const handleGenerateWorldSetting = async () => {
+    if (!formData.title.trim()) {
+      alert('请先填写书名');
+      return;
+    }
     const id = await saveNovel(false);
     if (id) {
       await startWorldBuilding(id);
@@ -317,6 +483,10 @@ function NovelWizardContent() {
   };
 
   const handleGenerateCharacter = async () => {
+    if (!formData.title.trim()) {
+      alert('请先填写书名');
+      return;
+    }
     const id = await saveNovel(false);
     if (id) {
       await startCharacterGeneration(id);
@@ -370,8 +540,14 @@ function NovelWizardContent() {
         worldSetting: formData.worldSetting,
         specialRequirements: formData.specialRequirements,
       });
-      const outlineText = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
-      setRoughOutline(outlineText);
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      if (json && json.blocks) {
+        setOutlineTree(json.blocks);
+      } else {
+        // Fallback or error handling
+        console.warn('Unexpected output format:', output);
+      }
       setJobStatus('');
     } catch (error) {
       console.error('Failed to generate rough outline', error);
@@ -379,60 +555,110 @@ function NovelWizardContent() {
     }
   };
 
-  const startDetailedOutline = async () => {
-    if (!novelId || !roughOutline) return;
-    setJobStatus('生成细纲中...');
+  const generateDetailedForBlock = async (node: OutlineNode) => {
+    if (!novelId) return;
+    setNodeGenerating(node.id, true);
 
     try {
+      // Build context from rough outline nodes
+      const context = outlineTree
+        .filter(n => n.level === 'rough')
+        .map(n => `${n.id}. ${n.title}: ${n.content}`)
+        .join('\n');
+
       const output = await runJob('OUTLINE_DETAILED', {
         novelId,
-        roughOutline,
-        targetWords: formData.targetWords,
-        chapterCount: formData.chapterCount,
+        roughOutline: {}, // Schema requirement
+        target_title: node.title,
+        target_content: node.content,
+        target_id: node.id,
+        rough_outline_context: context,
       });
-      const outlineText = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
-      setDetailedOutline(outlineText);
-      setJobStatus('');
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      if (json && json.children) {
+        updateNodeChildren(node.id, json.children);
+      }
     } catch (error) {
       console.error('Failed to generate detailed outline', error);
-      setJobStatus(error instanceof Error ? error.message : '生成失败');
+      alert('生成细纲失败，请重试');
+    } finally {
+      setNodeGenerating(node.id, false);
     }
   };
 
-  const startChapterOutline = async () => {
-    if (!novelId || !detailedOutline) return;
-    setJobStatus('生成章节大纲中...');
+  const generateChaptersForBlock = async (node: OutlineNode) => {
+    if (!novelId) return;
+    setNodeGenerating(node.id, true);
 
     try {
+      // Build context from available detailed nodes
+      const context = outlineTree
+        .flatMap(rough => rough.children || [])
+        .map(detailed => `${detailed.id}. ${detailed.title}`)
+        .join('\n');
+
       const output = await runJob('OUTLINE_CHAPTERS', {
         novelId,
-        detailedOutline,
+        detailedOutline: {}, // Schema requirement
+        target_title: node.title,
+        target_content: node.content,
+        target_id: node.id,
+        detailed_outline_context: context,
       });
-      const outlineText = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
-      setChapterOutline(outlineText);
-      setGeneratedOutline(outlineText || '');
-      setJobStatus('');
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      if (json && json.children) {
+        updateNodeChildren(node.id, json.children);
+      }
     } catch (error) {
-      console.error('Failed to generate chapter outline', error);
-      setJobStatus(error instanceof Error ? error.message : '生成失败');
+      console.error('Failed to generate chapters', error);
+      alert('生成章节失败，请重试');
+    } finally {
+      setNodeGenerating(node.id, false);
     }
   };
 
+  const handleGenerateNext = (node: OutlineNode) => {
+    if (node.level === 'rough') {
+      generateDetailedForBlock(node);
+    } else if (node.level === 'detailed') {
+      generateChaptersForBlock(node);
+    }
+  };
+
+
   const applyOutline = async () => {
-    if (!novelId || !generatedOutline) return;
+    if (!novelId) return;
     setIsSaving(true);
+    
+    const serialized = outlineTree.map(node => {
+      let text = `# ${node.title}\n${node.content}\n`;
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => {
+           text += `## ${child.title}\n${child.content}\n`;
+           if (child.children && child.children.length > 0) {
+             child.children.forEach(grandChild => {
+               text += `### ${grandChild.title}\n${grandChild.content}\n`;
+             });
+           }
+        });
+      }
+      return text;
+    }).join('\n\n');
+
     try {
       const res = await fetch(`/api/novels/${novelId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          outline: generatedOutline,
+          outline: serialized,
           wizardStatus: 'completed',
           wizardStep: 5,
         }),
       });
       if (!res.ok) throw new Error('更新失败');
-      setStep(5);
+      setStep(4);
     } catch (error) {
       console.error('Failed to apply outline', error);
     } finally {
@@ -506,7 +732,7 @@ function NovelWizardContent() {
                       className="glass-input w-full px-5 py-3 text-lg font-bold tracking-wide"
                       value={formData.title}
                       onChange={e => setField('title', e.target.value)}
-                      placeholder="《       》"
+                      placeholder="请输入书名"
                     />
                   </div>
                   <div>
@@ -877,7 +1103,7 @@ function NovelWizardContent() {
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
                     <span>生成中...</span>
                   </>
-                ) : roughOutline ? (
+                ) : outlineTree.length > 0 ? (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     <span>重新生成</span>
@@ -898,17 +1124,31 @@ function NovelWizardContent() {
             </div>
           )}
 
-          <textarea
-            className="flex-1 w-full glass-input p-6 text-base leading-relaxed font-mono resize-none custom-scrollbar"
-            value={roughOutline || ''}
-            onChange={e => setRoughOutline(e.target.value)}
-            placeholder="点击生成，AI 将输出粗略大纲..."
-          />
+          <div className="flex-1 w-full glass-input p-6 min-h-[400px] custom-scrollbar overflow-y-auto">
+            {outlineTree.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-4">
+                <span className="text-4xl opacity-50">📝</span>
+                <p>点击上方按钮，AI 将为您构建大纲结构...</p>
+              </div>
+            ) : (
+              <div>
+                {outlineTree.map(node => (
+                   <OutlineTreeNode 
+                     key={node.id} 
+                     node={node} 
+                     onToggle={toggleNode}
+                     onGenerateNext={handleGenerateNext}
+                     onUpdate={updateNodeContent}
+                   />
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-end pt-6 border-t border-white/5">
             <button
               className="btn-primary px-8 py-3"
-              disabled={!roughOutline}
+              disabled={outlineTree.length === 0}
               onClick={() => persistWizardStep(3)}
             >
               确认并下一步 →
@@ -921,111 +1161,30 @@ function NovelWizardContent() {
         <div className="glass-card p-8 rounded-3xl animate-fade-in space-y-8 min-h-[600px] flex flex-col">
           <div className="flex items-center justify-between border-b border-white/5 pb-6">
             <div>
-              <h2 className="text-2xl font-bold text-white">细纲扩展</h2>
-              <p className="text-gray-400 mt-1">细化事件与节奏，支持重新生成</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                className="btn-ai px-6 py-2.5"
-                onClick={startDetailedOutline}
-                disabled={!!jobStatus || !roughOutline}
-              >
-                {jobStatus ? (
-                   <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                    <span>生成中...</span>
-                  </>
-                ) : detailedOutline ? (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    <span>重新生成</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-lg">✨</span>
-                    <span>生成细纲</span>
-                  </>
-                )}
-              </button>
+              <h2 className="text-2xl font-bold text-white">大纲细化</h2>
+              <p className="text-gray-400 mt-1">扩展细纲与章节，构建完整故事树</p>
             </div>
           </div>
 
-          {jobStatus && (
-            <div className="w-full h-1 bg-white/10 overflow-hidden rounded-full">
-              <div className="h-full bg-indigo-500 animate-progress-indeterminate"></div>
-            </div>
-          )}
-
-          <textarea
-            className="flex-1 w-full glass-input p-6 text-base leading-relaxed font-mono resize-none custom-scrollbar"
-            value={detailedOutline || ''}
-            onChange={e => setDetailedOutline(e.target.value)}
-            placeholder="生成后展示细纲，可自行微调..."
-          />
-
-          <div className="flex justify-end pt-6 border-t border-white/5">
-            <button
-              className="btn-primary px-8 py-3"
-              disabled={!detailedOutline}
-              onClick={() => persistWizardStep(4)}
-            >
-              确认并下一步 →
-            </button>
+          <div className="flex-1 w-full glass-input p-6 min-h-[400px] custom-scrollbar overflow-y-auto">
+             <div>
+                {outlineTree.map(node => (
+                   <OutlineTreeNode 
+                     key={node.id} 
+                     node={node} 
+                     onToggle={toggleNode}
+                     onGenerateNext={handleGenerateNext}
+                     onUpdate={updateNodeContent}
+                   />
+                ))}
+              </div>
           </div>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="glass-card p-8 rounded-3xl animate-fade-in space-y-8 min-h-[600px] flex flex-col">
-          <div className="flex items-center justify-between border-b border-white/5 pb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-white">章节大纲</h2>
-              <p className="text-gray-400 mt-1">生成每章剧情要点，支持微调</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                className="btn-ai px-6 py-2.5"
-                onClick={startChapterOutline}
-                disabled={!!jobStatus || !detailedOutline}
-              >
-                 {jobStatus ? (
-                   <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                    <span>生成中...</span>
-                  </>
-                ) : generatedOutline ? (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    <span>重新生成</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-lg">✨</span>
-                    <span>生成章节大纲</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {jobStatus && (
-            <div className="w-full h-1 bg-white/10 overflow-hidden rounded-full">
-              <div className="h-full bg-indigo-500 animate-progress-indeterminate"></div>
-            </div>
-          )}
-
-          <textarea
-            className="flex-1 w-full glass-input p-6 text-base leading-relaxed font-mono resize-none custom-scrollbar"
-            value={generatedOutline}
-            onChange={e => setGeneratedOutline(e.target.value)}
-            placeholder="章节大纲将显示在此..."
-          />
 
           <div className="flex justify-end pt-6 border-t border-white/5 gap-4">
-            <button className="btn-secondary px-6 py-3" onClick={() => persistWizardStep(5, 'completed')}>稍后再说</button>
+            <button className="btn-secondary px-6 py-3" onClick={() => persistWizardStep(4, 'completed')}>稍后再说</button>
             <button
               className="btn-primary px-8 py-3 shadow-lg shadow-indigo-500/20"
-              disabled={isSaving || !generatedOutline}
+              disabled={isSaving}
               onClick={applyOutline}
             >
               {isSaving ? '正在应用...' : '应用大纲并完成'}
@@ -1034,7 +1193,7 @@ function NovelWizardContent() {
         </div>
       )}
 
-      {step === 5 && (
+      {step === 4 && (
         <div className="glass-card p-12 rounded-3xl animate-scale-in text-center max-w-2xl mx-auto mt-20">
           <div className="w-24 h-24 bg-gradient-to-tr from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl shadow-green-500/20">
             <span className="text-4xl">🎉</span>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { BUILT_IN_AGENTS } from '@/src/constants/agents';
+import { useState, useEffect, useMemo } from 'react';
+import { BUILT_IN_AGENTS, type AgentCategory } from '@/src/constants/agents';
 
 interface Agent {
   id: string;
@@ -45,7 +45,41 @@ export default function AgentsPage() {
   const [customModel, setCustomModel] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [selectedBuiltInAgent, setSelectedBuiltInAgent] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
   const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
+
+  const builtInAgentsByCategory = useMemo(() => {
+    const groups: Record<AgentCategory, Array<[string, typeof BUILT_IN_AGENTS[string]]>> = {
+      writing: [],
+      review: [],
+      utility: [],
+    };
+    Object.entries(BUILT_IN_AGENTS).forEach(([key, agent]) => {
+      groups[agent.category].push([key, agent]);
+    });
+    return groups;
+  }, []);
+
+  const filteredBuiltInAgents = useMemo(() => {
+    if (activeCategory === 'all') {
+      return Object.entries(BUILT_IN_AGENTS);
+    }
+    return builtInAgentsByCategory[activeCategory];
+  }, [activeCategory, builtInAgentsByCategory]);
+
+  const categoryLabels: Record<AgentCategory | 'all', string> = {
+    all: '全部',
+    writing: '写作生成',
+    review: '评审检查',
+    utility: '辅助工具',
+  };
+
+  const categoryColors: Record<AgentCategory, { bg: string; border: string; text: string }> = {
+    writing: { bg: 'from-indigo-500/20 to-purple-500/20', border: 'border-indigo-500/30', text: 'text-indigo-400' },
+    review: { bg: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/30', text: 'text-amber-400' },
+    utility: { bg: 'from-emerald-500/20 to-teal-500/20', border: 'border-emerald-500/30', text: 'text-emerald-400' },
+  };
 
   useEffect(() => {
     fetchData();
@@ -110,6 +144,14 @@ export default function AgentsPage() {
     setShowTemplateSelector(false);
   };
 
+  const handleViewBuiltInAgent = (key: string) => {
+    setSelectedBuiltInAgent(selectedBuiltInAgent === key ? null : key);
+  };
+
+  const getBuiltInAgentTemplate = (templateName: string) => {
+    return templates.find(t => t.name === templateName);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -171,59 +213,174 @@ export default function AgentsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {agents.map((agent) => (
-          <div key={agent.id} className="glass-card rounded-xl p-6 group hover:border-indigo-500/30 transition-all duration-300">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:border-indigo-500/30 transition-colors">
-                <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              {agent.isBuiltIn && (
-                <span className="px-2 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium text-indigo-400">
-                  内置
-                </span>
-              )}
-            </div>
-
-            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">{agent.name}</h3>
-            <p className="text-gray-400 text-sm mb-4 line-clamp-2 h-10">{agent.description || '暂无描述'}</p>
-
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">服务商</span>
-                <span className="text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                  {providers.find(p => p.id === agent.providerConfigId)?.name || '默认'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">模型</span>
-                <span className="text-gray-300 font-mono">{agent.model || '默认'}</span>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => handleOpenModal(agent)}
-              className="w-full btn-secondary py-2 rounded-lg text-sm border border-white/5 hover:border-white/20"
-            >
-              配置助手
-            </button>
-          </div>
-        ))}
-
-        <button 
-          onClick={() => handleOpenModal()}
-          className="glass-card rounded-xl p-6 border-dashed border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all duration-300 flex flex-col items-center justify-center gap-4 group min-h-[300px]"
-        >
-          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
-            <svg className="w-8 h-8 text-gray-400 group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
+            内置 AI 助手
+          </h2>
+          <div className="flex gap-2">
+            {(['all', 'writing', 'review', 'utility'] as const).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeCategory === cat
+                    ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {categoryLabels[cat]}
+              </button>
+            ))}
           </div>
-          <span className="text-gray-400 font-medium group-hover:text-indigo-300">创建新助手</span>
-        </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredBuiltInAgents.map(([key, agent]) => {
+            const template = getBuiltInAgentTemplate(agent.templateName);
+            const isExpanded = selectedBuiltInAgent === key;
+            const colors = categoryColors[agent.category];
+            
+            return (
+              <div 
+                key={key} 
+                className={`glass-card rounded-xl overflow-hidden transition-all duration-300 ${
+                  isExpanded ? 'col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4' : ''
+                }`}
+              >
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.bg} flex items-center justify-center border ${colors.border}`}>
+                      <svg className={`w-5 h-5 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.border} ${colors.text} border`}>
+                      {categoryLabels[agent.category]}
+                    </span>
+                  </div>
+                  
+                  <h3 className="text-lg font-bold text-white mb-1">{agent.name}</h3>
+                  <p className="text-gray-400 text-sm mb-3 line-clamp-2">{agent.description}</p>
+                  
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                    <span>模板: {agent.templateName}</span>
+                    {template && <span className="text-emerald-400">✓</span>}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleViewBuiltInAgent(key)}
+                      className="flex-1 btn-secondary py-2 rounded-lg text-xs"
+                    >
+                      {isExpanded ? '收起' : '查看模板'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleSelectBuiltInTemplate(key);
+                        setIsModalOpen(true);
+                      }}
+                      className="flex-1 btn-primary py-2 rounded-lg text-xs"
+                    >
+                      创建实例
+                    </button>
+                  </div>
+                </div>
+
+                {isExpanded && template && (
+                  <div className="border-t border-white/10 p-4 bg-black/20">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-medium text-gray-300">提示词模板内容</h4>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span>温度: {agent.defaultParams.temperature ?? 0.7}</span>
+                        <span>最大Token: {agent.defaultParams.maxTokens ?? 2000}</span>
+                      </div>
+                    </div>
+                    <pre className="text-xs text-gray-400 font-mono bg-black/30 rounded-lg p-4 max-h-64 overflow-auto custom-scrollbar whitespace-pre-wrap break-words">
+                      {template.content}
+                    </pre>
+                  </div>
+                )}
+
+                {isExpanded && !template && (
+                  <div className="border-t border-white/10 p-4 bg-black/20">
+                    <p className="text-sm text-amber-400">
+                      ⚠️ 未找到对应模板 "{agent.templateName}"，请先在模板页面创建该模板。
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {agents.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            自定义助手
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {agents.map((agent) => (
+              <div key={agent.id} className="glass-card rounded-xl p-6 group hover:border-indigo-500/30 transition-all duration-300">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:border-indigo-500/30 transition-colors">
+                    <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  {agent.isBuiltIn && (
+                    <span className="px-2 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium text-indigo-400">
+                      内置
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">{agent.name}</h3>
+                <p className="text-gray-400 text-sm mb-4 line-clamp-2 h-10">{agent.description || '暂无描述'}</p>
+
+                <div className="space-y-2 mb-6">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">服务商</span>
+                    <span className="text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                      {providers.find(p => p.id === agent.providerConfigId)?.name || '默认'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">模型</span>
+                    <span className="text-gray-300 font-mono">{agent.model || '默认'}</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => handleOpenModal(agent)}
+                  className="w-full btn-secondary py-2 rounded-lg text-sm border border-white/5 hover:border-white/20"
+                >
+                  配置助手
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button 
+        onClick={() => handleOpenModal()}
+        className="glass-card rounded-xl p-6 border-dashed border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all duration-300 flex flex-col items-center justify-center gap-4 group min-h-[200px] w-full"
+      >
+        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+          <svg className="w-8 h-8 text-gray-400 group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <span className="text-gray-400 font-medium group-hover:text-indigo-300">创建新的自定义助手</span>
+      </button>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
