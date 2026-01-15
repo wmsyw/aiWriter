@@ -62,14 +62,6 @@ function validateBaseURL(providerType: string, urlString: string): void {
     }
   }
   
-  // Check against allowed hosts for provider
-  const allowedHosts = ALLOWED_PROVIDER_HOSTS[providerType];
-  if (allowedHosts) {
-    const isAllowed = allowedHosts.some(h => hostname === h || hostname.endsWith('.' + h));
-    if (!isAllowed) {
-      throw new Error(`Custom URL must be from allowed domains for ${providerType}`);
-    }
-  }
 }
 
 export function getProviderBaseURL(providerType: string, customBaseURL?: string): string {
