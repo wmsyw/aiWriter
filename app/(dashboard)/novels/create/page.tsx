@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const GENRES = ['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'];
@@ -44,7 +44,7 @@ const INSPIRATION_PRESETS = [
   },
 ];
 
-export default function NovelWizardPage() {
+function NovelWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const presetTitle = searchParams.get('title') || '';
@@ -862,6 +862,14 @@ export default function NovelWizardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NovelWizardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+      <NovelWizardContent />
+    </Suspense>
   );
 }
 
