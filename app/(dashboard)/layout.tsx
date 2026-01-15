@@ -191,30 +191,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <main className="flex-1 lg:ml-72 flex flex-col min-h-screen relative z-10 overflow-y-auto">
-        <header className="h-12 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 backdrop-blur-sm bg-[var(--color-dark-bg)]/80 border-b border-white/5">
+        <header className="h-12 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 backdrop-blur-xl bg-[#0f1117]/80 border-b border-white/5 transition-all duration-300">
            <div className="flex items-center gap-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/5 text-gray-400 hover:text-white"
+                className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5 transition-colors text-gray-400 hover:text-white"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="text-gray-400 text-sm breadcrumbs hidden sm:block">
-                <span className="text-gray-600">应用</span>
-                <span className="mx-2">/</span>
-                <span className="font-medium text-white">{navItems.find(i => i.href === pathname)?.name || '仪表盘'}</span>
+              <div className="text-gray-400 text-sm breadcrumbs hidden sm:flex items-center gap-2">
+                <span className="text-gray-500 hover:text-gray-300 transition-colors">应用</span>
+                <span className="text-gray-700">/</span>
+                <span className="font-medium text-gray-200">{navItems.find(i => i.href === pathname)?.name || '仪表盘'}</span>
               </div>
            </div>
            
-           <div className="flex items-center gap-4 relative" ref={notificationRef}>
+           <div className="flex items-center gap-3 relative" ref={notificationRef}>
              <button 
                onClick={() => setShowNotifications(!showNotifications)}
-               className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors border border-white/5 text-gray-400 hover:text-white relative"
+               className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5 transition-colors text-gray-400 hover:text-white relative"
              >
                {unreadCount > 0 && (
-                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[var(--color-dark-bg)]"></span>
+                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-indigo-500 rounded-full ring-2 ring-[#0f1117]"></span>
                )}
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />

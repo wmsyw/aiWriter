@@ -16,7 +16,7 @@ type Tab = 'providers' | 'account' | 'preferences';
 
 const PROVIDER_TYPES = [
   { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-5', 'gpt-5.1', 'gpt-5.2', 'gpt-5-mini'] },
-  { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', defaultModels: ['claude-4-5-sonnet-20260115', 'claude-4-5-opus-20260115', 'claude-4-5-haiku-20260115'] },
+  { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', defaultModels: ['claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101', 'claude-haiku-4-5-20251001'] },
   { value: 'gemini', label: 'Gemini', defaultURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModels: ['gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'] },
   { value: 'custom', label: '自定义', defaultURL: '', defaultModels: [] },
 ];
@@ -228,7 +228,8 @@ export default function SettingsPage() {
   };
 
   const handleTestConnection = async () => {
-    if (!formData.apiKey && !editingProvider) {
+    const apiKey = formData.apiKey.trim();
+    if (!apiKey && !editingProvider) {
       setError('请先填写 API 密钥');
       return;
     }
@@ -238,19 +239,28 @@ export default function SettingsPage() {
     setError('');
 
     try {
+      const payload: Record<string, unknown> = {
+        providerType: formData.providerType,
+        baseURL: formData.baseURL,
+        model: formData.defaultModel || formData.models[0],
+      };
+
+      if (editingProvider?.id) {
+        payload.providerId = editingProvider.id;
+      }
+
+      if (apiKey) {
+        payload.apiKey = apiKey;
+      }
+
       const res = await fetch('/api/providers/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerType: formData.providerType,
-          baseURL: formData.baseURL,
-          apiKey: formData.apiKey,
-          model: formData.defaultModel || formData.models[0],
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      
+
       if (data.success) {
         setTestStatus('success');
         setTestResult({ message: data.message, latency: data.latency });
@@ -843,64 +853,75 @@ export default function SettingsPage() {
               )}
 
               {testResult && (
-                <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
-                  testStatus === 'success' 
-                    ? 'bg-green-500/10 border border-green-500/20 text-green-400'
-                    : 'bg-red-500/10 border border-red-500/20 text-red-400'
-                }`}>
+                <div className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 mb-4 animate-fade-in ${testStatus === 'success'
+                  ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                  : 'bg-red-500/10 border border-red-500/20 text-red-400'
+                  }`}>
                   {testStatus === 'success' ? (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>{testResult.message} ({testResult.latency}ms)</span>
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="flex flex-col">
+                        <span>连接成功</span>
+                        <span className="text-emerald-500/60 font-normal">{testResult.message} • 延迟: {testResult.latency}ms</span>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      <span>{testResult.error}</span>
+                      <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                      <div className="flex flex-col">
+                        <span>连接失败</span>
+                        <span className="text-red-500/60 font-normal">{testResult.error}</span>
+                      </div>
                     </>
                   )}
                 </div>
               )}
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex items-center justify-between pt-6 mt-2 border-t border-white/5">
                 <button
                   type="button"
                   onClick={handleTestConnection}
-                  disabled={testStatus === 'testing' || (!formData.apiKey && !editingProvider)}
-                  className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  disabled={testStatus === 'testing' || (!formData.apiKey.trim() && !editingProvider)}
+                  className="group px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-indigo-400 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {testStatus === 'testing' ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>测试中...</span>
-                    </>
+                    <div className="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
                   ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span>测试连接</span>
-                    </>
+                    <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                   )}
+                  <span>测试连接</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 btn-secondary px-4 py-2 rounded-xl"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 btn-primary px-4 py-2 rounded-xl disabled:opacity-50"
-                >
-                  {saving ? '保存中...' : '保存'}
-                </button>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="btn-primary px-6 py-2 rounded-xl text-sm shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:shadow-none min-w-[80px] flex justify-center"
+                  >
+                    {saving ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      '保存'
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
