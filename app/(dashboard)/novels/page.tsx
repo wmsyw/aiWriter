@@ -52,8 +52,7 @@ export default function NovelsPage() {
             新建小说
           </Link>
         </div>
-      </div>
-
+      
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
           {[1, 2, 3].map((i) => (
