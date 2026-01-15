@@ -145,8 +145,15 @@ export async function buildMaterialContext(novelId: string, types?: MaterialType
     const data = material.data;
     let entry = `### ${material.name}\n`;
     if (data.description) entry += `${data.description}\n`;
+    if (data.attributes && typeof data.attributes === 'object') {
+      const attributes = Object.entries(data.attributes)
+        .filter(([, value]) => typeof value === 'string' && value.trim())
+        .map(([key, value]) => `${key}: ${value}`);
+      if (attributes.length > 0) entry += `Attributes: ${attributes.join('；')}\n`;
+    }
     if (data.traits && data.traits.length > 0) entry += `Traits: ${data.traits.join(', ')}\n`;
     if (data.backstory) entry += `Backstory: ${data.backstory}\n`;
+    if (data.importance) entry += `Importance: ${data.importance}\n`;
     sections.push(entry);
   }
   

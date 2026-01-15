@@ -25,6 +25,11 @@ export const JOB_STATUS_CONFIG: Record<string, { label: string; className: strin
 
 export const JOB_TYPE_LABELS: Record<string, string> = {
   OUTLINE_GENERATE: '大纲生成',
+  NOVEL_SEED: '小说引导生成',
+  OUTLINE_ROUGH: '粗纲生成',
+  OUTLINE_DETAILED: '细纲生成',
+  OUTLINE_CHAPTERS: '章节大纲生成',
+  CHARACTER_BIOS: '角色传记生成',
   CHAPTER_GENERATE: '章节生成',
   CHAPTER_GENERATE_BRANCHES: '分支生成',
   REVIEW_SCORE: '章节评审',

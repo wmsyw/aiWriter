@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface OutlineGeneratorModalProps {
   isOpen: boolean;
@@ -26,59 +26,96 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedOutline, setGeneratedOutline] = useState('');
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [roughOutline, setRoughOutline] = useState<any>(null);
+  const [detailedOutline, setDetailedOutline] = useState<any>(null);
+  const [chapterOutline, setChapterOutline] = useState<any>(null);
+  const [stage, setStage] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
+  const stageLabel = useMemo(() => {
+    if (stage === 'rough') return '粗略大纲';
+    if (stage === 'detailed') return '细纲扩展';
+    if (stage === 'chapters') return '章节大纲';
+    return '';
+  }, [stage]);
 
   if (!isOpen) return null;
+
+  const pollJob = (id: string) => new Promise<any>((resolve, reject) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/${id}`);
+        if (!res.ok) return;
+        const { job } = await res.json();
+        if (job.status === 'succeeded') {
+          clearInterval(interval);
+          resolve(job.output);
+        } else if (job.status === 'failed') {
+          clearInterval(interval);
+          reject(new Error(job.error || '大纲生成失败'));
+        }
+      } catch (error) {
+        clearInterval(interval);
+        reject(error);
+      }
+    }, 2000);
+  });
+
+  const runJob = async (type: string, input: Record<string, unknown>) => {
+    const res = await fetch('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, input }),
+    });
+
+    if (!res.ok) {
+      throw new Error('生成失败');
+    }
+
+    const { job } = await res.json();
+    return pollJob(job.id);
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGeneratedOutline('');
-    
-    try {
-      const res = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'OUTLINE_GENERATE',
-          input: {
-            ...formData,
-            novelId,
-          },
-        }),
-      });
+    setRoughOutline(null);
+    setDetailedOutline(null);
+    setChapterOutline(null);
 
-      if (res.ok) {
-        const { id } = await res.json();
-        setJobId(id);
-        pollJob(id);
-      }
+    try {
+      setStage('rough');
+      const roughOutput = await runJob('OUTLINE_ROUGH', {
+        ...formData,
+        novelId,
+      });
+      setRoughOutline(roughOutput);
+
+      setStage('detailed');
+      const detailedOutput = await runJob('OUTLINE_DETAILED', {
+        novelId,
+        roughOutline: roughOutput,
+        targetWords: formData.targetWords,
+        chapterCount: formData.chapterCount,
+      });
+      setDetailedOutline(detailedOutput);
+
+      setStage('chapters');
+      const chaptersOutput = await runJob('OUTLINE_CHAPTERS', {
+        novelId,
+        detailedOutline: detailedOutput,
+      });
+      setChapterOutline(chaptersOutput);
+
+      const outlineText = typeof chaptersOutput === 'string'
+        ? chaptersOutput
+        : JSON.stringify(chaptersOutput, null, 2);
+      setGeneratedOutline(outlineText);
     } catch (error) {
       console.error('Failed to start outline generation', error);
+      alert(error instanceof Error ? error.message : '大纲生成失败，请重试');
+    } finally {
       setIsGenerating(false);
+      setStage(null);
     }
-  };
-
-  const pollJob = (id: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/jobs/${id}`);
-        if (res.ok) {
-          const { job } = await res.json();
-          if (job.status === 'succeeded' && job.output?.outline) {
-            clearInterval(interval);
-            setGeneratedOutline(job.output.outline);
-            setIsGenerating(false);
-          } else if (job.status === 'failed') {
-            clearInterval(interval);
-            setIsGenerating(false);
-            alert('大纲生成失败，请重试');
-          }
-        }
-      } catch {
-        clearInterval(interval);
-        setIsGenerating(false);
-      }
-    }, 2000);
   };
 
   const handleApply = () => {
@@ -256,7 +293,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 />
               </div>
 
-              <div className="pt-4 pb-2">
+              <div className="pt-4 pb-2 space-y-3">
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !formData.genre}
@@ -276,6 +313,24 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                     </>
                   )}
                 </button>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>粗纲 → 细纲 → 章节纲</span>
+                  {isGenerating && stageLabel && <span className="text-indigo-300">当前阶段：{stageLabel}</span>}
+                </div>
+                <div className="flex gap-2">
+                  {['rough', 'detailed', 'chapters'].map((value, index) => (
+                    <div
+                      key={value}
+                      className={`flex-1 h-1 rounded-full ${
+                        (value === 'rough' && roughOutline) || (value === 'detailed' && detailedOutline) || (value === 'chapters' && chapterOutline)
+                          ? 'bg-indigo-500'
+                          : stage === value
+                            ? 'bg-indigo-500/40 animate-pulse'
+                            : 'bg-white/10'
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -316,7 +371,23 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   </div>
                 </div>
               ) : generatedOutline ? (
-                <div className="prose prose-invert max-w-none">
+                <div className="prose prose-invert max-w-none space-y-4">
+                  {roughOutline && (
+                    <details className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <summary className="cursor-pointer text-sm text-indigo-300">粗略大纲</summary>
+                      <pre className="text-gray-200 whitespace-pre-wrap text-xs mt-3">
+                        {JSON.stringify(roughOutline, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                  {detailedOutline && (
+                    <details className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <summary className="cursor-pointer text-sm text-indigo-300">细纲扩展</summary>
+                      <pre className="text-gray-200 whitespace-pre-wrap text-xs mt-3">
+                        {JSON.stringify(detailedOutline, null, 2)}
+                      </pre>
+                    </details>
+                  )}
                   <pre className="text-gray-200 whitespace-pre-wrap font-sans text-base leading-relaxed p-4 rounded-xl border border-white/5 bg-black/20">
                     {generatedOutline}
                   </pre>

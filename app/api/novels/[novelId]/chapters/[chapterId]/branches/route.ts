@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { prisma } from '@/src/server/db';
 import { getBranches, selectBranch } from '@/src/server/services/versioning';
+import { createJob, JobType } from '@/src/server/services/jobs';
 import { z } from 'zod';
 
 const selectBranchSchema = z.object({
@@ -60,7 +61,16 @@ export async function POST(
 
   try {
     await selectBranch(chapterId, parsed.data.versionId);
-    return NextResponse.json({ success: true });
+    let analysisQueued = true;
+    let analysisQueueError: string | null = null;
+    try {
+      await createJob(session.userId, JobType.MEMORY_EXTRACT, { chapterId });
+    } catch (error) {
+      analysisQueued = false;
+      analysisQueueError = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Failed to enqueue memory extract', analysisQueueError);
+    }
+    return NextResponse.json({ success: true, analysisQueued, analysisQueueError });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

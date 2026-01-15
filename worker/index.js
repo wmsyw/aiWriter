@@ -7,6 +7,7 @@ import { createAdapter, ProviderError } from '../src/server/adapters/providers.j
 import { decryptApiKey } from '../src/server/crypto.js';
 import { renderTemplateString } from '../src/server/services/templates.js';
 import { buildMaterialContext } from '../src/server/services/materials.js';
+import { createJob } from '../src/server/services/jobs.js';
 import { saveVersion, saveBranchVersions } from '../src/server/services/versioning.js';
 import { commitChapter } from '../src/server/services/git-backup.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../src/server/services/web-search.js';
@@ -46,7 +47,12 @@ async function withConcurrencyLimit(fn) {
 }
 
 const JobType = {
+  NOVEL_SEED: 'NOVEL_SEED',
   OUTLINE_GENERATE: 'OUTLINE_GENERATE',
+  OUTLINE_ROUGH: 'OUTLINE_ROUGH',
+  OUTLINE_DETAILED: 'OUTLINE_DETAILED',
+  OUTLINE_CHAPTERS: 'OUTLINE_CHAPTERS',
+  CHARACTER_BIOS: 'CHARACTER_BIOS',
   CHAPTER_GENERATE: 'CHAPTER_GENERATE',
   CHAPTER_GENERATE_BRANCHES: 'CHAPTER_GENERATE_BRANCHES',
   REVIEW_SCORE: 'REVIEW_SCORE',
@@ -60,6 +66,8 @@ const JobType = {
   ARTICLE_ANALYZE: 'ARTICLE_ANALYZE',
   BATCH_ARTICLE_ANALYZE: 'BATCH_ARTICLE_ANALYZE',
   MATERIAL_SEARCH: 'MATERIAL_SEARCH',
+  WIZARD_WORLD_BUILDING: 'WIZARD_WORLD_BUILDING',
+  WIZARD_CHARACTERS: 'WIZARD_CHARACTERS',
 };
 
 const JobStatus = {
@@ -160,6 +168,21 @@ async function handleChapterGenerate(job, { jobId, userId, input }) {
     include: { novel: true },
   });
   if (!chapter || chapter.novel.userId !== userId) throw new Error('Chapter not found');
+  if (!['chapters', 'drafting'].includes(chapter.novel.generationStage || '')) {
+    throw new Error('请先完成大纲生成');
+  }
+  if (chapter.order > 1) {
+    const incompleteCount = await prisma.chapter.count({
+      where: {
+        novelId: chapter.novelId,
+        order: { lt: chapter.order },
+        generationStage: { not: 'completed' },
+      },
+    });
+    if (incompleteCount > 0) {
+      throw new Error('请先完成前序章节');
+    }
+  }
 
   const agent = await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } });
   if (!agent) throw new Error('Agent not found');
@@ -177,7 +200,7 @@ async function handleChapterGenerate(job, { jobId, userId, input }) {
   });
   const previousSummary = previousChapters.map(c => `Chapter ${c.order}: ${c.title}`).join('\n');
 
-  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding']);
+  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding', 'plotPoint']);
 
   let webSearchResult = null;
   let useModelSearch = false;
@@ -219,16 +242,29 @@ async function handleChapterGenerate(job, { jobId, userId, input }) {
   await prisma.$transaction(async (tx) => {
     await tx.chapter.update({
       where: { id: chapterId },
-      data: { content: response.content },
+      data: { content: response.content, generationStage: 'generated' },
     });
+
     await saveVersion(chapterId, response.content, tx);
   });
   await trackUsage(userId, jobId, config.providerType, agent.model || config.defaultModel, response.usage);
 
+  let analysisQueued = true;
+  let analysisQueueError = null;
+  try {
+    await createJob(userId, JobType.MEMORY_EXTRACT, { chapterId });
+  } catch (error) {
+    analysisQueued = false;
+    analysisQueueError = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to enqueue memory extract', analysisQueueError);
+  }
+ 
   return { 
     content: response.content, 
     wordCount: response.content.split(/\s+/).length,
     webSearchUsed: useModelSearch || !!webSearchResult?.context,
+    analysisQueued,
+    analysisQueueError,
   };
 }
 
@@ -240,6 +276,21 @@ async function handleChapterGenerateBranches(job, { jobId, userId, input }) {
     include: { novel: true },
   });
   if (!chapter || chapter.novel.userId !== userId) throw new Error('Chapter not found');
+  if (!['chapters', 'drafting'].includes(chapter.novel.generationStage || '')) {
+    throw new Error('请先完成大纲生成');
+  }
+  if (chapter.order > 1) {
+    const incompleteCount = await prisma.chapter.count({
+      where: {
+        novelId: chapter.novelId,
+        order: { lt: chapter.order },
+        generationStage: { not: 'completed' },
+      },
+    });
+    if (incompleteCount > 0) {
+      throw new Error('请先完成前序章节');
+    }
+  }
 
   const agent = agentId
     ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
@@ -258,7 +309,7 @@ async function handleChapterGenerateBranches(job, { jobId, userId, input }) {
     take: 3,
   });
   const previousSummary = previousChapters.map(c => `Chapter ${c.order}: ${c.title}`).join('\n');
-  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding']);
+  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding', 'plotPoint']);
 
   let webSearchResult = null;
   let useModelSearch = false;
@@ -417,6 +468,11 @@ async function handleReviewScore(job, { jobId, userId, input }) {
         ? { min: Math.min(...validScores), max: Math.max(...validScores) }
         : null,
     };
+
+    await prisma.chapter.update({
+      where: { id: chapterId },
+      data: { generationStage: 'reviewed' },
+    });
     
     return { reviews, aggregated, isMultiReview: true };
   }
@@ -439,52 +495,262 @@ async function handleReviewScore(job, { jobId, userId, input }) {
     result = { raw: response.content, overall_score: null };
   }
 
+  await prisma.chapter.update({
+    where: { id: chapterId },
+    data: { generationStage: 'reviewed' },
+  });
+
   await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
   return result;
+ 
 }
 
-async function handleDeaiRewrite(job, { jobId, userId, input }) {
-  const { chapterId, agentId } = input;
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
-  const chapter = await prisma.chapter.findUnique({
-    where: { id: chapterId },
-    include: { novel: true },
-  });
-  if (!chapter || chapter.novel.userId !== userId) throw new Error('Chapter not found');
+function mergeRelationshipEntries(existing = [], incoming = []) {
+  const merged = Array.isArray(existing) ? [...existing] : [];
+  if (!Array.isArray(incoming)) return merged;
 
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: 'De-AI Humanizer' }, orderBy: { createdAt: 'desc' } });
+  for (const rel of incoming) {
+    if (!rel || !rel.targetId) continue;
+    const matchIndex = merged.findIndex(item => item.targetId === rel.targetId);
+    if (matchIndex >= 0) {
+      const existing = merged[matchIndex];
+      merged[matchIndex] = {
+        ...existing,
+        type: rel.type || existing.type,
+        description: rel.description || existing.description,
+      };
+      continue;
+    }
+    merged.push(rel);
+  }
+  return merged;
+}
 
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+function mergeMaterialData(existingData = {}, nextData = {}) {
+  const merged = { ...existingData, ...nextData };
+  if (existingData.attributes || nextData.attributes) {
+    merged.attributes = { ...(existingData.attributes || {}), ...(nextData.attributes || {}) };
+  }
+  if (existingData.relationships || nextData.relationships) {
+    merged.relationships = mergeRelationshipEntries(existingData.relationships || [], nextData.relationships || []);
+  }
+  return merged;
+}
 
-  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
-
-  const context = { original_content: chapter.content };
-  const prompt = template
-    ? renderTemplateString(template.content, context)
-    : `Rewrite this text to feel more natural and human:\n\n${chapter.content}`;
-
-  const params = agent?.params || {};
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
-    messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
-    temperature: params.temperature || 0.9,
-    maxTokens: params.maxTokens || 4000,
-  }));
-
-  await prisma.$transaction(async (tx) => {
-    await tx.chapter.update({
-      where: { id: chapterId },
-      data: { content: response.content },
+async function upsertMaterialByName({ novelId, userId, type, name, data, genre, tx }) {
+  if (!name) return { record: null, created: false };
+  const client = tx || prisma;
+  const existing = await client.material.findFirst({ where: { novelId, userId, type, name } });
+  if (existing) {
+    const merged = mergeMaterialData(existing.data || {}, data || {});
+    const record = await client.material.update({
+      where: { id: existing.id },
+      data: {
+        genre: genre || existing.genre || '通用',
+        data: merged,
+      },
     });
-    await saveVersion(chapterId, response.content, tx);
-  });
-  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+    return { record, created: false };
+  }
 
-  return { content: response.content };
+  const record = await client.material.create({
+    data: {
+      novelId,
+      userId,
+      type,
+      name,
+      genre: genre || '通用',
+      data: data || {},
+    },
+  });
+  return { record, created: true };
+}
+
+function mapImportanceLevel(level) {
+  if (typeof level !== 'string') return undefined;
+  if (level.includes('伏笔')) return 'foreshadowing';
+  if (level.includes('核心') || level.includes('重要')) return 'major';
+  if (level.includes('日常')) return 'minor';
+  return undefined;
+}
+
+async function syncMaterialsFromAnalysis({ analysis, novelId, userId, chapterNumber, genre, tx }) {
+  if (!analysis || analysis.raw || analysis.parseError) {
+    return { created: 0, updated: 0, skipped: true };
+  }
+
+  const client = tx || prisma;
+  let created = 0;
+  let updated = 0;
+
+  const characterDrafts = new Map();
+  const addCharacterDraft = (name, payload) => {
+    const trimmed = normalizeString(name);
+    if (!trimmed) return;
+    const current = characterDrafts.get(trimmed) || { name: trimmed, data: { attributes: {} } };
+    const merged = mergeMaterialData(current.data || {}, payload || {});
+    characterDrafts.set(trimmed, { name: trimmed, data: merged });
+  };
+
+  const characters = analysis.characters || {};
+  const newly = Array.isArray(characters.newly_introduced) ? characters.newly_introduced : [];
+  const appearing = Array.isArray(characters.appearing) ? characters.appearing : [];
+  const mentioned = Array.isArray(characters.mentioned_only) ? characters.mentioned_only : [];
+
+  for (const char of newly) {
+    const descriptionParts = [char.description, char.personality].filter(Boolean);
+    addCharacterDraft(char.name, {
+      description: descriptionParts.join('；') || undefined,
+      attributes: {
+        identity: char.identity || '',
+        occupation: char.identity || '',
+        role_type: char.role_type || '',
+        first_impression: char.first_impression || '',
+        personality: char.personality || '',
+      },
+    });
+  }
+
+  for (const char of appearing) {
+    addCharacterDraft(char.name, {
+      attributes: {
+        actions: char.actions || '',
+        development: char.development || '',
+        new_info: char.new_info || '',
+      },
+    });
+  }
+
+  for (const name of mentioned) {
+    addCharacterDraft(name, { attributes: { note: '仅提及' } });
+  }
+
+  const relationships = Array.isArray(analysis.relationships) ? analysis.relationships : [];
+  for (const relation of relationships) {
+    addCharacterDraft(relation.character1, {});
+    addCharacterDraft(relation.character2, {});
+  }
+
+  const characterMap = new Map();
+  for (const draft of characterDrafts.values()) {
+    const { record, created: wasCreated } = await upsertMaterialByName({
+      novelId,
+      userId,
+      type: 'character',
+      name: draft.name,
+      data: draft.data,
+      genre,
+      tx,
+    });
+    if (!record) continue;
+    characterMap.set(draft.name, record);
+    if (wasCreated) {
+      created += 1;
+    } else {
+      updated += 1;
+    }
+  }
+
+  if (relationships.length > 0 && characterMap.size > 0) {
+    const relationshipMap = new Map();
+    const relationshipNotes = new Map();
+    for (const relation of relationships) {
+      const name1 = normalizeString(relation.character1);
+      const name2 = normalizeString(relation.character2);
+      if (!name1 || !name2 || !characterMap.has(name1) || !characterMap.has(name2)) continue;
+      const relType = relation.relationship || '关系';
+      const description = relation.change || '';
+      const id1 = characterMap.get(name1).id;
+      const id2 = characterMap.get(name2).id;
+
+      const relEntry1 = { targetId: id2, type: relType, description };
+      const relEntry2 = { targetId: id1, type: relType, description };
+      const note1 = description ? `${name2}:${relType}(${description})` : `${name2}:${relType}`;
+      const note2 = description ? `${name1}:${relType}(${description})` : `${name1}:${relType}`;
+
+      relationshipMap.set(id1, [...(relationshipMap.get(id1) || []), relEntry1]);
+      relationshipMap.set(id2, [...(relationshipMap.get(id2) || []), relEntry2]);
+      relationshipNotes.set(id1, [...(relationshipNotes.get(id1) || []), note1]);
+      relationshipNotes.set(id2, [...(relationshipNotes.get(id2) || []), note2]);
+    }
+
+    for (const [materialId, rels] of relationshipMap.entries()) {
+      const record = Array.from(characterMap.values()).find(item => item.id === materialId);
+      if (!record) continue;
+      const notes = relationshipNotes.get(materialId) || [];
+      const merged = mergeMaterialData(record.data || {}, {
+        relationships: rels,
+        ...(notes.length > 0 ? { attributes: { relationships: notes.join('；') } } : {}),
+      });
+      await client.material.update({ where: { id: materialId }, data: { data: merged } });
+      updated += 1;
+    }
+  }
+
+  const organizations = Array.isArray(analysis.organizations) ? analysis.organizations : [];
+  for (const org of organizations) {
+    const { record, created: wasCreated } = await upsertMaterialByName({
+      novelId,
+      userId,
+      type: 'worldbuilding',
+      name: normalizeString(org.name),
+      genre,
+      data: {
+        description: org.description || '',
+        attributes: {
+          category: '组织',
+          type: org.type || '',
+          members: Array.isArray(org.members) ? org.members.join('、') : '',
+          influence: org.influence || '',
+          chapter: chapterNumber || null,
+        },
+      },
+      tx,
+    });
+    if (!record) continue;
+    if (wasCreated) {
+      created += 1;
+    } else {
+      updated += 1;
+    }
+  }
+
+  const plotEvents = Array.isArray(analysis.plot_events) ? analysis.plot_events : [];
+  for (const event of plotEvents) {
+    const eventName = normalizeString(event.event);
+    if (!eventName) continue;
+    const importance = mapImportanceLevel(event.importance);
+    const { record, created: wasCreated } = await upsertMaterialByName({
+      novelId,
+      userId,
+      type: 'plotPoint',
+      name: eventName,
+      genre,
+      data: {
+        description: event.event || '',
+        importance,
+        chapter: chapterNumber || null,
+        attributes: {
+          importance: event.importance || '',
+          characters: Array.isArray(event.characters_involved) ? event.characters_involved.join('、') : '',
+          consequences: event.consequences || '',
+        },
+      },
+      tx,
+    });
+    if (!record) continue;
+    if (wasCreated) {
+      created += 1;
+    } else {
+      updated += 1;
+    }
+  }
+
+  return { created, updated };
 }
 
 async function handleMemoryExtract(job, { jobId, userId, input }) {
@@ -496,95 +762,69 @@ async function handleMemoryExtract(job, { jobId, userId, input }) {
   });
   if (!chapter || chapter.novel.userId !== userId) throw new Error('Chapter not found');
 
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: 'Memory Extractor' }, orderBy: { createdAt: 'desc' } });
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '记忆提取器',
+    templateName: '记忆提取',
+  });
 
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+  if (agentId && !agent) {
+    throw new Error('Agent not found');
+  }
 
   const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+  const context = {
+    chapter_content: chapter.content || '',
+    chapter_number: chapter.order,
+    genre: chapter.novel.genre || '',
+  };
 
-  const context = { chapter_content: chapter.content };
-  const prompt = template
-    ? renderTemplateString(template.content, context)
-    : `Extract structured information from this chapter as JSON:\n\n${chapter.content}`;
+  const fallbackPrompt = `请根据以下章节提取钩子、伏笔、情节、人物关系、职业等信息，并输出JSON结构：\n\n${chapter.content || ''}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
     model: agent?.model || config.defaultModel || 'gpt-4',
     temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 2000,
+    maxTokens: params.maxTokens || 4000,
   }));
 
-  let data;
-  try {
-    data = JSON.parse(response.content);
-  } catch {
-    data = { raw: response.content };
+  const analysis = await parseJsonOutput(response.content);
+  const invalidAnalysis = !analysis || typeof analysis !== 'object' || Array.isArray(analysis) || analysis?.raw || analysis?.parseError;
+  if (invalidAnalysis) {
+    const message = analysis?.parseError
+      ? `Invalid memory extract response: ${analysis.parseError}`
+      : 'Invalid memory extract response';
+    throw new Error(message);
   }
 
-  await prisma.memorySnapshot.create({
-    data: { chapterId, novelId: chapter.novelId, data },
+  const materialStats = await prisma.$transaction(async (tx) => {
+    await tx.memorySnapshot.deleteMany({ where: { chapterId } });
+    await tx.memorySnapshot.create({
+      data: {
+        chapterId,
+        novelId: chapter.novelId,
+        data: analysis,
+      },
+    });
+
+    return await syncMaterialsFromAnalysis({
+      analysis,
+      novelId: chapter.novelId,
+      userId,
+      chapterNumber: chapter.order,
+      genre: chapter.novel.genre || '通用',
+      tx,
+    });
   });
 
   await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
-  return data;
+
+  return { analysis, materials: materialStats };
 }
-
-async function handleConsistencyCheck(job, { jobId, userId, input }) {
-  const { chapterId, agentId } = input;
-
-  const chapter = await prisma.chapter.findUnique({
-    where: { id: chapterId },
-    include: { novel: true },
-  });
-  if (!chapter || chapter.novel.userId !== userId) throw new Error('Chapter not found');
-
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: 'Consistency Checker' }, orderBy: { createdAt: 'desc' } });
-
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
-
-  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
-
-  const materials = await buildMaterialContext(chapter.novelId);
-  const memories = await prisma.memorySnapshot.findMany({
-    where: { novelId: chapter.novelId },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-  });
-  const previousMemories = memories.map(m => JSON.stringify(m.data)).join('\n---\n');
-
-  const context = { chapter_content: chapter.content, materials, previous_memories: previousMemories };
-  const prompt = template
-    ? renderTemplateString(template.content, context)
-    : `Check this chapter for consistency issues:\n\n${chapter.content}`;
-
-  const params = agent?.params || {};
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
-    messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
-    temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 2000,
-  }));
-
-  let result;
-  try {
-    result = JSON.parse(response.content);
-  } catch {
-    result = { raw: response.content };
-  }
-
-  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
-  return result;
-}
-
+ 
 async function handleGitBackup(job, { jobId, userId, input }) {
   const { novelId, novelTitle, chapterNumber, chapterTitle, content } = input;
   
@@ -645,8 +885,544 @@ async function handleCharacterChat(job, { jobId, userId, input }) {
   };
 }
 
+async function handleWizardWorldBuilding(job, { jobId, userId, input }) {
+  const { novelId, theme, genre, keywords, protagonist, worldSetting, specialRequirements, agentId } = input;
+
+  const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
+  if (!novel) throw new Error('Novel not found');
+
+  const agent = agentId
+    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
+    : await prisma.agentDefinition.findFirst({ where: { userId, name: '世界观生成器' }, orderBy: { createdAt: 'desc' } });
+
+  const template = agent?.templateId
+    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
+    : null;
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+
+  const context = {
+    theme: theme || novel.theme || '',
+    genre: genre || novel.genre || '',
+    keywords: (keywords || novel.keywords || []).join(', '),
+    protagonist: protagonist || novel.protagonist || '',
+    world_setting: worldSetting || novel.worldSetting || '',
+    special_requirements: specialRequirements || novel.specialRequirements || '',
+  };
+
+  const prompt = template
+    ? renderTemplateString(template.content, context)
+    : `请根据以下信息生成小说世界观设定，并返回 JSON：\n\n字段：world_time_period, world_location, world_atmosphere, world_rules, world_setting\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n已有设定：${context.world_setting || '无'}\n特殊要求：${context.special_requirements || '无'}`;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.6,
+    maxTokens: params.maxTokens || 3000,
+  }));
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(response.content);
+  } catch (e) {
+    parsed = { raw: response.content, parseError: e.message };
+  }
+
+  const worldData = parsed && typeof parsed === 'object' ? parsed : { raw: response.content };
+  const hasStructuredWorld = !!(
+    worldData &&
+    (worldData.world_time_period || worldData.world_location || worldData.world_atmosphere || worldData.world_rules || worldData.world_setting)
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.novel.update({
+      where: { id: novelId },
+      data: {
+        ...(hasStructuredWorld
+          ? {
+              worldTimePeriod: worldData.world_time_period ?? novel.worldTimePeriod ?? null,
+              worldLocation: worldData.world_location ?? novel.worldLocation ?? null,
+              worldAtmosphere: worldData.world_atmosphere ?? novel.worldAtmosphere ?? null,
+              worldRules: worldData.world_rules ?? novel.worldRules ?? null,
+              worldSetting: worldData.world_setting ?? novel.worldSetting ?? null,
+            }
+          : {}),
+        wizardStatus: 'in_progress',
+        wizardStep: Math.max(novel.wizardStep || 0, 1),
+      },
+    });
+
+    await tx.material.create({
+      data: {
+        novelId,
+        userId,
+        type: 'worldbuilding',
+        name: '世界观设定',
+        genre: novel.genre || '通用',
+        data: {
+          timePeriod: worldData.world_time_period || '',
+          location: worldData.world_location || '',
+          atmosphere: worldData.world_atmosphere || '',
+          rules: worldData.world_rules || '',
+          worldSetting: worldData.world_setting || '',
+          raw: worldData.raw || null,
+        },
+      },
+    });
+  });
+
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return worldData;
+}
+
+async function handleWizardCharacters(job, { jobId, userId, input }) {
+  const { novelId, theme, genre, keywords, protagonist, worldSetting, characterCount = 5, agentId } = input;
+
+  const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
+  if (!novel) throw new Error('Novel not found');
+
+  const agent = agentId
+    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
+    : await prisma.agentDefinition.findFirst({ where: { userId, name: '角色生成器' }, orderBy: { createdAt: 'desc' } });
+
+  const template = agent?.templateId
+    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
+    : null;
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+
+  const context = {
+    theme: theme || novel.theme || '',
+    genre: genre || novel.genre || '',
+    keywords: (keywords || novel.keywords || []).join(', '),
+    protagonist: protagonist || novel.protagonist || '',
+    world_setting: worldSetting || novel.worldSetting || '',
+    character_count: characterCount,
+  };
+
+  const prompt = template
+    ? renderTemplateString(template.content, context)
+    : `请根据以下信息生成角色设定，返回 JSON 数组，每项包含 name, role, description, traits, goals：\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n世界观：${context.world_setting || '无'}\n角色数量：${context.character_count}`;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.7,
+    maxTokens: params.maxTokens || 4000,
+  }));
+
+  let parsedCharacters = [];
+  try {
+    const parsed = JSON.parse(response.content);
+    parsedCharacters = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    parsedCharacters = [];
+  }
+
+  const characterMaterials = [];
+  const characterErrors = [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const char of parsedCharacters) {
+      if (!char?.name) continue;
+      try {
+        const material = await tx.material.create({
+          data: {
+            novelId,
+            userId,
+            type: 'character',
+            name: char.name,
+            genre: novel.genre || '通用',
+            data: {
+              role: char.role || '',
+              description: char.description || '',
+              traits: char.traits || '',
+              goals: char.goals || '',
+            },
+          },
+        });
+        characterMaterials.push(material.id);
+      } catch (error) {
+        characterErrors.push({ name: char.name, error: error.message });
+      }
+    }
+
+    await tx.novel.update({
+      where: { id: novelId },
+      data: {
+        wizardStatus: 'in_progress',
+        wizardStep: Math.max(novel.wizardStep || 0, 2),
+      },
+    });
+  });
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return {
+    characters: parsedCharacters,
+    materialIds: characterMaterials,
+    raw: parsedCharacters.length === 0 ? response.content : null,
+    errors: characterErrors.length > 0 ? characterErrors : null,
+  };
+}
+
+async function resolveAgentAndTemplate({ userId, agentId, agentName, fallbackAgentName, templateName }) {
+  let agent = null;
+  if (agentId) {
+    agent = await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } });
+  }
+  if (!agent && agentName) {
+    agent = await prisma.agentDefinition.findFirst({ where: { userId, name: agentName }, orderBy: { createdAt: 'desc' } });
+  }
+  if (!agent && fallbackAgentName) {
+    agent = await prisma.agentDefinition.findFirst({ where: { userId, name: fallbackAgentName }, orderBy: { createdAt: 'desc' } });
+  }
+
+  const template = agent?.templateId
+    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
+    : templateName
+      ? await prisma.promptTemplate.findFirst({ where: { userId, name: templateName } })
+      : null;
+
+  return { agent, template };
+}
+
+async function parseJsonOutput(content) {
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    return { raw: content, parseError: error.message };
+  }
+}
+
+async function handleNovelSeed(job, { jobId, userId, input }) {
+  const { novelId, title, theme, genre, keywords, protagonist, specialRequirements, agentId } = input;
+
+  const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
+  if (!novel) throw new Error('Novel not found');
+
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '小说引导生成器',
+    fallbackAgentName: '大纲生成器',
+    templateName: '小说引导生成',
+  });
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+
+  const context = {
+    title: title || novel.title,
+    theme: theme || novel.theme || '',
+    genre: genre || novel.genre || '',
+    keywords: keywords || '',
+    protagonist: protagonist || novel.protagonist || '',
+    special_requirements: specialRequirements || novel.specialRequirements || '',
+  };
+
+  const fallbackPrompt = `请生成简介、世界观和金手指设定（JSON）：\n书名：${context.title}\n主题：${context.theme}\n类型：${context.genre}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.7,
+    maxTokens: params.maxTokens || 3000,
+  }));
+
+  const seedResult = await parseJsonOutput(response.content);
+  const world = seedResult.world || {};
+
+  await prisma.novel.update({
+    where: { id: novelId },
+    data: {
+      description: seedResult.synopsis || novel.description || null,
+      protagonist: seedResult.protagonist || novel.protagonist || null,
+      goldenFinger: seedResult.golden_finger || novel.goldenFinger || null,
+      worldSetting: world.world_setting || novel.worldSetting || null,
+      worldTimePeriod: world.time_period || novel.worldTimePeriod || null,
+      worldLocation: world.location || novel.worldLocation || null,
+      worldAtmosphere: world.atmosphere || novel.worldAtmosphere || null,
+      worldRules: world.rules || novel.worldRules || null,
+      generationStage: 'seeded',
+      wizardStatus: 'in_progress',
+      wizardStep: Math.max(novel.wizardStep || 0, 1),
+    },
+  });
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return seedResult;
+}
+
+async function handleOutlineRough(job, { jobId, userId, input }) {
+  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId } = input;
+
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '粗纲生成器',
+    fallbackAgentName: '大纲生成器',
+    templateName: '粗略大纲生成',
+  });
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+
+  const context = {
+    keywords: keywords || '',
+    theme: theme || '',
+    genre: genre || '',
+    target_words: targetWords || null,
+    chapter_count: chapterCount || null,
+    protagonist: protagonist || '',
+    world_setting: worldSetting || '',
+    special_requirements: specialRequirements || '',
+  };
+
+  const fallbackPrompt = `请生成粗略大纲，分段描述故事主线（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}\n目标字数：${targetWords || '未知'}万字`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.7,
+    maxTokens: params.maxTokens || 4000,
+  }));
+
+  const roughOutline = await parseJsonOutput(response.content);
+
+  if (novelId) {
+    await prisma.novel.updateMany({
+      where: { id: novelId, userId },
+      data: {
+        outlineRough: roughOutline,
+        outlineStage: 'rough',
+        generationStage: 'rough',
+      },
+    });
+  }
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return roughOutline;
+}
+
+async function generateCharacterBios({ userId, novelId, characters, outlineContext, agentId, jobId }) {
+  if (!characters || characters.length === 0) return { characters: [], materialIds: [] };
+
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '角色传记生成器',
+    fallbackAgentName: '角色生成器',
+    templateName: '角色传记生成',
+  });
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+  const context = {
+    characters_brief: JSON.stringify(characters, null, 2),
+    outline_context: outlineContext || '',
+  };
+
+  const fallbackPrompt = `请为这些角色生成完整传记（JSON）：\n${context.characters_brief}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.7,
+    maxTokens: params.maxTokens || 6000,
+  }));
+
+  const parsed = await parseJsonOutput(response.content);
+  const bioCharacters = Array.isArray(parsed.characters) ? parsed.characters : [];
+
+  const existingNames = await prisma.material.findMany({
+    where: { novelId, userId, type: 'character', name: { in: bioCharacters.map(c => c.name).filter(Boolean) } },
+    select: { name: true },
+  });
+  const existingSet = new Set(existingNames.map(item => item.name));
+
+  const materialIds = [];
+  await prisma.$transaction(async (tx) => {
+    for (const char of bioCharacters) {
+      if (!char?.name || existingSet.has(char.name)) continue;
+      const material = await tx.material.create({
+        data: {
+          novelId,
+          userId,
+          type: 'character',
+          name: char.name,
+          genre: '通用',
+          data: {
+            role: char.role || '',
+            age: char.age || null,
+            appearance: char.appearance || '',
+            personality: char.personality || '',
+            backstory: char.backstory || '',
+            motivation: char.motivation || '',
+            abilities: char.abilities || [],
+            relationships: char.relationships || [],
+            characterArc: char.character_arc || '',
+            tags: char.tags || [],
+          },
+        },
+      });
+      materialIds.push(material.id);
+    }
+  });
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return { characters: bioCharacters, materialIds, raw: parsed.raw || null };
+}
+
+async function handleOutlineDetailed(job, { jobId, userId, input }) {
+  const { novelId, roughOutline, targetWords, chapterCount, agentId } = input;
+
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '细纲生成器',
+    fallbackAgentName: '大纲生成器',
+    templateName: '细纲生成',
+  });
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+
+  const roughOutlinePayload = roughOutline
+    ? (typeof roughOutline === 'string' ? roughOutline : JSON.stringify(roughOutline, null, 2))
+    : '';
+
+  const context = {
+    rough_outline: roughOutlinePayload,
+    target_words: targetWords || null,
+    chapter_count: chapterCount || null,
+  };
+
+  const fallbackPrompt = `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.7,
+    maxTokens: params.maxTokens || 6000,
+  }));
+
+  const detailedOutline = await parseJsonOutput(response.content);
+
+  const charactersFromArcs = Array.isArray(detailedOutline.story_arcs)
+    ? detailedOutline.story_arcs.flatMap(arc => Array.isArray(arc.new_characters) ? arc.new_characters : [])
+    : [];
+  const uniqueCharacters = new Map();
+  for (const char of charactersFromArcs) {
+    if (char?.name && !uniqueCharacters.has(char.name)) {
+      uniqueCharacters.set(char.name, { name: char.name, role: char.role || '', brief: char.brief || '' });
+    }
+  }
+
+  let characterBiosResult = { characters: [], materialIds: [] };
+  if (novelId && uniqueCharacters.size > 0) {
+    characterBiosResult = await generateCharacterBios({
+      userId,
+      novelId,
+      characters: Array.from(uniqueCharacters.values()),
+      outlineContext: roughOutlinePayload,
+      agentId,
+      jobId,
+    });
+  }
+
+  if (novelId) {
+    await prisma.novel.updateMany({
+      where: { id: novelId, userId },
+      data: {
+        outlineDetailed: detailedOutline,
+        outlineStage: 'detailed',
+        generationStage: 'detailed',
+      },
+    });
+  }
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return {
+    ...detailedOutline,
+    characterBios: characterBiosResult.characters,
+    characterMaterialIds: characterBiosResult.materialIds,
+  };
+}
+
+async function handleOutlineChapters(job, { jobId, userId, input }) {
+  const { novelId, detailedOutline, agentId } = input;
+
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '章节大纲生成器',
+    fallbackAgentName: '大纲生成器',
+    templateName: '章节大纲生成',
+  });
+
+  const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
+
+  const detailedPayload = detailedOutline
+    ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
+    : '';
+
+  const context = {
+    detailed_outline: detailedPayload,
+  };
+
+  const fallbackPrompt = `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: agent?.model || config.defaultModel || 'gpt-4',
+    temperature: params.temperature || 0.6,
+    maxTokens: params.maxTokens || 8000,
+  }));
+
+  const chapterOutlines = await parseJsonOutput(response.content);
+
+  if (novelId) {
+    await prisma.novel.updateMany({
+      where: { id: novelId, userId },
+      data: {
+        outlineChapters: chapterOutlines,
+        outline: typeof chapterOutlines === 'string' ? chapterOutlines : JSON.stringify(chapterOutlines, null, 2),
+        outlineStage: 'chapters',
+        generationStage: 'chapters',
+        wizardStatus: 'in_progress',
+        wizardStep: 3,
+      },
+    });
+  }
+
+  await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+
+  return chapterOutlines;
+}
+
+async function handleCharacterBios(job, { jobId, userId, input }) {
+  const { novelId, characters, outlineContext, agentId } = input;
+  const result = await generateCharacterBios({ userId, novelId, characters, outlineContext, agentId, jobId });
+  return result;
+}
+
 async function handleOutlineGenerate(job, { jobId, userId, input }) {
-  const { keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId } = input;
+  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId } = input;
   
   const agent = agentId
     ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
@@ -689,6 +1465,16 @@ async function handleOutlineGenerate(job, { jobId, userId, input }) {
     outline = { raw: response.content, parseError: e.message };
   }
   
+  if (novelId) {
+    await prisma.novel.updateMany({
+      where: { id: novelId, userId },
+      data: {
+        wizardStatus: 'in_progress',
+        wizardStep: 3,
+      },
+    });
+  }
+
   await trackUsage(userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
   
   return outline;
@@ -962,7 +1748,12 @@ async function handleMaterialSearch(job, { jobId, userId, input }) {
 }
 
 const handlers = {
+  [JobType.NOVEL_SEED]: handleNovelSeed,
   [JobType.OUTLINE_GENERATE]: handleOutlineGenerate,
+  [JobType.OUTLINE_ROUGH]: handleOutlineRough,
+  [JobType.OUTLINE_DETAILED]: handleOutlineDetailed,
+  [JobType.OUTLINE_CHAPTERS]: handleOutlineChapters,
+  [JobType.CHARACTER_BIOS]: handleCharacterBios,
   [JobType.CHAPTER_GENERATE]: handleChapterGenerate,
   [JobType.CHAPTER_GENERATE_BRANCHES]: handleChapterGenerateBranches,
   [JobType.REVIEW_SCORE]: handleReviewScore,
@@ -974,6 +1765,8 @@ const handlers = {
   [JobType.ARTICLE_ANALYZE]: handleArticleAnalyze,
   [JobType.BATCH_ARTICLE_ANALYZE]: handleBatchArticleAnalyze,
   [JobType.MATERIAL_SEARCH]: handleMaterialSearch,
+  [JobType.WIZARD_WORLD_BUILDING]: handleWizardWorldBuilding,
+  [JobType.WIZARD_CHARACTERS]: handleWizardCharacters,
 };
 
 const RETRY_LIMIT = 3;

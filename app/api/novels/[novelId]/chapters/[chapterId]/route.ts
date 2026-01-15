@@ -6,6 +6,8 @@ import { getSessionUser } from '@/src/server/middleware/audit';
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().optional(),
+  generationStage: z.string().optional(),
+  reviewIterations: z.number().int().min(0).optional(),
 });
 
 export async function GET(

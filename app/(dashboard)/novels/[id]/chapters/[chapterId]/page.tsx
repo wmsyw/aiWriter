@@ -54,6 +54,8 @@ interface Chapter {
   title: string;
   content: string;
   updatedAt: string;
+  generationStage?: string;
+  reviewIterations?: number;
 }
 
 interface Version {
@@ -130,47 +132,34 @@ export default function ChapterEditorPage() {
   const [showBranchPanel, setShowBranchPanel] = useState(false);
   const [iterationRound, setIterationRound] = useState(1);
   const [feedback, setFeedback] = useState('');
-  const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
-  const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState('');
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
   const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set());
 
+  const refreshChapter = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}`);
+      if (!res.ok) throw new Error('Failed to load chapter');
+      const data = await res.json();
+      setChapter(data.chapter);
+      setContent(data.chapter.content || '');
+      setTitle(data.chapter.title || '');
+      lastSavedContent.current = data.chapter.content || '';
+    } catch (err) {
+      console.error(err);
+    }
+  }, [novelId, chapterId]);
+
   useEffect(() => {
-    const fetchChapter = async () => {
-      try {
-        const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}`);
-        if (!res.ok) throw new Error('Failed to load chapter');
-        const data = await res.json();
-        setChapter(data.chapter);
-        setContent(data.chapter.content || '');
-        setTitle(data.chapter.title || '');
-        lastSavedContent.current = data.chapter.content || '';
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchChapter();
-    
-    const fetchWorkflows = async () => {
-      try {
-        const res = await fetch('/api/workflows');
-        if (res.ok) {
-          const data = await res.json();
-          setWorkflows(data.workflows || []);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchWorkflows();
+    refreshChapter();
 
     return () => {
       pollIntervalsRef.current.forEach(clearInterval);
       pollIntervalsRef.current.clear();
     };
-  }, [novelId, chapterId]);
+  }, [refreshChapter]);
 
   const fetchVersions = useCallback(async () => {
     try {
@@ -235,6 +224,22 @@ export default function ChapterEditorPage() {
     }
   }, [novelId, chapterId]);
 
+  const updateChapterMeta = useCallback(async (updates: { generationStage?: string; reviewIterations?: number }) => {
+    try {
+      const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChapter(data.chapter);
+      }
+    } catch (err) {
+      console.error('Failed to update chapter stage', err);
+    }
+  }, [novelId, chapterId]);
+ 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
     setContent(newContent);
@@ -281,25 +286,6 @@ export default function ChapterEditorPage() {
     }
   };
 
-  const executeWorkflow = async (workflowId: string) => {
-    try {
-      const res = await fetch('/api/workflows/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflowId, chapterId }),
-      });
-      if (res.ok) {
-        const { job } = await res.json();
-        if (job?.id) {
-          setActiveJobs(prev => [...prev, { ...job, type: 'WORKFLOW_EXECUTE' }]);
-          pollJob(job.id);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to execute workflow', err);
-    }
-    setShowWorkflowMenu(false);
-  };
 
   const pollJob = (jobId: string) => {
     const interval = setInterval(async () => {
@@ -314,12 +300,10 @@ export default function ChapterEditorPage() {
             
             if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
               fetchBranches();
-            } else if (job.type === 'CHAPTER_GENERATE') {
-              const chapterRes = await fetch(`/api/novels/${novelId}/chapters/${chapterId}`);
-              const data = await chapterRes.json();
-              setChapter(data.chapter);
-              setContent(data.chapter.content || '');
+            } else if (job.type === 'CHAPTER_GENERATE' || job.type === 'DEAI_REWRITE') {
+              await refreshChapter();
             } else if (job.type === 'REVIEW_SCORE') {
+              await refreshChapter();
               setReviewResult(job.output);
               setShowReviewPanel(true);
             }
@@ -373,6 +357,10 @@ export default function ChapterEditorPage() {
         setFeedback('');
         setSelectedBranch(null);
         setSaveStatus('unsaved');
+        await updateChapterMeta({
+          generationStage: 'generated',
+          reviewIterations: (chapter?.reviewIterations || 0) + 1,
+        });
       }
     } catch (err) {
       console.error('Failed to apply branch', err);
@@ -390,6 +378,13 @@ export default function ChapterEditorPage() {
     setFeedback('');
     setSelectedBranch(null);
   };
+
+  const stage = chapter?.generationStage || 'draft';
+  const canGenerate = stage === 'draft' || stage === 'generated';
+  const canGenerateBranches = stage === 'generated' || stage === 'reviewed';
+  const canReview = stage === 'generated';
+  const canDeai = stage === 'approved';
+  const canComplete = stage === 'humanized';
 
   const renderBranchPanel = () => {
     if (!showBranchPanel) return null;
@@ -498,6 +493,46 @@ export default function ChapterEditorPage() {
         </div>
       </div>
     );
+  };
+
+  const handleAcceptReview = async () => {
+    await updateChapterMeta({ generationStage: 'approved' });
+    setShowReviewPanel(false);
+  };
+
+  const handleRequestRevision = () => {
+    if (!reviewFeedback.trim()) return;
+    createJob('CHAPTER_GENERATE_BRANCHES', {
+      selectedContent: content,
+      feedback: reviewFeedback,
+      iterationRound: (chapter?.reviewIterations || 0) + 1,
+    });
+    setIterationRound((chapter?.reviewIterations || 0) + 1);
+    setReviewFeedback('');
+    setShowReviewPanel(false);
+  };
+
+  const handleCompleteChapter = async () => {
+    await updateChapterMeta({ generationStage: 'completed' });
+    try {
+      const res = await fetch(`/api/novels/${novelId}/chapters`);
+      if (!res.ok) {
+        router.push(`/novels/${novelId}`);
+        return;
+      }
+      const data = await res.json();
+      const chapters = data.chapters || [];
+      const currentIndex = chapters.findIndex((item: Chapter) => item.id === chapterId);
+      const nextChapter = currentIndex >= 0 ? chapters[currentIndex + 1] : null;
+      if (nextChapter) {
+        router.push(`/novels/${novelId}/chapters/${nextChapter.id}`);
+      } else {
+        router.push(`/novels/${novelId}`);
+      }
+    } catch (error) {
+      console.error('Failed to navigate to next chapter', error);
+      router.push(`/novels/${novelId}`);
+    }
   };
 
   const renderReviewPanel = () => {
@@ -645,8 +680,25 @@ export default function ChapterEditorPage() {
             )}
           </div>
           
-          <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end">
-            <Button variant="secondary" onClick={() => setShowReviewPanel(false)}>关闭</Button>
+          <div className="p-4 border-t border-white/10 bg-white/5 space-y-4">
+            <div>
+              <label className="text-xs font-medium text-gray-400 mb-2 block">用户反馈（可用于下一轮改写）</label>
+              <textarea
+                value={reviewFeedback}
+                onChange={(e) => setReviewFeedback(e.target.value)}
+                placeholder="告诉 AI 需要怎么改，比如节奏更快或补充情感描写..."
+                className="glass-input w-full p-3 h-24 text-sm resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setShowReviewPanel(false)}>关闭</Button>
+              <Button variant="secondary" onClick={handleRequestRevision} disabled={!reviewFeedback.trim()}>
+                <Icons.RotateCcw className="w-4 h-4" /> 按反馈迭代
+              </Button>
+              <Button variant="primary" onClick={handleAcceptReview}>
+                <Icons.CheckCircle className="w-4 h-4" /> 接受评审
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -723,6 +775,7 @@ export default function ChapterEditorPage() {
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={() => createJob('CHAPTER_GENERATE')}
               loading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
+              disabled={!canGenerate}
             >
               <Icons.Sparkles className="w-3.5 h-3.5 text-indigo-400" /> 
               <span className="ml-1.5">生成</span>
@@ -733,6 +786,7 @@ export default function ChapterEditorPage() {
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
               loading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
+              disabled={!canGenerateBranches}
             >
               <Icons.GitBranch className="w-3.5 h-3.5 text-blue-400" /> 
               <span className="ml-1.5">生成分支</span>
@@ -746,6 +800,7 @@ export default function ChapterEditorPage() {
                 createJob('CONSISTENCY_CHECK');
               }}
               loading={activeJobs.some(j => j.type === 'REVIEW_SCORE' || j.type === 'CONSISTENCY_CHECK')}
+              disabled={!canReview}
             >
               <Icons.CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> 
               <span className="ml-1.5">审阅</span>
@@ -756,39 +811,21 @@ export default function ChapterEditorPage() {
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={() => createJob('DEAI_REWRITE')}
               loading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
+              disabled={!canDeai}
             >
               <Icons.Wand2 className="w-3.5 h-3.5 text-purple-400" /> 
               <span className="ml-1.5">润色</span>
             </Button>
-            {workflows.length > 0 && (
-              <>
-                <div className="w-px h-4 bg-white/10 mx-1" />
-                <div className="relative">
-                  <Button 
-                    variant="ghost" 
-                    className="text-xs py-1.5 h-8 px-3 rounded-lg"
-                    onClick={() => setShowWorkflowMenu(!showWorkflowMenu)}
-                    loading={activeJobs.some(j => j.type === 'WORKFLOW_EXECUTE')}
-                  >
-                    <Icons.GitBranch className="w-3.5 h-3.5 text-cyan-400" /> 
-                    <span className="ml-1.5">工作流</span>
-                  </Button>
-                  {showWorkflowMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-48 glass-card rounded-xl overflow-hidden z-30 animate-fade-in">
-                      {workflows.map(wf => (
-                        <button
-                          key={wf.id}
-                          onClick={() => executeWorkflow(wf.id)}
-                          className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-sm text-gray-300 hover:text-white transition-colors"
-                        >
-                          {wf.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <Button
+              variant="ghost"
+              className="text-xs py-1.5 h-8 px-3 rounded-lg"
+              onClick={handleCompleteChapter}
+              disabled={!canComplete}
+            >
+              <Icons.CheckCircle className="w-3.5 h-3.5 text-green-400" />
+              <span className="ml-1.5">完成</span>
+            </Button>
           </div>
           
           <button 

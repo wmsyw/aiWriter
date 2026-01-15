@@ -23,6 +23,7 @@ interface Agent {
 interface Template {
   id: string;
   name: string;
+  content: string;
 }
 
 interface Provider {
@@ -44,6 +45,7 @@ export default function AgentsPage() {
   const [customModel, setCustomModel] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
 
   useEffect(() => {
     fetchData();
@@ -370,6 +372,18 @@ export default function AgentsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">提示词内容（可见）</label>
+                <textarea
+                  value={activeTemplate?.content || '请选择模板以查看提示词内容'}
+                  readOnly
+                  className="w-full glass-input px-4 py-3 rounded-lg min-h-[160px] text-xs font-mono text-gray-300"
+                />
+                {activeTemplate && (
+                  <p className="text-xs text-gray-500">模板：{activeTemplate.name}</p>
+                )}
               </div>
 
               <div className="border-t border-white/10 pt-6">

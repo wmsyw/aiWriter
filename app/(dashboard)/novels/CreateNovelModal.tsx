@@ -25,21 +25,17 @@ export default function CreateNovelModal({ isOpen, onClose }: CreateNovelModalPr
 
     setIsLoading(true);
     try {
-      const res = await fetch('/api/novels', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title, description, type: novelType }),
+      const params = new URLSearchParams({
+        title: title.trim(),
+        type: novelType,
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        router.refresh();
-        onClose();
+      if (description.trim()) {
+        params.set('description', description.trim());
       }
+      router.push(`/novels/create?${params.toString()}`);
+      onClose();
     } catch (error) {
-      console.error('Failed to create novel', error);
+      console.error('Failed to start wizard', error);
     } finally {
       setIsLoading(false);
     }

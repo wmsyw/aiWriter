@@ -7,6 +7,7 @@ const MAX_PAYLOAD_SIZE = 100 * 1024;
 const MAX_FIELD_LENGTH = 5000;
 
 const outlineInputSchema = z.object({
+  novelId: z.string().optional(),
   keywords: z.string().max(MAX_FIELD_LENGTH).optional(),
   theme: z.string().max(MAX_FIELD_LENGTH).optional(),
   genre: z.string().max(200).optional(),
@@ -18,11 +19,82 @@ const outlineInputSchema = z.object({
   agentId: z.string().optional(),
 });
 
+const novelSeedInputSchema = z.object({
+  novelId: z.string(),
+  title: z.string().max(200).optional(),
+  theme: z.string().max(MAX_FIELD_LENGTH).optional(),
+  genre: z.string().max(200).optional(),
+  keywords: z.string().max(MAX_FIELD_LENGTH).optional(),
+  protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
+  specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  agentId: z.string().optional(),
+});
+
+const outlineRoughInputSchema = z.object({
+  novelId: z.string().optional(),
+  keywords: z.string().max(MAX_FIELD_LENGTH).optional(),
+  theme: z.string().max(MAX_FIELD_LENGTH).optional(),
+  genre: z.string().max(200).optional(),
+  targetWords: z.number().min(1).max(1000).optional(),
+  chapterCount: z.number().min(1).max(2000).optional(),
+  protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
+  worldSetting: z.string().max(MAX_FIELD_LENGTH).optional(),
+  specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  agentId: z.string().optional(),
+});
+
+const outlineDetailedInputSchema = z.object({
+  novelId: z.string(),
+  roughOutline: z.unknown().optional(),
+  targetWords: z.number().min(1).max(1000).optional(),
+  chapterCount: z.number().min(1).max(2000).optional(),
+  agentId: z.string().optional(),
+});
+
+const outlineChaptersInputSchema = z.object({
+  novelId: z.string(),
+  detailedOutline: z.unknown().optional(),
+  agentId: z.string().optional(),
+});
+
+const characterBiosInputSchema = z.object({
+  novelId: z.string(),
+  characters: z.array(z.object({
+    name: z.string().max(100),
+    role: z.string().max(200).optional(),
+    brief: z.string().max(MAX_FIELD_LENGTH).optional(),
+  })).min(1),
+  outlineContext: z.string().max(MAX_FIELD_LENGTH * 4).optional(),
+  agentId: z.string().optional(),
+});
+
 const chapterInputSchema = z.object({
   chapterId: z.string(),
   agentId: z.string().optional(),
   outline: z.string().max(MAX_FIELD_LENGTH).optional(),
   enableWebSearch: z.boolean().optional(),
+});
+
+const wizardWorldInputSchema = z.object({
+  novelId: z.string(),
+  theme: z.string().max(MAX_FIELD_LENGTH).optional(),
+  genre: z.string().max(200).optional(),
+  keywords: z.array(z.string()).optional(),
+  protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
+  worldSetting: z.string().max(MAX_FIELD_LENGTH).optional(),
+  specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  agentId: z.string().optional(),
+});
+
+const wizardCharactersInputSchema = z.object({
+  novelId: z.string(),
+  theme: z.string().max(MAX_FIELD_LENGTH).optional(),
+  genre: z.string().max(200).optional(),
+  keywords: z.array(z.string()).optional(),
+  protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
+  worldSetting: z.string().max(MAX_FIELD_LENGTH).optional(),
+  characterCount: z.number().int().min(1).max(20).optional(),
+  agentId: z.string().optional(),
 });
 
 const reviewInputSchema = z.object({
@@ -76,6 +148,11 @@ const multiReviewInputSchema = z.object({
 
 const jobInputSchemas: Record<string, z.ZodType> = {
   OUTLINE_GENERATE: outlineInputSchema,
+  NOVEL_SEED: novelSeedInputSchema,
+  OUTLINE_ROUGH: outlineRoughInputSchema,
+  OUTLINE_DETAILED: outlineDetailedInputSchema,
+  OUTLINE_CHAPTERS: outlineChaptersInputSchema,
+  CHARACTER_BIOS: characterBiosInputSchema,
   CHAPTER_GENERATE: chapterInputSchema,
   CHAPTER_GENERATE_BRANCHES: z.object({
     chapterId: z.string(),
@@ -95,11 +172,18 @@ const jobInputSchemas: Record<string, z.ZodType> = {
   CHARACTER_CHAT: characterChatInputSchema,
   ARTICLE_ANALYZE: articleAnalyzeInputSchema,
   BATCH_ARTICLE_ANALYZE: batchArticleAnalyzeInputSchema,
+  WIZARD_WORLD_BUILDING: wizardWorldInputSchema,
+  WIZARD_CHARACTERS: wizardCharactersInputSchema,
 };
 
 const createJobSchema = z.object({
   type: z.enum([
     'OUTLINE_GENERATE',
+    'NOVEL_SEED',
+    'OUTLINE_ROUGH',
+    'OUTLINE_DETAILED',
+    'OUTLINE_CHAPTERS',
+    'CHARACTER_BIOS',
     'CHAPTER_GENERATE',
     'CHAPTER_GENERATE_BRANCHES',
     'REVIEW_SCORE',
@@ -112,6 +196,8 @@ const createJobSchema = z.object({
     'CHARACTER_CHAT',
     'ARTICLE_ANALYZE',
     'BATCH_ARTICLE_ANALYZE',
+    'WIZARD_WORLD_BUILDING',
+    'WIZARD_CHARACTERS',
   ]),
   input: z.record(z.string(), z.unknown()),
   providerConfigId: z.string().optional(),

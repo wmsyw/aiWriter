@@ -46,7 +46,29 @@ model Novel {
   title           String
   description     String?         @db.Text
   type            String          @default("short") // "short" or "long"
+  goldenFinger    String?         @db.Text
+  generationStage String          @default("seed") // seed, seeded, rough, detailed, chapters, drafting
   outline         String?         @db.Text
+  outlineRough    Json?
+  outlineDetailed Json?
+  outlineChapters Json?
+  outlineStage    String          @default("none") // none, rough, detailed, chapters
+  wizardStatus    String          @default("draft") // draft, in_progress, completed
+  wizardStep      Int             @default(0)
+  outlineMode     String          @default("simple")
+  theme           String?
+  genre           String?
+  targetWords     Int?
+  chapterCount    Int?
+  protagonist     String?         @db.Text
+  worldSetting    String?         @db.Text
+  worldTimePeriod String?
+  worldLocation   String?
+  worldAtmosphere String?
+  worldRules      String?         @db.Text
+  keywords        String[]        @default([])
+  specialRequirements String?     @db.Text
+  inspirationData Json?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   chapters        Chapter[]
@@ -64,6 +86,8 @@ model Chapter {
   order            Int
   content          String           @db.Text
   currentVersionId String?
+  generationStage  String           @default("draft") // draft, generated, reviewed, approved, humanized, completed
+  reviewIterations Int              @default(0)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   versions         ChapterVersion[]
@@ -153,29 +177,6 @@ model AgentDefinition {
   updatedAt        DateTime @updatedAt
 
   @@index([userId])
-}
-
-model Workflow {
-  id          String         @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-  steps       WorkflowStep[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  @@index([userId])
-}
-
-model WorkflowStep {
-  id         String   @id @default(cuid())
-  workflowId String
-  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  agentKey   String
-  order      Int
-  config     Json?
-
-  @@index([workflowId])
 }
 
 model MemorySnapshot {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
 
@@ -7,6 +8,16 @@ const createSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   type: z.enum(['short', 'long']).default('short'),
+  theme: z.string().optional(),
+  genre: z.string().optional(),
+  targetWords: z.number().int().min(1).optional(),
+  chapterCount: z.number().int().min(1).optional(),
+  protagonist: z.string().optional(),
+  worldSetting: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  specialRequirements: z.string().optional(),
+  outlineMode: z.enum(['simple', 'detailed']).optional(),
+  inspirationData: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -28,10 +39,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, description, type } = createSchema.parse(body);
+    const { title, description, type, theme, genre, targetWords, chapterCount, protagonist, worldSetting, keywords, specialRequirements, outlineMode, inspirationData } = createSchema.parse(body);
 
     const novel = await prisma.novel.create({
-      data: { userId: session.userId, title, description, type },
+      data: {
+        userId: session.userId,
+        title,
+        description,
+        type,
+        theme,
+        genre,
+        targetWords,
+        chapterCount,
+        protagonist,
+        worldSetting,
+        keywords: keywords || [],
+        specialRequirements,
+        outlineMode: outlineMode || 'simple',
+        inspirationData: inspirationData ? (inspirationData as Prisma.InputJsonValue) : undefined,
+        wizardStatus: 'draft',
+        wizardStep: 0,
+      },
     });
 
     return NextResponse.json({ novel });

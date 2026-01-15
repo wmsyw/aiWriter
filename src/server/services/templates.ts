@@ -536,6 +536,16 @@ export const BUILT_IN_TEMPLATES = {
 
 {
   "chapter_summary": "本章内容的简洁摘要，2-3句话概括主要情节",
+
+  "hooks": [
+    {
+      "type": "悬念|情感|冲突|认知",
+      "content": "钩子描述",
+      "position": "开头|中段|结尾",
+      "strength": "弱|中|强",
+      "keyword": "原文中的关键短句"
+    }
+  ],
   
   "characters": {
     "newly_introduced": [
@@ -612,6 +622,16 @@ export const BUILT_IN_TEMPLATES = {
       "character2": "角色2",
       "relationship": "关系描述",
       "change": "本章关系变化（如有）"
+    }
+  ],
+
+  "organizations": [
+    {
+      "name": "组织/势力名称",
+      "type": "宗门|帮派|公司|官方机构|其他",
+      "description": "组织说明",
+      "members": ["关键成员"],
+      "influence": "影响力或地位"
     }
   ],
   
@@ -1124,6 +1144,196 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观设定' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  NOVEL_SEED: {
+    name: '小说引导生成',
+    content: `你是资深网文策划，请根据小说标题与主题生成简介、世界观、金手指等核心设定。
+
+## 用户输入
+{% if title %}书名：{{title}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 输出格式（JSON）
+{
+  "synopsis": "简介（150-250字）",
+  "protagonist": "主角核心设定",
+  "golden_finger": "金手指/外挂设定",
+  "world": {
+    "world_setting": "世界观一句话",
+    "time_period": "时代背景",
+    "location": "主要地点",
+    "atmosphere": "氛围调性",
+    "rules": "世界规则/力量体系"
+  }
+}
+
+请严格输出 JSON。`,
+    variables: [
+      { name: 'title', type: 'string' as const, description: '书名' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_ROUGH: {
+    name: '粗略大纲生成',
+    content: `你是一位资深网文策划，请根据用户目标字数和设定生成粗略大纲（分段/分卷）。
+
+## 用户需求
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+{% if target_words %}目标字数：{{target_words}}万字{% endif %}
+{% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 输出格式（JSON）
+{
+  "premise": "故事核心前提",
+  "tone": "基调/风格",
+  "hook": "核心卖点",
+  "story_arcs": [
+    {
+      "arc_number": 1,
+      "arc_name": "篇章名",
+      "summary": "本篇概述（100-150字）",
+      "main_conflict": "主要冲突",
+      "turning_points": ["关键转折1", "关键转折2"],
+      "new_characters": [
+        { "name": "新角色名", "role": "角色定位", "brief": "一句话设定" }
+      ]
+    }
+  ],
+  "estimated_structure": {
+    "total_chapters": 100,
+    "total_words": "约50万字",
+    "arcs_count": 3
+  }
+}
+
+请严格输出 JSON。`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_DETAILED: {
+    name: '细纲生成',
+    content: `你是专业策划编辑，请基于粗略大纲扩展细纲，为每个篇章生成细节剧情。
+
+## 粗略大纲
+{{rough_outline}}
+
+## 输出格式（JSON）
+{
+  "story_arcs": [
+    {
+      "arc_number": 1,
+      "arc_name": "篇章名",
+      "chapter_range": "第1-30章",
+      "summary": "详细概述（200字以内）",
+      "key_events": ["事件1", "事件2"],
+      "climax": "本篇高潮",
+      "hooks": ["爽点1", "爽点2"],
+      "new_characters": [
+        { "name": "新角色名", "role": "角色定位", "brief": "一句话设定" }
+      ]
+    }
+  ],
+  "foreshadowing": [
+    { "setup_arc": 1, "payoff_arc": 3, "content": "伏笔内容" }
+  ]
+}
+
+请严格输出 JSON。`,
+    variables: [
+      { name: 'rough_outline', type: 'string' as const, required: true, description: '粗略大纲 JSON' },
+    ],
+  },
+
+  OUTLINE_CHAPTERS: {
+    name: '章节大纲生成',
+    content: `你是资深剧情规划师，请基于细纲生成逐章大纲。
+
+## 细纲
+{{detailed_outline}}
+
+## 输出格式（JSON）
+{
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "title": "章节标题",
+      "summary": "本章概要（80-120字）",
+      "key_scenes": ["场景1", "场景2"],
+      "characters": ["角色1", "角色2"],
+      "word_target": 2500,
+      "cliffhanger": "本章钩子"
+    }
+  ]
+}
+
+请严格输出 JSON。`,
+    variables: [
+      { name: 'detailed_outline', type: 'string' as const, required: true, description: '细纲 JSON' },
+    ],
+  },
+
+  CHARACTER_BIOS: {
+    name: '角色传记生成',
+    content: `你是小说角色设定专家，请为以下角色补全完整传记。
+
+## 角色列表
+{{characters_brief}}
+
+{% if outline_context %}
+## 故事背景
+{{outline_context}}
+{% endif %}
+
+## 输出格式（JSON）
+{
+  "characters": [
+    {
+      "name": "角色名",
+      "role": "主角/反派/配角",
+      "age": 18,
+      "appearance": "外貌描述",
+      "personality": "性格特征",
+      "backstory": "详细生平",
+      "motivation": "核心动机",
+      "abilities": ["能力1", "能力2"],
+      "relationships": [
+        { "character": "角色名", "relation": "关系说明" }
+      ],
+      "character_arc": "成长弧线",
+      "tags": ["标签1", "标签2"]
+    }
+  ]
+}
+
+请严格输出 JSON。`,
+    variables: [
+      { name: 'characters_brief', type: 'string' as const, required: true, description: '角色简述 JSON' },
+      { name: 'outline_context', type: 'string' as const, description: '故事背景' },
     ],
   },
 
