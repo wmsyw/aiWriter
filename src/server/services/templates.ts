@@ -1184,6 +1184,91 @@ export const BUILT_IN_TEMPLATES = {
     ],
   },
 
+  WIZARD_WORLD_BUILDING: {
+    name: '世界观生成',
+    content: `你是一位擅长构建奇幻/科幻/玄幻世界的设定专家。请根据用户的需求，生成一个独特且吸引人的世界观设定。
+
+## 用户需求
+主题：{{theme}}
+类型：{{genre}}
+关键词：{{keywords}}
+主角设定：{{protagonist}}
+已有想法：{{world_setting}}
+特殊要求：{{special_requirements}}
+
+## 生成要求
+请生成包含以下要素的详细世界观（JSON格式）：
+1. **world_setting**: 世界观核心一句话描述
+2. **world_time_period**: 时代背景（如：赛博朋克2077年、架空古代、灵气复苏初期）
+3. **world_location**: 主要地理环境或地点
+4. **world_atmosphere**: 整体氛围调性（如：压抑、热血、诡异）
+5. **world_rules**: 核心规则或力量体系（简述）
+
+请发挥想象力，确保设定逻辑自洽且符合网文读者的喜好。
+
+## 输出格式（JSON）
+{
+  "world_setting": "...",
+  "world_time_period": "...",
+  "world_location": "...",
+  "world_atmosphere": "...",
+  "world_rules": "..."
+}
+`,
+    variables: [
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '已有想法' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  WIZARD_CHARACTERS: {
+    name: '角色生成',
+    content: `你是一位擅长塑造人物的网文作家。请根据以下信息，生成一组鲜活的角色人设，特别是主角。
+
+## 用户需求
+主题：{{theme}}
+类型：{{genre}}
+关键词：{{keywords}}
+主角已有想法：{{protagonist}}
+世界观：{{world_setting}}
+生成数量：{{character_count}}
+
+## 生成要求
+请重点生成主角的人设，并适当补充重要配角。返回 JSON 数组。
+
+每个角色包含：
+- **name**: 姓名
+- **role**: 角色定位（主角/反派/重要配角）
+- **description**: 外貌与气质
+- **traits**: 性格标签（2-3个）
+- **goals**: 核心欲望或目标
+
+## 输出格式（JSON）
+[
+  {
+    "name": "...",
+    "role": "主角",
+    "description": "...",
+    "traits": "...",
+    "goals": "..."
+  },
+  ...
+]
+`,
+    variables: [
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'protagonist', type: 'string' as const, description: '主角已有想法' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'character_count', type: 'number' as const, description: '生成数量' },
+    ],
+  },
+
   OUTLINE_ROUGH: {
     name: '粗略大纲生成',
     content: `你是一位资深网文策划，请根据用户目标字数和设定生成粗略大纲（分段/分卷）。

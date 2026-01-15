@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import CreateNovelModal from './CreateNovelModal';
 
 interface Novel {
   id: string;
@@ -43,15 +42,16 @@ export default function NovelsPage() {
           <h1 className="text-4xl font-bold text-white mb-2">我的小说</h1>
           <p className="text-gray-400">管理和创作你的杰作</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          新建小说
-        </button>
+          <Link
+            href="/novels/create"
+            className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            新建小说
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (
@@ -114,22 +114,14 @@ export default function NovelsPage() {
           <p className="text-gray-400 max-w-sm mb-8">
             使用我们的 AI 工具创建第一本小说，开启写作之旅。
           </p>
-          <button
-            onClick={() => setIsModalOpen(true)}
+          <Link
+            href="/novels/create"
             className="btn-primary px-8 py-3 rounded-xl"
           >
             创建第一本小说
-          </button>
+          </Link>
         </div>
       )}
-
-      <CreateNovelModal 
-        isOpen={isModalOpen} 
-        onClose={() => {
-          setIsModalOpen(false);
-          fetchNovels();
-        }} 
-      />
     </div>
   );
 }

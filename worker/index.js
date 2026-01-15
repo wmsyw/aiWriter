@@ -891,13 +891,12 @@ async function handleWizardWorldBuilding(job, { jobId, userId, input }) {
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
 
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: '世界观生成器' }, orderBy: { createdAt: 'desc' } });
-
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '世界观生成器',
+    templateName: '世界观生成',
+  });
 
   const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
 
@@ -984,13 +983,12 @@ async function handleWizardCharacters(job, { jobId, userId, input }) {
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
 
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: '角色生成器' }, orderBy: { createdAt: 'desc' } });
-
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+  const { agent, template } = await resolveAgentAndTemplate({
+    userId,
+    agentId,
+    agentName: '角色生成器',
+    templateName: '角色生成',
+  });
 
   const { config, adapter } = await getProviderAndAdapter(userId, agent?.providerConfigId);
 

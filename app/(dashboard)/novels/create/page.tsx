@@ -60,6 +60,8 @@ function NovelWizardContent() {
   const [detailedOutline, setDetailedOutline] = useState<any>(null);
   const [chapterOutline, setChapterOutline] = useState<any>(null);
   const [generatedOutline, setGeneratedOutline] = useState('');
+  const [worldBuildingLoading, setWorldBuildingLoading] = useState(false);
+  const [characterLoading, setCharacterLoading] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [formData, setFormData] = useState({
@@ -244,6 +246,54 @@ function NovelWizardContent() {
     }
     const { job } = await res.json();
     return pollJobResult(job.id);
+  };
+
+  const startWorldBuilding = async () => {
+    if (!novelId) return;
+    setWorldBuildingLoading(true);
+    try {
+      const output = await runJob('WIZARD_WORLD_BUILDING', {
+        novelId,
+        theme: formData.theme,
+        genre: formData.genre,
+        keywords: formData.keywordsInput || formData.keywords.join(', '),
+        protagonist: formData.protagonist,
+        worldSetting: formData.worldSetting,
+        specialRequirements: formData.specialRequirements,
+      });
+      if (output && output.world_setting) {
+        setField('worldSetting', output.world_setting);
+      }
+    } catch (error) {
+      console.error('Failed to generate world setting', error);
+    } finally {
+      setWorldBuildingLoading(false);
+    }
+  };
+
+  const startCharacterGeneration = async () => {
+    if (!novelId) return;
+    setCharacterLoading(true);
+    try {
+      const output = await runJob('WIZARD_CHARACTERS', {
+        novelId,
+        theme: formData.theme,
+        genre: formData.genre,
+        keywords: formData.keywordsInput || formData.keywords.join(', '),
+        protagonist: formData.protagonist,
+        worldSetting: formData.worldSetting,
+        characterCount: 1, // Just main character focus for this field
+      });
+      if (output && output.characters && output.characters.length > 0) {
+        const char = output.characters[0];
+        const desc = `姓名：${char.name}\n定位：${char.role}\n描述：${char.description}\n性格：${char.traits}\n目标：${char.goals}`;
+        setField('protagonist', desc);
+      }
+    } catch (error) {
+      console.error('Failed to generate character', error);
+    } finally {
+      setCharacterLoading(false);
+    }
   };
 
   const startNovelSeed = async () => {
@@ -675,7 +725,16 @@ function NovelWizardContent() {
               />
             </div>
             <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-300">世界观核心</label>
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium text-gray-300">世界观核心</label>
+                <button
+                  onClick={startWorldBuilding}
+                  disabled={worldBuildingLoading || !novelId}
+                  className="text-xs px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 disabled:opacity-50 flex items-center gap-1"
+                >
+                  {worldBuildingLoading ? '生成中...' : '✨ AI 生成'}
+                </button>
+              </div>
               <textarea
                 className="glass-input w-full p-4 min-h-[120px]"
                 value={formData.worldSetting}
@@ -684,7 +743,16 @@ function NovelWizardContent() {
               />
             </div>
             <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-300">主角设定</label>
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium text-gray-300">主角设定</label>
+                <button
+                  onClick={startCharacterGeneration}
+                  disabled={characterLoading || !novelId}
+                  className="text-xs px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 disabled:opacity-50 flex items-center gap-1"
+                >
+                  {characterLoading ? '生成中...' : '✨ AI 生成'}
+                </button>
+              </div>
               <textarea
                 className="glass-input w-full p-4 min-h-[120px]"
                 value={formData.protagonist}

@@ -71,6 +71,20 @@ export const BUILT_IN_AGENTS: Record<string, BuiltInAgentDefinition> = {
     templateName: '小说引导生成',
     defaultParams: { temperature: 0.7, maxTokens: 3000, topP: 0.9 },
   },
+  WORLD_BUILDING_GENERATOR: {
+    name: '世界观生成器',
+    description: '根据主题和关键词生成详细的世界观设定',
+    category: 'writing',
+    templateName: '世界观生成',
+    defaultParams: { temperature: 0.7, maxTokens: 4000, topP: 0.9 },
+  },
+  CHARACTER_GENERATOR: {
+    name: '角色生成器',
+    description: '根据设定批量生成角色人设',
+    category: 'writing',
+    templateName: '角色生成',
+    defaultParams: { temperature: 0.7, maxTokens: 4000, topP: 0.9 },
+  },
   OUTLINE_ROUGH_GENERATOR: {
     name: '粗纲生成器',
     description: '生成分段粗略大纲与故事主线',
