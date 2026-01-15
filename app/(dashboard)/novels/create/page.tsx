@@ -415,7 +415,11 @@ function NovelWizardContent() {
       body: JSON.stringify({ type, input }),
     });
     if (!res.ok) {
-      throw new Error('生成失败');
+      const errorData = await res.json().catch(() => ({}));
+      const errorMsg = errorData.error 
+        ? (Array.isArray(errorData.error) ? errorData.error.map((e: { message?: string }) => e.message).join(', ') : String(errorData.error))
+        : '生成失败';
+      throw new Error(errorMsg);
     }
     const { job } = await res.json();
     return pollJobResult(job.id);
@@ -443,6 +447,7 @@ function NovelWizardContent() {
       }
     } catch (error) {
       console.error('Failed to generate world setting', error);
+      alert(error instanceof Error ? error.message : '生成失败');
     } finally {
       setWorldBuildingLoading(false);
     }
@@ -472,6 +477,7 @@ function NovelWizardContent() {
       }
     } catch (error) {
       console.error('Failed to generate character', error);
+      alert(error instanceof Error ? error.message : '生成失败');
     } finally {
       setCharacterLoading(false);
     }

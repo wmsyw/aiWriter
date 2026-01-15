@@ -228,7 +228,9 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
+    console.error('Failed to create job:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create job';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

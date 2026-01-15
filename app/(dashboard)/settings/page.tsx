@@ -38,6 +38,8 @@ export default function SettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testResult, setTestResult] = useState<{ message?: string; latency?: number; error?: string } | null>(null);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -147,6 +149,8 @@ export default function SettingsPage() {
       newModel: '',
     });
     setError('');
+    setTestStatus('idle');
+    setTestResult(null);
     setShowModal(true);
   };
 
@@ -162,6 +166,8 @@ export default function SettingsPage() {
       newModel: '',
     });
     setError('');
+    setTestStatus('idle');
+    setTestResult(null);
     setShowModal(true);
   };
 
@@ -218,6 +224,43 @@ export default function SettingsPage() {
       await fetchProviders();
     } catch (err) {
       console.error('Delete failed', err);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!formData.apiKey && !editingProvider) {
+      setError('请先填写 API 密钥');
+      return;
+    }
+
+    setTestStatus('testing');
+    setTestResult(null);
+    setError('');
+
+    try {
+      const res = await fetch('/api/providers/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerType: formData.providerType,
+          baseURL: formData.baseURL,
+          apiKey: formData.apiKey,
+          model: formData.defaultModel || formData.models[0],
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setTestStatus('success');
+        setTestResult({ message: data.message, latency: data.latency });
+      } else {
+        setTestStatus('error');
+        setTestResult({ error: data.error });
+      }
+    } catch (err) {
+      setTestStatus('error');
+      setTestResult({ error: err instanceof Error ? err.message : '连接测试失败' });
     }
   };
 
@@ -799,7 +842,51 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {testResult && (
+                <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
+                  testStatus === 'success' 
+                    ? 'bg-green-500/10 border border-green-500/20 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/20 text-red-400'
+                }`}>
+                  {testStatus === 'success' ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>{testResult.message} ({testResult.latency}ms)</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span>{testResult.error}</span>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testStatus === 'testing' || (!formData.apiKey && !editingProvider)}
+                  className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                >
+                  {testStatus === 'testing' ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>测试中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>测试连接</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
