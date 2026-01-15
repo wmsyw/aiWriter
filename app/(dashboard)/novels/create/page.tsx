@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Select } from '@/app/components/ui/Select';
 
 const GENRES = ['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'];
 const OUTLINE_MODES = [
@@ -128,8 +129,8 @@ function NovelWizardContent() {
     }
   };
 
-  const handleSaveBasicInfo = async () => {
-    if (!formData.title.trim()) return;
+  const saveNovel = async (advanceStep: boolean = true) => {
+    if (!formData.title.trim()) return null;
     setIsSaving(true);
     setJobStatus('保存基础信息中...');
 
@@ -153,9 +154,11 @@ function NovelWizardContent() {
       inspirationData: normalizedKeywords.length ? { keywords: normalizedKeywords } : undefined,
     };
 
+    let currentNovelId = novelId;
+
     try {
-      if (novelId) {
-        const res = await fetch(`/api/novels/${novelId}`, {
+      if (currentNovelId) {
+        const res = await fetch(`/api/novels/${currentNovelId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -169,16 +172,24 @@ function NovelWizardContent() {
         });
         if (!res.ok) throw new Error('创建失败');
         const data = await res.json();
-        setNovelId(data.novel?.id || null);
+        currentNovelId = data.novel?.id || null;
+        setNovelId(currentNovelId);
       }
-      await persistWizardStep(1, 'in_progress');
+      
+      if (advanceStep) {
+        await persistWizardStep(1, 'in_progress');
+      }
+      return currentNovelId;
     } catch (error) {
       console.error('Failed to save novel', error);
+      return null;
     } finally {
       setIsSaving(false);
       setJobStatus('');
     }
   };
+
+  const handleSaveBasicInfo = () => saveNovel(true);
 
   const pollJob = async (jobId: string, onSuccess: (output: any) => void) => {
     let attempts = 0;
@@ -248,12 +259,13 @@ function NovelWizardContent() {
     return pollJobResult(job.id);
   };
 
-  const startWorldBuilding = async () => {
-    if (!novelId) return;
+  const startWorldBuilding = async (overrideId?: string) => {
+    const idToUse = overrideId || novelId;
+    if (!idToUse) return;
     setWorldBuildingLoading(true);
     try {
       const output = await runJob('WIZARD_WORLD_BUILDING', {
-        novelId,
+        novelId: idToUse,
         theme: formData.theme,
         genre: formData.genre,
         keywords: formData.keywordsInput || formData.keywords.join(', '),
@@ -271,12 +283,13 @@ function NovelWizardContent() {
     }
   };
 
-  const startCharacterGeneration = async () => {
-    if (!novelId) return;
+  const startCharacterGeneration = async (overrideId?: string) => {
+    const idToUse = overrideId || novelId;
+    if (!idToUse) return;
     setCharacterLoading(true);
     try {
       const output = await runJob('WIZARD_CHARACTERS', {
-        novelId,
+        novelId: idToUse,
         theme: formData.theme,
         genre: formData.genre,
         keywords: formData.keywordsInput || formData.keywords.join(', '),
@@ -293,6 +306,20 @@ function NovelWizardContent() {
       console.error('Failed to generate character', error);
     } finally {
       setCharacterLoading(false);
+    }
+  };
+
+  const handleGenerateWorldSetting = async () => {
+    const id = await saveNovel(false);
+    if (id) {
+      await startWorldBuilding(id);
+    }
+  };
+
+  const handleGenerateCharacter = async () => {
+    const id = await saveNovel(false);
+    if (id) {
+      await startCharacterGeneration(id);
     }
   };
 
@@ -511,21 +538,37 @@ function NovelWizardContent() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">所属频道</label>
-                    <select
-                      className="glass-input w-full px-4 py-2 appearance-none"
+                    <Select
                       value={formData.genre}
-                      onChange={e => setField('genre', e.target.value)}
-                    >
-                      <option value="">选择频道</option>
-                      {GENRES.map(genre => (
-                        <option key={genre} value={genre} className="bg-gray-900 text-gray-200">
-                          {genre}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setField('genre', val)}
+                      options={[
+                        { value: '', label: '选择频道' },
+                        ...GENRES.map(g => ({ value: g, label: g }))
+                      ]}
+                      placeholder="选择频道"
+                    />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">世界观一句话</label>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-300">世界观一句话</label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateWorldSetting}
+                        disabled={worldBuildingLoading || isSaving}
+                        className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-2 py-1 rounded transition-colors flex items-center gap-1 border border-indigo-500/30"
+                      >
+                        {worldBuildingLoading ? (
+                           <>
+                             <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                             <span>生成中</span>
+                           </>
+                        ) : (
+                           <>
+                             <span>✨ AI 生成</span>
+                           </>
+                        )}
+                      </button>
+                    </div>
                     <input
                       className="glass-input w-full px-4 py-2"
                       value={formData.worldSetting}
@@ -562,7 +605,26 @@ function NovelWizardContent() {
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">主角人设</label>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-300">主角人设</label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateCharacter}
+                        disabled={characterLoading || isSaving}
+                        className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-2 py-1 rounded transition-colors flex items-center gap-1 border border-indigo-500/30"
+                      >
+                        {characterLoading ? (
+                           <>
+                             <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                             <span>生成中</span>
+                           </>
+                        ) : (
+                           <>
+                             <span>✨ AI 生成</span>
+                           </>
+                        )}
+                      </button>
+                    </div>
                     <input
                       className="glass-input w-full px-4 py-2"
                       value={formData.protagonist}
@@ -628,17 +690,13 @@ function NovelWizardContent() {
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">大纲精细度</label>
-                    <select
-                      className="glass-input w-full px-3 py-2 mt-1 text-sm"
-                      value={formData.outlineMode}
-                      onChange={e => setField('outlineMode', e.target.value)}
-                    >
-                      {OUTLINE_MODES.map(mode => (
-                        <option key={mode.id} value={mode.id} className="bg-gray-900">
-                          {mode.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1">
+                      <Select
+                        value={formData.outlineMode}
+                        onChange={val => setField('outlineMode', val)}
+                        options={OUTLINE_MODES.map(m => ({ value: m.id, label: m.label }))}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -699,11 +757,21 @@ function NovelWizardContent() {
             <div className="flex gap-3">
               <button className="btn-secondary px-5 py-2" onClick={() => persistWizardStep(2)}>跳过</button>
               <button
-                className="btn-primary px-5 py-2 flex items-center gap-2"
+                className="btn-ai px-6 py-2.5"
                 onClick={startNovelSeed}
                 disabled={!!jobStatus}
               >
-                {jobStatus ? '生成中...' : '✨ 生成核心设定'}
+                {jobStatus ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                    <span>生成中...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">✨</span>
+                    <span>生成核心设定</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -728,11 +796,16 @@ function NovelWizardContent() {
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-gray-300">世界观核心</label>
                 <button
-                  onClick={startWorldBuilding}
+                  onClick={() => startWorldBuilding()}
                   disabled={worldBuildingLoading || !novelId}
-                  className="text-xs px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 disabled:opacity-50 flex items-center gap-1"
+                  className="btn-ai text-xs px-3 py-1.5 min-w-[90px]"
                 >
-                  {worldBuildingLoading ? '生成中...' : '✨ AI 生成'}
+                  {worldBuildingLoading ? (
+                    <span className="flex items-center gap-1">
+                       <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                       生成中
+                    </span>
+                  ) : '✨ AI 生成'}
                 </button>
               </div>
               <textarea
@@ -746,11 +819,16 @@ function NovelWizardContent() {
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-gray-300">主角设定</label>
                 <button
-                  onClick={startCharacterGeneration}
+                  onClick={() => startCharacterGeneration()}
                   disabled={characterLoading || !novelId}
-                  className="text-xs px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 disabled:opacity-50 flex items-center gap-1"
+                  className="btn-ai text-xs px-3 py-1.5 min-w-[90px]"
                 >
-                  {characterLoading ? '生成中...' : '✨ AI 生成'}
+                  {characterLoading ? (
+                    <span className="flex items-center gap-1">
+                       <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                       生成中
+                    </span>
+                  ) : '✨ AI 生成'}
                 </button>
               </div>
               <textarea
@@ -790,11 +868,26 @@ function NovelWizardContent() {
             </div>
             <div className="flex gap-3">
               <button
-                className="btn-primary px-5 py-2 flex items-center gap-2"
+                className="btn-ai px-6 py-2.5"
                 onClick={startRoughOutline}
                 disabled={!!jobStatus}
               >
-                {jobStatus ? '生成中...' : roughOutline ? '重新生成' : '✨ 生成粗略大纲'}
+                {jobStatus ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                    <span>生成中...</span>
+                  </>
+                ) : roughOutline ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span>重新生成</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">✨</span>
+                    <span>生成粗略大纲</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -833,11 +926,26 @@ function NovelWizardContent() {
             </div>
             <div className="flex gap-3">
               <button
-                className="btn-primary px-5 py-2 flex items-center gap-2"
+                className="btn-ai px-6 py-2.5"
                 onClick={startDetailedOutline}
                 disabled={!!jobStatus || !roughOutline}
               >
-                {jobStatus ? '生成中...' : detailedOutline ? '重新生成' : '✨ 生成细纲'}
+                {jobStatus ? (
+                   <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                    <span>生成中...</span>
+                  </>
+                ) : detailedOutline ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span>重新生成</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">✨</span>
+                    <span>生成细纲</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -876,11 +984,26 @@ function NovelWizardContent() {
             </div>
             <div className="flex gap-3">
               <button
-                className="btn-primary px-5 py-2 flex items-center gap-2"
+                className="btn-ai px-6 py-2.5"
                 onClick={startChapterOutline}
                 disabled={!!jobStatus || !detailedOutline}
               >
-                {jobStatus ? '生成中...' : generatedOutline ? '重新生成' : '✨ 生成章节大纲'}
+                 {jobStatus ? (
+                   <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                    <span>生成中...</span>
+                  </>
+                ) : generatedOutline ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span>重新生成</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">✨</span>
+                    <span>生成章节大纲</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -37,7 +37,6 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   MEMORY_EXTRACT: '记忆提取',
   CONSISTENCY_CHECK: '一致性检查',
   CHARACTER_CHAT: '角色对话',
-  ARTICLE_ANALYZE: '文章分析',
   BATCH_ARTICLE_ANALYZE: '批量分析',
   MATERIAL_SEARCH: '素材搜索',
   GIT_BACKUP: 'Git备份',

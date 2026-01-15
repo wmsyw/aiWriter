@@ -1382,6 +1382,207 @@ export const BUILT_IN_TEMPLATES = {
     ],
   },
 
+  CANON_CHECK: {
+    name: '原作符合度检查',
+    content: `你是一位资深的同人文编辑，专门审查同人创作是否符合原作设定。请对以下同人文章节进行全面的原作符合度检查。
+
+## 待检查章节
+{{chapter_content}}
+
+{% if chapter_number %}
+当前章节：第{{chapter_number}}章
+{% endif %}
+
+{% if original_work %}
+## 原作信息
+### 原作名称
+{{original_work}}
+{% endif %}
+
+{% if canon_settings %}
+## 原作设定资料
+{{canon_settings}}
+{% endif %}
+
+{% if character_profiles %}
+## 原作角色设定
+{{character_profiles}}
+{% endif %}
+
+{% if world_rules %}
+## 原作世界观规则
+{{world_rules}}
+{% endif %}
+
+{% if previous_chapters %}
+## 本同人文前文摘要
+{{previous_chapters}}
+{% endif %}
+
+## 检查维度
+
+请从以下维度对本章进行原作符合度检查：
+
+### 1. 角色人设符合度（Character Consistency）
+- 角色性格是否符合原作设定？
+- 角色说话方式、口癖是否与原作一致？
+- 角色行为动机是否符合原作人设？
+- 角色能力水平是否与原作匹配？
+- 角色关系是否与原作设定一致？
+
+### 2. 世界观符合度（World Building Consistency）
+- 力量体系/魔法系统是否符合原作规则？
+- 地理设定是否与原作一致？
+- 时代背景、科技水平是否符合原作？
+- 社会规则、组织架构是否与原作匹配？
+- 专有名词、术语使用是否正确？
+
+### 3. 剧情逻辑符合度（Plot Logic Consistency）
+- 是否与原作已发生的剧情矛盾？
+- 时间线是否与原作冲突？
+- 角色知识是否超出其在原作该时间点应知道的范围？
+- 事件因果关系是否合理？
+
+### 4. 风格与氛围符合度（Tone & Style Consistency）
+- 整体氛围是否与原作基调一致？
+- 叙事风格是否与原作相符？
+- 幽默/严肃程度是否匹配原作？
+
+### 5. OOC 程度评估（Out of Character Assessment）
+- 是否存在角色性格突变？
+- 是否有角色做出违背其核心价值观的行为？
+- 角色互动模式是否偏离原作？
+
+## 严重程度定义
+
+- **critical（致命）**：严重违背原作设定，会让原作粉丝完全无法接受
+- **major（重要）**：明显偏离原作，但有一定创作自由度可辩护
+- **minor（次要）**：轻微偏差，细心读者会注意到
+- **nitpick（吹毛求疵）**：非常细微的问题，可改可不改
+- **creative_liberty（创作自由）**：标记为作者有意的合理改编
+
+## 输出格式（JSON）
+
+{
+  "canon_compliance_score": 8.5,
+  "score_explanation": "整体符合度评分说明",
+  
+  "overall_assessment": {
+    "grade": "良好|优秀|一般|较差",
+    "summary": "一句话总结本章的原作符合度情况",
+    "recommendation": "可发布|建议修改|需要重写"
+  },
+  
+  "dimension_scores": {
+    "character_consistency": {
+      "score": 8,
+      "comment": "角色人设符合度评语"
+    },
+    "world_building_consistency": {
+      "score": 9,
+      "comment": "世界观符合度评语"
+    },
+    "plot_logic_consistency": {
+      "score": 8,
+      "comment": "剧情逻辑符合度评语"
+    },
+    "tone_style_consistency": {
+      "score": 7,
+      "comment": "风格氛围符合度评语"
+    },
+    "ooc_assessment": {
+      "score": 8,
+      "comment": "OOC程度评语"
+    }
+  },
+  
+  "issues": [
+    {
+      "id": 1,
+      "category": "character|world_building|plot_logic|tone_style|ooc",
+      "severity": "critical|major|minor|nitpick|creative_liberty",
+      "character_involved": "涉及的角色名（如适用）",
+      "title": "问题简述",
+      "location": "问题在文中的位置（段落号或引用原文）",
+      "current_text": "当前文本内容",
+      "canon_reference": "原作中的对应设定或描述",
+      "contradiction": "矛盾点详细说明",
+      "suggestion": "修改建议",
+      "alternative_interpretation": "如果可以有其他解读，在此说明"
+    }
+  ],
+  
+  "character_analysis": [
+    {
+      "character_name": "角色名",
+      "canon_alignment": 8,
+      "personality_match": "性格符合度评价",
+      "speech_pattern_match": "说话方式符合度",
+      "behavior_match": "行为符合度",
+      "ooc_moments": ["OOC时刻1", "OOC时刻2"],
+      "well_done": ["做得好的地方1", "做得好的地方2"]
+    }
+  ],
+  
+  "creative_liberties": [
+    {
+      "aspect": "改编的方面",
+      "description": "改编内容描述",
+      "justification": "作者可能的理由",
+      "acceptance_level": "high|medium|low"
+    }
+  ],
+  
+  "highlights": [
+    {
+      "category": "角色刻画|世界观呈现|情节设计|对话设计",
+      "description": "做得好的地方",
+      "quote": "精彩原文引用"
+    }
+  ],
+  
+  "improvement_suggestions": [
+    {
+      "priority": "high|medium|low",
+      "category": "分类",
+      "suggestion": "具体改进建议",
+      "example": "改写示例（如适用）"
+    }
+  ],
+  
+  "summary": {
+    "total_issues": 5,
+    "critical": 0,
+    "major": 1,
+    "minor": 3,
+    "nitpick": 1,
+    "creative_liberties_count": 2,
+    "most_problematic_character": "最需要调整的角色",
+    "strongest_aspect": "最符合原作的方面",
+    "weakest_aspect": "最需要改进的方面"
+  }
+}
+
+## 检查原则
+
+1. **尊重创作自由**：同人创作允许一定程度的改编，区分"违背设定"和"合理创作自由"
+2. **参考原作**：所有判断都应基于原作设定，而非个人偏好
+3. **具体可操作**：给出的建议应具体可执行，最好附带改写示例
+4. **区分严重程度**：准确区分致命问题和小瑕疵
+5. **肯定优点**：在指出问题的同时，也要肯定做得好的地方
+
+请输出JSON格式的检查结果：`,
+    variables: [
+      { name: 'chapter_content', type: 'string' as const, required: true, description: '待检查的章节内容' },
+      { name: 'chapter_number', type: 'number' as const, description: '章节号' },
+      { name: 'original_work', type: 'string' as const, description: '原作名称' },
+      { name: 'canon_settings', type: 'string' as const, description: '原作设定资料' },
+      { name: 'character_profiles', type: 'string' as const, description: '原作角色设定' },
+      { name: 'world_rules', type: 'string' as const, description: '原作世界观规则' },
+      { name: 'previous_chapters', type: 'string' as const, description: '本同人文前文摘要' },
+    ],
+  },
+
   ARTICLE_ANALYZE: {
     name: '文章分析',
     content: `你是一位专业的文学评论家和写作教练，擅长分析各类文学作品并提取其中的精华要素。

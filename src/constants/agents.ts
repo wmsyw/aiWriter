@@ -113,12 +113,12 @@ export const BUILT_IN_AGENTS: Record<string, BuiltInAgentDefinition> = {
     templateName: '角色传记生成',
     defaultParams: { temperature: 0.7, maxTokens: 6000, topP: 0.9 },
   },
-  ARTICLE_ANALYZER: {
-    name: '文章分析器',
-    description: '分析上传的文章，提取要素、写作技巧和总结，存入专属素材库',
-    category: 'utility',
-    templateName: '文章分析',
-    defaultParams: { temperature: 0.3, maxTokens: 6000 },
+  CANON_CHECKER: {
+    name: '原作符合度检查',
+    description: '针对同人文检查章节内容是否符合原作设定，识别人设偏离、剧情矛盾等问题',
+    category: 'review',
+    templateName: '原作符合度检查',
+    defaultParams: { temperature: 0.2, maxTokens: 6000 },
   },
 };
 

@@ -41,11 +41,17 @@ const Icons = {
   GitBranch: (props: any) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>
   ),
+  Brain: (props: any) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+  ),
   Maximize: (props: any) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
   ),
   Minimize: (props: any) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  ),
+  BookOpen: (props: any) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
   )
 };
 
@@ -121,7 +127,11 @@ export default function ChapterEditorPage() {
   const [showDiff, setShowDiff] = useState<Version | null>(null);
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
   const [reviewResult, setReviewResult] = useState<any>(null);
+  const [consistencyResult, setConsistencyResult] = useState<any>(null);
+  const [canonCheckResult, setCanonCheckResult] = useState<any>(null);
+  const [canonCheckError, setCanonCheckError] = useState<string | null>(null);
   const [showReviewPanel, setShowReviewPanel] = useState(false);
+  const [showCanonCheckPanel, setShowCanonCheckPanel] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
@@ -136,7 +146,7 @@ export default function ChapterEditorPage() {
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
-  const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  // const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set()); // Deprecated in favor of SSE
 
   const refreshChapter = useCallback(async () => {
     try {
@@ -151,15 +161,6 @@ export default function ChapterEditorPage() {
       console.error(err);
     }
   }, [novelId, chapterId]);
-
-  useEffect(() => {
-    refreshChapter();
-
-    return () => {
-      pollIntervalsRef.current.forEach(clearInterval);
-      pollIntervalsRef.current.clear();
-    };
-  }, [refreshChapter]);
 
   const fetchVersions = useCallback(async () => {
     try {
@@ -184,6 +185,86 @@ export default function ChapterEditorPage() {
       console.error(err);
     }
   }, [novelId, chapterId]);
+
+  useEffect(() => {
+    refreshChapter();
+
+    // SSE Connection for Real-time Updates
+    const eventSource = new EventSource('/api/jobs/stream');
+    
+    eventSource.addEventListener('jobs', async (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        const updatedJobs = data.jobs || [];
+        
+        // Filter jobs relevant to this chapter
+        const chapterJobs = updatedJobs.filter((job: any) => job.input?.chapterId === chapterId);
+        
+        if (chapterJobs.length === 0) return;
+
+        setActiveJobs(prev => {
+          const next = [...prev];
+          chapterJobs.forEach((job: any) => {
+            const idx = next.findIndex(j => j.id === job.id);
+            if (job.status === 'succeeded' || job.status === 'failed') {
+              if (idx !== -1) next.splice(idx, 1);
+            } else {
+              if (idx === -1) next.push(job);
+              else next[idx] = job;
+            }
+          });
+          return next;
+        });
+
+        // Handle completions
+        for (const job of chapterJobs) {
+          if (job.status === 'succeeded') {
+            if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
+              fetchBranches();
+            } else if (job.type === 'CHAPTER_GENERATE' || job.type === 'DEAI_REWRITE') {
+              await refreshChapter();
+            } else if (job.type === 'REVIEW_SCORE') {
+              await refreshChapter();
+              setReviewResult(job.output);
+              setShowReviewPanel(true);
+            } else if (job.type === 'CONSISTENCY_CHECK') {
+              setConsistencyResult(job.output);
+            } else if (job.type === 'CANON_CHECK') {
+              setCanonCheckResult(job.output);
+              setCanonCheckError(null);
+              setShowCanonCheckPanel(true);
+            } else if (job.type === 'MEMORY_EXTRACT') {
+              // Show notification or visual cue?
+              alert('记忆提取完成！'); 
+            }
+          } else if (job.status === 'failed') {
+            if (job.type === 'CANON_CHECK') {
+              setCanonCheckError(job.error || job.errorMessage || '检测失败，请稍后重试');
+              setCanonCheckResult(null);
+              setShowCanonCheckPanel(true);
+            }
+            // Optional: show toast error
+            console.error(`Job ${job.type} failed`);
+          }
+        }
+      } catch (err) {
+        console.error('SSE Error:', err);
+      }
+    });
+
+    return () => {
+      eventSource.close();
+    };
+  }, [refreshChapter, chapterId, fetchBranches]);
+
+  const handleMemoryExtract = async () => {
+    if (saveStatus !== 'saved') {
+      alert('请先保存章节内容');
+      return;
+    }
+    createJob('MEMORY_EXTRACT', { content });
+    // Feedback is handled by activeJobs and SSE
+  };
 
   useEffect(() => {
     if (showBranchPanel) {
@@ -274,7 +355,7 @@ export default function ChapterEditorPage() {
         const { job } = await res.json();
         if (job?.id) {
           setActiveJobs(prev => [...prev, job]);
-          pollJob(job.id);
+          // pollJob(job.id); // Replaced by SSE
         }
         
         if (type === 'CHAPTER_GENERATE_BRANCHES') {
@@ -287,40 +368,6 @@ export default function ChapterEditorPage() {
   };
 
 
-  const pollJob = (jobId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (res.ok) {
-          const { job } = await res.json();
-          if (job.status === 'succeeded') {
-            clearInterval(interval);
-            pollIntervalsRef.current.delete(interval);
-            setActiveJobs(prev => prev.filter(j => j.id !== jobId));
-            
-            if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
-              fetchBranches();
-            } else if (job.type === 'CHAPTER_GENERATE' || job.type === 'DEAI_REWRITE') {
-              await refreshChapter();
-            } else if (job.type === 'REVIEW_SCORE') {
-              await refreshChapter();
-              setReviewResult(job.output);
-              setShowReviewPanel(true);
-            }
-          } else if (job.status === 'failed') {
-             clearInterval(interval);
-             pollIntervalsRef.current.delete(interval);
-             setActiveJobs(prev => prev.filter(j => j.id !== jobId));
-             alert('任务执行失败');
-          }
-        }
-      } catch {
-        clearInterval(interval);
-        pollIntervalsRef.current.delete(interval);
-      }
-    }, 2000);
-    pollIntervalsRef.current.add(interval);
-  };
 
   const handleRestore = async (versionId: string) => {
     if (!confirm('确定要恢复此版本吗？当前更改将被覆盖。')) return;
@@ -536,9 +583,15 @@ export default function ChapterEditorPage() {
   };
 
   const renderReviewPanel = () => {
-    if (!showReviewPanel || !reviewResult) return null;
+    if (!showReviewPanel) return null;
 
-    const isMulti = reviewResult.isMultiReview;
+    const hasReview = !!reviewResult;
+    const hasConsistency = !!consistencyResult;
+
+    if (!hasReview && !hasConsistency) return null;
+
+    const [activeTab, setActiveTab] = useState<'review' | 'consistency'>(hasReview ? 'review' : 'consistency');
+    const isMulti = reviewResult?.isMultiReview;
     const [activeReviewIdx, setActiveReviewIdx] = useState(0);
 
     return (
@@ -548,10 +601,10 @@ export default function ChapterEditorPage() {
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
-                章节评审
+                章节评审与检查
               </h2>
               <p className="text-sm text-gray-400 mt-1">
-                AI 评审员针对情节、节奏、人物等维度的专业反馈
+                AI 评审员针对情节、节奏、一致性等维度的专业反馈
               </p>
             </div>
             <button 
@@ -562,8 +615,28 @@ export default function ChapterEditorPage() {
             </button>
           </div>
 
+          <div className="flex border-b border-white/10 px-6">
+            {hasReview && (
+              <button 
+                onClick={() => setActiveTab('review')}
+                className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'review' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+              >
+                质量评审
+              </button>
+            )}
+            {hasConsistency && (
+              <button 
+                onClick={() => setActiveTab('consistency')}
+                className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'consistency' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+              >
+                一致性检查
+              </button>
+            )}
+          </div>
+
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-            {isMulti ? (
+            {activeTab === 'review' && reviewResult && (
+              isMulti ? (
               <div className="space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="glass-card p-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
@@ -677,6 +750,42 @@ export default function ChapterEditorPage() {
                    </div>
                  )}
               </div>
+            ))}
+
+            {activeTab === 'consistency' && consistencyResult && (
+               <div className="space-y-6 animate-fade-in">
+                 <div className="glass-card p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-900/10 to-purple-900/10">
+                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                     <Icons.CheckCircle className="w-5 h-5 text-indigo-400" />
+                     一致性检查报告
+                   </h3>
+                   <div className="space-y-4">
+                     {consistencyResult.issues && consistencyResult.issues.length > 0 ? (
+                       consistencyResult.issues.map((issue: any, i: number) => (
+                         <div key={i} className="bg-white/5 p-4 rounded-xl border border-red-500/20">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                              <div>
+                                <h4 className="font-bold text-red-200 mb-1">{issue.type || '潜在冲突'}</h4>
+                                <p className="text-gray-300 text-sm">{issue.description}</p>
+                                {issue.reference && (
+                                  <div className="mt-2 text-xs text-gray-500 bg-black/20 p-2 rounded">
+                                    参考: {issue.reference}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                         </div>
+                       ))
+                     ) : (
+                       <div className="text-center py-10 text-gray-400">
+                         <Icons.CheckCircle className="w-12 h-12 text-green-500/50 mx-auto mb-3" />
+                         <p>未发现明显的一致性问题，您的设定保持得很好！</p>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               </div>
             )}
           </div>
           
@@ -699,6 +808,331 @@ export default function ChapterEditorPage() {
                 <Icons.CheckCircle className="w-4 h-4" /> 接受评审
               </Button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCanonCheckPanel = () => {
+    if (!showCanonCheckPanel) return null;
+    if (!canonCheckResult && !canonCheckError) return null;
+
+    if (canonCheckError) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6">
+          <div className="glass-card w-full max-w-lg flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+              <Icons.X className="w-8 h-8 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">检测失败</h2>
+            <p className="text-gray-400 mb-8">{canonCheckError}</p>
+            <div className="flex gap-4 justify-center">
+              <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
+              <Button 
+                variant="primary" 
+                onClick={() => {
+                  setCanonCheckError(null);
+                  createJob('CANON_CHECK');
+                }}
+              >
+                <Icons.RotateCcw className="w-4 h-4" /> 重试
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const getScoreColor = (score: any) => {
+      if (typeof score !== 'number') return 'text-gray-400';
+      if (score >= 8) return 'text-emerald-400';
+      if (score >= 6) return 'text-amber-400';
+      return 'text-red-400';
+    };
+
+    const getProgressBarColor = (score: number) => {
+      if (score >= 8) return 'bg-emerald-500';
+      if (score >= 6) return 'bg-amber-500';
+      return 'bg-red-500';
+    };
+
+    const dimensionScores = canonCheckResult.dimension_scores || {};
+    const scores = Object.values(dimensionScores).map((v: any) => v?.score || 0).filter((s: any) => typeof s === 'number');
+    const avgScore = scores.length > 0 
+      ? Math.round((scores.reduce((a: number, b: number) => a + b, 0) / scores.length) * 10) / 10 
+      : 0;
+    
+    const overallGrade = canonCheckResult.overall_assessment?.grade || (typeof canonCheckResult.overall_assessment === 'string' ? canonCheckResult.overall_assessment : null) || (avgScore >= 8 ? '高度还原' : avgScore >= 6 ? '良' : '需改进');
+    
+    const rawSummary = canonCheckResult.overall_assessment?.summary || canonCheckResult.summary;
+    const summaryText = typeof rawSummary === 'string' ? rawSummary : (typeof canonCheckResult.summary === 'string' ? canonCheckResult.summary : '');
+    const summaryObj = typeof rawSummary === 'object' ? rawSummary : (typeof canonCheckResult.summary === 'object' ? canonCheckResult.summary : null);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6">
+        <div className="glass-card w-full max-w-6xl h-[85vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+          <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Icons.BookOpen className="w-5 h-5 text-amber-400" />
+                原作符合度检查
+              </h2>
+              <p className="text-sm text-gray-400 mt-1">
+                基于设定集(Lorebook)的深度一致性分析报告
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowCanonCheckPanel(false)}
+              className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+            >
+              <Icons.X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="md:col-span-1 glass-card p-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-gray-400 mb-2 uppercase tracking-wider font-bold">综合得分</div>
+                <div className={`text-5xl font-bold mb-2 ${getScoreColor(avgScore)}`}>
+                  {avgScore}<span className="text-xl text-gray-500">/10</span>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-white/5 text-xs text-gray-300 border border-white/10">
+                  {overallGrade}
+                </div>
+              </div>
+
+              <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                 {Object.entries(dimensionScores).map(([key, value]: [string, any]) => {
+                   const score = value?.score || 0;
+                   const comment = value?.comment;
+                   return (
+                     <div key={key} className="glass-card p-4 rounded-xl flex flex-col justify-center">
+                       <div className="flex justify-between items-end mb-2">
+                         <span className="text-gray-400 text-sm capitalize">{key.replace(/_/g, ' ')}</span>
+                         <span className={`font-bold ${getScoreColor(score)}`}>
+                           {score}
+                         </span>
+                       </div>
+                       <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
+                         <div 
+                           className={`h-full rounded-full transition-all duration-1000 ${getProgressBarColor(score)}`}
+                           style={{ width: `${score * 10}%` }}
+                         />
+                       </div>
+                       {comment && <div className="text-[10px] text-gray-500 truncate">{comment}</div>}
+                     </div>
+                   );
+                 })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="glass-card p-6 rounded-2xl border border-white/5">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <Icons.CheckCircle className="w-5 h-5 text-indigo-400" />
+                    检测详情与建议
+                  </h3>
+                  
+
+                  {(summaryText || summaryObj) && (
+                    <div className="mb-6 space-y-3">
+                      {summaryText && (
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-gray-300 leading-relaxed text-sm">
+                          {summaryText}
+                        </div>
+                      )}
+                      
+
+                      {summaryObj && (
+                         <div className="grid grid-cols-3 gap-2">
+                            {summaryObj.most_problematic_character && (
+                              <div className="bg-red-500/10 border border-red-500/20 p-2 rounded-lg text-xs">
+                                <span className="block text-red-400/70 mb-0.5">问题最大角色</span>
+                                <span className="text-red-300 font-bold">{summaryObj.most_problematic_character}</span>
+                              </div>
+                            )}
+                            {summaryObj.strongest_aspect && (
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-lg text-xs">
+                                <span className="block text-emerald-400/70 mb-0.5">最佳表现</span>
+                                <span className="text-emerald-300 font-bold">{summaryObj.strongest_aspect}</span>
+                              </div>
+                            )}
+                            {summaryObj.weakest_aspect && (
+                              <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg text-xs">
+                                <span className="block text-amber-400/70 mb-0.5">最弱环节</span>
+                                <span className="text-amber-300 font-bold">{summaryObj.weakest_aspect}</span>
+                              </div>
+                            )}
+                         </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {canonCheckResult.issues && canonCheckResult.issues.length > 0 ? (
+                    <div className="space-y-3">
+                      {canonCheckResult.issues.map((issue: any, idx: number) => (
+                        <details key={idx} className="group glass-card border border-white/5 bg-white/[0.02] rounded-xl overflow-hidden open:bg-white/[0.04] transition-colors">
+                          <summary className="flex items-start gap-3 p-4 cursor-pointer select-none">
+                            <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
+                              issue.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
+                              issue.severity === 'major' ? 'bg-orange-500' : 
+                              issue.severity === 'creative_liberty' ? 'bg-blue-400' : 'bg-yellow-500'
+                            }`} />
+                            <div className="flex-1">
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-gray-200 font-medium text-sm">{issue.title || issue.description}</span>
+                                  {issue.severity && (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                      issue.severity === 'critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                                      issue.severity === 'major' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 
+                                      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                    }`}>
+                                      {issue.severity === 'critical' ? '严重冲突' : issue.severity === 'major' ? '主要问题' : issue.severity === 'creative_liberty' ? '二创自由' : '一般瑕疵'}
+                                    </span>
+                                  )}
+                                </div>
+                                {issue.location && <div className="text-xs text-gray-500">位置: {issue.location}</div>}
+                              </div>
+                            </div>
+                            <div className="text-gray-500 group-open:rotate-180 transition-transform">
+                              <Icons.ChevronLeft className="w-4 h-4 -rotate-90" />
+                            </div>
+                          </summary>
+                          <div className="px-4 pb-4 pt-0 pl-9 space-y-3">
+                            {issue.contradiction && (
+                              <div className="text-sm text-gray-400 leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
+                                <span className="text-red-400/80 font-bold text-xs block mb-1">矛盾点</span>
+                                {issue.contradiction}
+                              </div>
+                            )}
+                             {issue.canon_reference && (
+                              <div className="text-xs text-gray-500 bg-white/5 p-2 rounded">
+                                <span className="font-bold">原作参考:</span> {issue.canon_reference}
+                              </div>
+                            )}
+                            {issue.suggestion && (
+                              <div className="flex gap-2 text-xs text-emerald-400/80">
+                                <Icons.Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                <span>建议：{issue.suggestion}</span>
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  ) : (
+                     <div className="text-center py-12 text-gray-500">
+                       <Icons.CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                       <p>未发现明显的设定冲突</p>
+                     </div>
+                  )}
+                </div>
+
+                {canonCheckResult.improvement_suggestions && canonCheckResult.improvement_suggestions.length > 0 && (
+                  <div className="glass-card p-6 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-900/10 to-orange-900/10">
+                    <h3 className="text-lg font-bold text-amber-200 mb-4 flex items-center gap-2">
+                      <Icons.Sparkles className="w-5 h-5" />
+                      改进建议
+                    </h3>
+                    <ul className="space-y-3">
+                      {canonCheckResult.improvement_suggestions.map((s: any, i: number) => (
+                        <li key={i} className="flex gap-3 text-sm text-amber-100/80 leading-relaxed">
+                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs border border-amber-500/30">{i+1}</span>
+                          <div className="flex-1">
+                             {typeof s === 'string' ? (
+                               <span>{s}</span>
+                              ) : (
+                               <>
+                                 <div className="font-bold text-amber-200/90 mb-0.5 flex items-center gap-2">
+                                    {s.suggestion}
+                                    {s.category && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70 bg-amber-500/10">{s.category}</span>}
+                                    {s.priority && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70">{s.priority}</span>}
+                                 </div>
+                                 {s.example && <div className="text-xs opacity-70 italic mt-1">"{s.example}"</div>}
+                               </>
+                             )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="lg:col-span-1 space-y-6">
+                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">角色深度扫描</h3>
+                 {canonCheckResult.character_analysis?.map((char: any, i: number) => (
+                   <div key={i} className="glass-card p-4 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
+                     <div className="flex justify-between items-center mb-3">
+                        <div className="font-bold text-white">{char.character_name || char.name}</div>
+                        {(char.canon_alignment || char.score) && (
+                          <div className={`text-xs font-mono font-bold px-2 py-1 rounded bg-black/20 ${getScoreColor(char.canon_alignment || char.score)}`}>
+                            {char.canon_alignment || char.score}/10
+                          </div>
+                        )}
+                     </div>
+                     
+                     <div className="space-y-2 mb-3">
+
+                        <div className="grid grid-cols-3 gap-1 text-[10px] text-gray-400">
+                           <div className="bg-white/5 p-1 rounded text-center">
+                             <div className="opacity-50 mb-0.5">性格</div>
+                             <div className={typeof char.personality_match === 'number' ? getScoreColor(char.personality_match) : 'text-gray-300 leading-tight'}>
+                               {char.personality_match || '-'}
+                             </div>
+                           </div>
+                           <div className="bg-white/5 p-1 rounded text-center">
+                             <div className="opacity-50 mb-0.5">语气</div>
+                             <div className={typeof char.speech_pattern_match === 'number' ? getScoreColor(char.speech_pattern_match) : 'text-gray-300 leading-tight'}>
+                               {char.speech_pattern_match || '-'}
+                             </div>
+                           </div>
+                           <div className="bg-white/5 p-1 rounded text-center">
+                             <div className="opacity-50 mb-0.5">行为</div>
+                             <div className={typeof char.behavior_match === 'number' ? getScoreColor(char.behavior_match) : 'text-gray-300 leading-tight'}>
+                               {char.behavior_match || '-'}
+                             </div>
+                           </div>
+                        </div>
+                     </div>
+
+                     {char.well_done && char.well_done.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          <div className="text-[10px] text-emerald-400 font-bold uppercase">亮点</div>
+                          {char.well_done.slice(0, 2).map((m: string, idx: number) => (
+                            <div key={idx} className="text-xs text-emerald-300/70 bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10 truncate">
+                              {m}
+                            </div>
+                          ))}
+                        </div>
+                     )}
+
+                     {char.ooc_moments?.length > 0 && (
+                       <div className="space-y-1">
+                         <div className="text-[10px] text-red-400 font-bold uppercase">OOC 风险</div>
+                         {char.ooc_moments.slice(0, 2).map((m: string, idx: number) => (
+                           <div key={idx} className="text-xs text-red-300/70 bg-red-500/5 p-1.5 rounded border border-red-500/10 truncate">
+                             {m}
+                           </div>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                 ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
+            <Button variant="primary" onClick={() => {
+              setShowCanonCheckPanel(false);
+            }}>
+              <Icons.CheckCircle className="w-4 h-4" /> 确认
+            </Button>
           </div>
         </div>
       </div>
@@ -815,6 +1249,33 @@ export default function ChapterEditorPage() {
             >
               <Icons.Wand2 className="w-3.5 h-3.5 text-purple-400" /> 
               <span className="ml-1.5">润色</span>
+            </Button>
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <Button 
+              variant="ghost" 
+              className="text-xs py-1.5 h-8 px-3 rounded-lg"
+              onClick={handleMemoryExtract}
+              loading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
+              disabled={saveStatus !== 'saved'}
+              title="提取记忆到设定集"
+            >
+              <Icons.Brain className="w-3.5 h-3.5 text-pink-400" /> 
+              <span className="ml-1.5">提取记忆</span>
+            </Button>
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <Button 
+              variant="ghost" 
+              className="text-xs py-1.5 h-8 px-3 rounded-lg"
+              onClick={() => {
+                setCanonCheckError(null);
+                createJob('CANON_CHECK');
+              }}
+              loading={activeJobs.some(j => j.type === 'CANON_CHECK')}
+              disabled={!content || saveStatus !== 'saved'}
+              title="检查章节内容是否符合原作设定（同人文专用）"
+            >
+              <Icons.BookOpen className="w-3.5 h-3.5 text-amber-400" /> 
+              <span className="ml-1.5">原作符合度</span>
             </Button>
             <div className="w-px h-4 bg-white/10 mx-1" />
             <Button
@@ -969,6 +1430,7 @@ export default function ChapterEditorPage() {
 
       {renderDiffModal()}
       {renderBranchPanel()}
+      {renderCanonCheckPanel()}
       {renderReviewPanel()}
     </div>
   );
