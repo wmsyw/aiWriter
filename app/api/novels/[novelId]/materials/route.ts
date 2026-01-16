@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ nove
   const type = typeParam as materials.MaterialType | null;
   const search = url.searchParams.get('search') || undefined;
 
-  const list = await materials.listMaterials(novelId, { type: type || undefined, search });
+  const list = await materials.listMaterials(novelId, session.userId, { type: type || undefined, search });
   return NextResponse.json(list);
 }
 

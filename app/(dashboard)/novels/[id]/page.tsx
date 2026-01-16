@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import OutlineGeneratorModal from './OutlineGeneratorModal';
 import OutlineTree from '@/app/components/OutlineTree';
 import PlotBranchingView, { type PlotBranch } from '@/app/components/PlotBranchingView';
@@ -106,6 +107,15 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [plotBranches, setPlotBranches] = useState<PlotBranch[]>([]);
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
   const [outlineNodes, setOutlineNodes] = useState<OutlineNode[]>([]);
+
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: chapters.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 140, 
+    overscan: 5,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -652,113 +662,135 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
 
                 {chapters.length > 0 ? (
-                  <motion.div 
-                    variants={staggerContainer}
-                    initial="hidden"
-                    animate="visible"
-                    className="grid gap-4"
+                  <div 
+                    ref={parentRef}
+                    className="h-[70vh] overflow-y-auto rounded-xl scrollbar-hide"
+                    style={{ contain: 'strict' }}
                   >
-                    {chapters.map((chapter) => (
-                      <motion.div variants={staggerItem} key={chapter.id}>
-                        <Card 
-                          variant="interactive"
-                          className="p-5 flex flex-col md:flex-row md:items-center gap-6 group hover:border-emerald-500/30 transition-all duration-300 hover:bg-white/[0.07]"
-                        >
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="text-gray-600 cursor-move p-2 hover:bg-white/5 rounded-lg transition-colors hidden md:block">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                              </svg>
-                            </div>
-                            
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <span className="text-xs font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded">#{chapter.order + 1}</span>
-                                <h3 className="text-white font-bold truncate text-lg group-hover:text-emerald-400 transition-colors">
-                                  {chapter.title}
-                                </h3>
-                              </div>
-                              
-                              <div className="flex items-center gap-x-4 gap-y-2 flex-wrap text-sm text-gray-400">
-                                <span className="flex items-center gap-1.5">
-                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                   {new Date(chapter.updatedAt).toLocaleDateString()}
-                                </span>
-                                <Badge variant="outline" className={
-                                  (chapter.wordCount || 0) > 2000 
-                                    ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5'
-                                    : 'border-gray-700 text-gray-500 bg-gray-800/50'
-                                }>
-                                  {chapter.wordCount || 0} 字
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-2 w-full md:w-64">
-                            <div className="flex justify-between items-center text-xs text-gray-500 px-1">
-                              <span>进度</span>
-                              <span className={`font-medium ${
-                                chapter.generationStage === 'approved' ? 'text-emerald-400' : 
-                                chapter.generationStage === 'humanized' ? 'text-purple-400' :
-                                'text-emerald-400'
-                              }`}>
-                                {WORKFLOW_STEPS.find(s => s.id === chapter.generationStage)?.label || '草稿'}
-                              </span>
-                            </div>
-                            <div className="h-2 bg-gray-800 rounded-full overflow-hidden flex">
-                              {WORKFLOW_STEPS.map((step, idx) => {
-                                const currentStageIdx = WORKFLOW_STEPS.findIndex(s => s.id === (chapter.generationStage || 'draft'));
-                                const isCompleted = idx <= currentStageIdx;
-                                const isCurrent = idx === currentStageIdx;
-                                const isLastStep = idx === WORKFLOW_STEPS.length - 1;
+                    <div
+                      style={{
+                        height: `${rowVirtualizer.getTotalSize()}px`,
+                        width: '100%',
+                        position: 'relative',
+                      }}
+                    >
+                      {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                        const chapter = chapters[virtualItem.index];
+                        return (
+                          <div
+                            key={chapter.id}
+                            data-index={virtualItem.index}
+                            ref={rowVirtualizer.measureElement}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              transform: `translateY(${virtualItem.start}px)`,
+                              paddingBottom: '16px',
+                            }}
+                          >
+                            <Card 
+                              variant="interactive"
+                              className="p-5 flex flex-col md:flex-row md:items-center gap-6 group hover:border-emerald-500/30 transition-all duration-300 hover:bg-white/[0.07]"
+                            >
+                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <div className="text-gray-600 cursor-move p-2 hover:bg-white/5 rounded-lg transition-colors hidden md:block">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                                  </svg>
+                                </div>
                                 
-                                return (
-                                  <div 
-                                    key={step.id} 
-                                    className={`flex-1 transition-all duration-500 ${
-                                      isCompleted 
-                                        ? isLastStep
-                                          ? 'bg-emerald-500'
-                                          : 'bg-emerald-500'
-                                        : 'bg-transparent'
-                                    } ${isCurrent && !isCompleted ? 'animate-pulse' : ''} border-r border-black/20 last:border-0`}
-                                    title={step.label}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-xs font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded">#{chapter.order + 1}</span>
+                                    <h3 className="text-white font-bold truncate text-lg group-hover:text-emerald-400 transition-colors">
+                                      {chapter.title}
+                                    </h3>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-x-4 gap-y-2 flex-wrap text-sm text-gray-400">
+                                    <span className="flex items-center gap-1.5">
+                                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                       {new Date(chapter.updatedAt).toLocaleDateString()}
+                                    </span>
+                                    <Badge variant="outline" className={
+                                      (chapter.wordCount || 0) > 2000 
+                                        ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5'
+                                        : 'border-gray-700 text-gray-500 bg-gray-800/50'
+                                    }>
+                                      {chapter.wordCount || 0} 字
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
 
-                          <div className="flex items-center gap-3 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-6 justify-end">
-                            <Link
-                              href={`/novels/${id}/chapters/${chapter.id}`}
-                            >
-                              <Button variant="primary" size="sm" leftIcon={
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              }>
-                                <span className="hidden md:inline">编辑</span>
-                              </Button>
-                            </Link>
-                            <button
-                              onClick={() => handleDeleteChapter(chapter.id)}
-                              className="p-2 hover:bg-red-500/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
-                              title="删除章节"
-                              aria-label="删除章节"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
+                              <div className="flex flex-col gap-2 w-full md:w-64">
+                                <div className="flex justify-between items-center text-xs text-gray-500 px-1">
+                                  <span>进度</span>
+                                  <span className={`font-medium ${
+                                    chapter.generationStage === 'approved' ? 'text-emerald-400' : 
+                                    chapter.generationStage === 'humanized' ? 'text-purple-400' :
+                                    'text-emerald-400'
+                                  }`}>
+                                    {WORKFLOW_STEPS.find(s => s.id === chapter.generationStage)?.label || '草稿'}
+                                  </span>
+                                </div>
+                                <div className="h-2 bg-gray-800 rounded-full overflow-hidden flex">
+                                  {WORKFLOW_STEPS.map((step, idx) => {
+                                    const currentStageIdx = WORKFLOW_STEPS.findIndex(s => s.id === (chapter.generationStage || 'draft'));
+                                    const isCompleted = idx <= currentStageIdx;
+                                    const isCurrent = idx === currentStageIdx;
+                                    const isLastStep = idx === WORKFLOW_STEPS.length - 1;
+                                    
+                                    return (
+                                      <div 
+                                        key={step.id} 
+                                        className={`flex-1 transition-all duration-500 ${
+                                          isCompleted 
+                                            ? isLastStep
+                                              ? 'bg-emerald-500'
+                                              : 'bg-emerald-500'
+                                            : 'bg-transparent'
+                                        } ${isCurrent && !isCompleted ? 'animate-pulse' : ''} border-r border-black/20 last:border-0`}
+                                        title={step.label}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-6 justify-end">
+                                <Link
+                                  href={`/novels/${id}/chapters/${chapter.id}`}
+                                >
+                                  <Button variant="primary" size="sm" leftIcon={
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  }>
+                                    <span className="hidden md:inline">编辑</span>
+                                  </Button>
+                                </Link>
+                                <button
+                                  onClick={() => handleDeleteChapter(chapter.id)}
+                                  className="p-2 hover:bg-red-500/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
+                                  title="删除章节"
+                                  aria-label="删除章节"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </Card>
                           </div>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ) : (
                   <Card className="text-center py-20 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center gap-4 group hover:border-emerald-500/20 hover:bg-white/[0.04] transition-all">
                     <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">

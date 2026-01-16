@@ -166,8 +166,8 @@ export default function JobsPage() {
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <motion.div variants={fadeIn}>
-            <h1 className="text-3xl font-bold text-white mb-2">任务队列</h1>
-            <p className="text-gray-400">实时追踪后台任务执行状态</p>
+            <h1 className="text-3xl font-bold mb-1 tracking-tight text-zinc-100">任务队列</h1>
+            <p className="text-zinc-500">实时追踪后台任务执行状态</p>
           </motion.div>
           
           <motion.div variants={fadeIn} className="flex gap-3">

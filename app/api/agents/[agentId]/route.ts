@@ -23,9 +23,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ agen
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { agentId } = await params;
-  const agent = await agents.getAgent(agentId);
+  const agent = await agents.getAgent(agentId, session.userId);
   
-  if (!agent || agent.userId !== session.userId) {
+  if (!agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
   }
 
@@ -37,21 +37,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ agen
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { agentId } = await params;
-  const existing = await agents.getAgent(agentId);
-  
-  if (!existing || existing.userId !== session.userId) {
-    return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-  }
 
   const body = await req.json();
   const parsed = updateAgentSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   try {
-    const updated = await agents.updateAgent(agentId, parsed.data);
+    const updated = await agents.updateAgent(agentId, session.userId, parsed.data);
     return NextResponse.json(updated);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
@@ -60,16 +56,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ a
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { agentId } = await params;
-  const existing = await agents.getAgent(agentId);
-  
-  if (!existing || existing.userId !== session.userId) {
-    return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-  }
 
   try {
-    await agents.deleteAgent(agentId);
+    await agents.deleteAgent(agentId, session.userId);
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

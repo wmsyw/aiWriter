@@ -1535,88 +1535,70 @@ export const BUILT_IN_TEMPLATES = {
     ],
   },
 
-  OUTLINE_ROUGH: {
-    name: '粗略大纲生成',
-    content: `# 网文分卷策划模式
+  OUTLINE_ROUGH_100W: {
+    name: '粗略大纲生成（100万字内）',
+    content: `# 百万字内网文分卷策划专家
 
-你是经验丰富的网文策划，专门设计能撑起长篇连载的分卷结构。每一卷都要有明确的目标、冲突、爽点和钩子。
+你是专注于中短篇网文的资深策划，擅长设计100万字以内的精炼故事结构。你的目标是让故事紧凑有力，不拖泥带水。
 
 ## 创作需求
 {% if keywords %}关键词：{{keywords}}{% endif %}
 {% if theme %}主题：{{theme}}{% endif %}
 {% if genre %}类型：{{genre}}{% endif %}
-{% if target_words %}目标字数：{{target_words}}万字{% endif %}
+目标字数：{{target_words}}万字
 {% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
 {% if protagonist %}主角设定：{{protagonist}}{% endif %}
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
 
-## 分卷策略（根据目标字数动态调整）
+## 100万字内分卷策略
 
-{% if target_words %}
-{% if target_words < 30 %}
-### 【短篇模式：{{target_words}}万字】
-- 不分卷，按阶段划分（起、承、转、合）
-- 每阶段约 {{ target_words | divided_by: 4 }}万字
-- 总共设计 4 个阶段块
-- 节奏紧凑，3章内入正题
-{% elsif target_words < 60 %}
-### 【中篇模式：{{target_words}}万字】
-- 分2卷，每卷约 {{ target_words | divided_by: 2 }}万字
-- 第一卷：开局+崛起
-- 第二卷：高潮+终局
-- 每卷3-5个核心事件
-{% elsif target_words < 100 %}
-### 【标准长篇：{{target_words}}万字】
-- 分3卷，每卷约 {{ target_words | divided_by: 3 }}万字
-- 第一卷：起步（新手村、金手指觉醒、初露锋芒）
-- 第二卷：发展（势力扩张、强敌出现、主角蜕变）
-- 第三卷：巅峰（终极对决、伏笔回收、圆满结局）
-{% elsif target_words < 200 %}
-### 【大长篇：{{target_words}}万字】
-- 分4-5卷，每卷25-40万字
-- 遵循"三十万字见真章"法则
-- 每卷一个完整故事弧+地图扩展
-- 金手指分阶段解锁
+### 【核心原则】精炼不水、节奏紧凑
+- **30万字以内**：不分卷，按4阶段划分（起承转合）
+- **30-60万字**：分2卷，双高潮结构
+- **60-100万字**：分3卷，三幕剧经典结构
+
+### 【字数分配参考】
+{% if target_words <= 30 %}
+**短篇模式 ({{target_words}}万字)**
+- 4个阶段块，每阶段约{{target_words | divided_by: 4}}万字
+- 阶段一【起】：开局+金手指觉醒
+- 阶段二【承】：初步发展+第一次危机
+- 阶段三【转】：重大转折+实力飞跃
+- 阶段四【合】：最终对决+圆满收尾
+{% elsif target_words <= 60 %}
+**中篇模式 ({{target_words}}万字)**
+- 分2卷，每卷约{{target_words | divided_by: 2}}万字
+- 第一卷：从开局到初步成功（60%铺垫+40%高潮）
+- 第二卷：从危机到最终胜利（30%铺垫+70%高潮）
 {% else %}
-### 【超长篇：{{target_words}}万字+】
-- 分6-10卷，每卷30-40万字
-- 设计多层世界观（小地图→大地图→更大舞台）
-- 储备足够的敌人和矛盾素材
-- 设计长线伏笔（身世、终极敌人、最终目标）
-- 防烂尾设计：后期剧情提前规划
-{% endif %}
-{% else %}
-### 【默认长篇模式：100万字】
-- 分4卷，每卷约25万字
+**标准长篇 ({{target_words}}万字)**
+- 分3卷，每卷约{{target_words | divided_by: 3}}万字
+- 第一卷【起步】：新手村→初露锋芒
+- 第二卷【发展】：势力扩张→强敌考验
+- 第三卷【巅峰】：终极对决→完美结局
 {% endif %}
 
-## 分卷设计原则
+### 【紧凑节奏要求】
+1. **黄金三章**：前3章必须完成主角出场+金手指展示+第一个冲突
+2. **无水章节**：每章必须推进剧情或塑造人物
+3. **爽点密度**：每5万字至少2个爽点
+4. **伏笔控制**：伏笔数量控制在3-5个，确保能回收
 
-### 【每卷必备要素】
+## 分卷设计要素（每卷必备）
+
 1. **明确目标**：主角这一卷要达成什么
 2. **核心矛盾**：阻碍主角的主要敌人/困难
 3. **爽点清单**：至少3个让读者爽的高光时刻
 4. **成长节点**：主角实力/地位的提升
-5. **卷末大钩**：让读者必须看下一卷的悬念
-
-### 【第一卷特别重要】黄金三章法则
-- 第1章：冲突+悬念，让读者想点下一章
-- 第3章前：展示金手指/核心优势
-- 前3万字：完成主角出场、金手指觉醒、第一个小高潮
-
-### 【节奏控制】
-- 开篇要快，3章内必须有冲突
-- 中期要稳，持续供应爽点
-- 收尾要爆，高潮+大悬念
+5. **卷末钩子**：让读者必须看下一卷的悬念
 
 ## 输出格式（JSON）
-请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
 
 {
-  "total_volumes": <根据目标字数计算的卷数>,
+  "total_volumes": <卷数>,
   "total_words_estimate": {{target_words}},
-  "volume_strategy": "<所采用的分卷策略说明>",
+  "volume_strategy": "100万字内{{target_words}}万字精炼结构",
   "blocks": [
     {
       "id": "A",
@@ -1629,11 +1611,502 @@ export const BUILT_IN_TEMPLATES = {
   ]
 }
 
-生成时请确保：
-1. 卷数和字数分配符合上述策略
-2. 每卷的content字段要详细，包含所有必备要素
-3. 卷与卷之间要有递进关系
-4. 整体故事有完整的起承转合
+请开始生成：`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_ROUGH_200W: {
+    name: '粗略大纲生成（200万字内）',
+    content: `# 两百万字网文分卷策划专家
+
+你是专注于大长篇网文的资深策划，擅长设计100-200万字的宏大故事结构。你深谙"三十万字见真章"法则，能设计出让读者追更到底的故事架构。
+
+## 创作需求
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+目标字数：{{target_words}}万字
+{% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 200万字级分卷策略
+
+### 【核心原则】多层递进、持续爽感
+- 分4-6卷，每卷25-40万字
+- 遵循"三十万字见真章"法则
+- 每卷一个完整故事弧+一次地图扩展
+- 金手指分阶段解锁，保持新鲜感
+
+### 【卷结构设计】
+**第一卷（新手卷）**：20-30万字
+- 新手村→初入江湖
+- 完成金手指觉醒+第一次证明自己
+- 建立基础人际关系网
+
+**第二卷（成长卷）**：30-40万字
+- 扩大活动范围+实力提升
+- 加入/建立势力
+- 遇到第一个真正的强敌
+
+**第三卷（扩张卷）**：30-40万字
+- 地图再次扩展
+- 金手指第二阶段解锁
+- 建立自己的班底/势力
+
+**第四卷（蜕变卷）**：30-40万字
+- 遭遇重大危机
+- 主角完成蜕变
+- 为最终对决铺垫
+
+**第五卷（巅峰卷）**：25-35万字
+- 进入最终舞台
+- 与终极敌人对决
+- 伏笔回收+圆满结局
+
+### 【节奏控制】
+1. **爽点密度**：每10万字至少3个爽点
+2. **地图扩展**：每1-2卷扩展一次世界观
+3. **实力提升**：每卷至少一次明显进步
+4. **伏笔管理**：设置5-8个长线伏笔，分散回收
+
+## 分卷设计要素（每卷必备）
+
+1. **阶段目标**：主角这一卷的核心追求
+2. **核心矛盾**：本卷最大的冲突来源
+3. **地图定位**：本卷活动的主要区域
+4. **实力变化**：从X境界到Y境界
+5. **爽点清单**：3-5个高光时刻
+6. **新角色**：本卷新登场的重要角色
+7. **卷末大钩**：让读者必须追的悬念
+
+## 输出格式（JSON）
+
+{
+  "total_volumes": <卷数>,
+  "total_words_estimate": {{target_words}},
+  "volume_strategy": "200万字级大长篇架构",
+  "blocks": [
+    {
+      "id": "A",
+      "title": "第一卷：[卷名]（约X万字）",
+      "content": "【卷概述】主角从XXX走向XXX\\n【活动地图】XXX\\n【核心矛盾】XXX\\n【主要敌人】XXX\\n【金手指进展】XXX\\n【实力变化】从X到Y\\n【新角色】XXX\\n【爽点设计】1.XXX 2.XXX 3.XXX\\n【卷末钩子】XXX",
+      "level": "rough",
+      "word_count": <该卷字数>,
+      "chapter_range": "1-XX"
+    }
+  ]
+}
+
+请开始生成：`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_ROUGH_300W: {
+    name: '粗略大纲生成（300万字内）',
+    content: `# 三百万字网文分卷策划专家
+
+你是专注于超长篇网文的顶级策划，擅长设计200-300万字的史诗级故事结构。你能设计出让读者沉浸数月的宏大世界。
+
+## 创作需求
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+目标字数：{{target_words}}万字
+{% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 300万字级分卷策略
+
+### 【核心原则】史诗架构、多线并进
+- 分6-8卷，每卷35-50万字
+- 三层世界观：小地图→中地图→大地图
+- 多条故事线交织推进
+- 建立完整的势力生态
+
+### 【世界观层次设计】
+**第一层（1-2卷）**：起点世界
+- 新手村/初始城市
+- 建立基础设定
+- 奠定主角人设
+
+**第二层（3-5卷）**：扩展世界
+- 进入更大的舞台
+- 接触更多势力
+- 金手指深度开发
+
+**第三层（6-8卷）**：终极世界
+- 最高层次的舞台
+- 终极敌人现身
+- 所有线索汇聚
+
+### 【卷结构模板】
+每卷包含：
+- **主线任务**：本卷核心目标
+- **支线任务**：2-3条辅助剧情
+- **感情线**：至少一条感情推进
+- **势力政治**：势力格局变化
+- **实力跃升**：1-2个境界
+- **伏笔操作**：埋2个新伏笔，收1个旧伏笔
+
+### 【防烂尾设计】
+1. **终极目标明确**：从第一卷就暗示最终Boss
+2. **中期里程碑**：每100万字一个阶段性大高潮
+3. **后期剧情预埋**：前期就为后期铺设关键伏笔
+4. **素材储备**：准备足够的敌人、宝物、势力素材
+
+## 分卷设计要素（每卷必备）
+
+1. **阶段目标**：主角这一卷的核心追求
+2. **世界观层次**：处于哪一层世界
+3. **主线剧情**：本卷主要故事线
+4. **支线剧情**：2-3条辅助线
+5. **势力格局**：本卷涉及的势力关系
+6. **实力区间**：从X境界到Y境界
+7. **爽点清单**：4-6个高光时刻
+8. **长线伏笔**：本卷涉及的长线布局
+9. **卷末大钩**：让读者必须追的悬念
+
+## 输出格式（JSON）
+
+{
+  "total_volumes": <卷数>,
+  "total_words_estimate": {{target_words}},
+  "volume_strategy": "300万字级史诗架构",
+  "world_layers": ["第一层：XXX", "第二层：XXX", "第三层：XXX"],
+  "blocks": [
+    {
+      "id": "A",
+      "title": "第一卷：[卷名]（约X万字）",
+      "content": "【卷概述】XXX\\n【世界层次】第X层\\n【主线剧情】XXX\\n【支线剧情】1.XXX 2.XXX\\n【势力格局】XXX\\n【实力区间】从X到Y\\n【爽点设计】1.XXX 2.XXX 3.XXX 4.XXX\\n【长线伏笔】XXX\\n【卷末钩子】XXX",
+      "level": "rough",
+      "word_count": <该卷字数>,
+      "chapter_range": "1-XX"
+    }
+  ]
+}
+
+请开始生成：`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_ROUGH_400W: {
+    name: '粗略大纲生成（400万字内）',
+    content: `# 四百万字网文分卷策划专家
+
+你是专注于超长连载网文的顶级策划，擅长设计300-400万字的鸿篇巨制。你能设计出跨越多个大世界的史诗故事。
+
+## 创作需求
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+目标字数：{{target_words}}万字
+{% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 400万字级分卷策略
+
+### 【核心原则】多世界架构、持续迭代
+- 分8-10卷，每卷40-50万字
+- 四层递进世界观
+- 每层世界都有独立的势力生态
+- 金手指多次进化迭代
+
+### 【四层世界架构】
+**第一层（1-2卷）**：起源世界（凡人/新手期）
+**第二层（3-4卷）**：进阶世界（初入高层/建立势力）
+**第三层（5-7卷）**：核心世界（巅峰争霸/大势力对抗）
+**第四层（8-10卷）**：终极世界（最终舞台/究极对决）
+
+### 【大部设计】
+将全书分为3个大部：
+- **第一部（1-3卷）**：成长篇 - 从无名小卒到一方势力
+- **第二部（4-7卷）**：争霸篇 - 从一方势力到称霸一域
+- **第三部（8-10卷）**：巅峰篇 - 从称霸一域到终极巅峰
+
+### 【持续吸引力设计】
+1. **阶段性大高潮**：每100万字一个里程碑事件
+2. **新鲜感维持**：每2卷引入新的世界规则
+3. **角色更替**：配角有退场有新增
+4. **伏笔网络**：建立10-15个长线伏笔的网络
+
+## 分卷设计要素（每卷必备）
+
+1. **大部归属**：属于哪个大部
+2. **世界层次**：处于第几层世界
+3. **阶段目标**：本卷核心目标
+4. **主线+支线**：主线1条+支线2-3条
+5. **势力生态**：涉及哪些势力及其关系
+6. **实力跨度**：境界变化
+7. **爽点矩阵**：5-7个不同类型的爽点
+8. **伏笔状态**：埋设/推进/回收
+9. **角色变动**：新增/退场角色
+10. **卷末超级钩子**：必须是重磅悬念
+
+## 输出格式（JSON）
+
+{
+  "total_volumes": <卷数>,
+  "total_words_estimate": {{target_words}},
+  "volume_strategy": "400万字级多世界架构",
+  "parts": [
+    {"name": "第一部：成长篇", "volumes": "1-3卷", "theme": "XXX"},
+    {"name": "第二部：争霸篇", "volumes": "4-7卷", "theme": "XXX"},
+    {"name": "第三部：巅峰篇", "volumes": "8-10卷", "theme": "XXX"}
+  ],
+  "blocks": [
+    {
+      "id": "A",
+      "title": "第一卷：[卷名]（约X万字）",
+      "content": "【大部归属】第X部\\n【世界层次】第X层\\n【卷概述】XXX\\n【主线剧情】XXX\\n【支线剧情】1.XXX 2.XXX\\n【势力生态】XXX\\n【实力跨度】从X到Y\\n【爽点矩阵】1.XXX 2.XXX 3.XXX 4.XXX 5.XXX\\n【伏笔操作】埋设:XXX 回收:XXX\\n【角色变动】新增:XXX\\n【卷末钩子】XXX",
+      "level": "rough",
+      "word_count": <该卷字数>,
+      "chapter_range": "1-XX"
+    }
+  ]
+}
+
+请开始生成：`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_ROUGH_500W: {
+    name: '粗略大纲生成（500万字内）',
+    content: `# 五百万字网文分卷策划专家
+
+你是专注于超级长篇网文的顶级策划，擅长设计400-500万字的史诗巨著。你能设计出持续更新一年以上仍能保持热度的故事架构。
+
+## 创作需求
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+目标字数：{{target_words}}万字
+{% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 500万字级分卷策略
+
+### 【核心原则】宇宙级架构、无限扩展性
+- 分10-12卷，每卷40-50万字
+- 五层递进宇宙观
+- 每层都是一个相对完整的故事
+- 建立可持续的内容生产体系
+
+### 【五层宇宙架构】
+**第一层（1-2卷）**：起源界 - 凡人世界/起点
+**第二层（3-4卷）**：入门界 - 初入修炼/踏上道路
+**第三层（5-7卷）**：中层界 - 势力争霸/称霸一方
+**第四层（8-10卷）**：上层界 - 顶级势力/天骄争锋
+**第五层（11-12卷）**：巅峰界 - 终极舞台/最终对决
+
+### 【季度更新设计】
+将全书分为4个"季"：
+- **第一季（1-3卷）**：崛起季 - 从零开始的逆袭之路
+- **第二季（4-6卷）**：扩张季 - 势力扩张与强敌挑战
+- **第三季（7-9卷）**：争霸季 - 顶级势力间的较量
+- **第四季（10-12卷）**：终局季 - 走向最终的巅峰
+
+### 【长线内容储备】
+1. **敌人库**：储备30+不同级别的敌人
+2. **宝物库**：设计50+不同品级的宝物/资源
+3. **势力库**：设计20+不同规模的势力
+4. **事件库**：准备100+可用的剧情事件
+5. **角色库**：设计50+备用角色
+
+### 【热度维持策略】
+- 每50万字一个大高潮
+- 每季结束有一个"季终大事件"
+- 定期引入新的世界规则刷新读者认知
+- 设置读者期待已久的"王炸事件"
+
+## 分卷设计要素（每卷必备）
+
+1. **季归属**：属于第几季
+2. **世界层次**：第几层宇宙
+3. **核心目标**：本卷主角目标
+4. **主线+多支线**：1主线+3-4支线
+5. **势力全景**：全局势力格局
+6. **境界进度**：境界提升计划
+7. **爽点清单**：6-8个爽点
+8. **伏笔网络**：长中短线伏笔
+9. **读者期待值管理**：本卷满足什么期待
+
+## 输出格式（JSON）
+
+{
+  "total_volumes": <卷数>,
+  "total_words_estimate": {{target_words}},
+  "volume_strategy": "500万字级宇宙架构",
+  "seasons": [
+    {"name": "第一季：崛起季", "volumes": "1-3卷", "theme": "XXX"},
+    {"name": "第二季：扩张季", "volumes": "4-6卷", "theme": "XXX"},
+    {"name": "第三季：争霸季", "volumes": "7-9卷", "theme": "XXX"},
+    {"name": "第四季：终局季", "volumes": "10-12卷", "theme": "XXX"}
+  ],
+  "blocks": [
+    {
+      "id": "A",
+      "title": "第一卷：[卷名]（约X万字）",
+      "content": "【季归属】第X季\\n【世界层次】第X层\\n【卷概述】XXX\\n【主线剧情】XXX\\n【支线剧情】1.XXX 2.XXX 3.XXX\\n【势力全景】XXX\\n【境界进度】从X到Y\\n【爽点清单】1.XXX 2.XXX 3.XXX 4.XXX 5.XXX 6.XXX\\n【伏笔网络】长线:XXX 中线:XXX 短线:XXX\\n【期待满足】XXX\\n【卷末钩子】XXX",
+      "level": "rough",
+      "word_count": <该卷字数>,
+      "chapter_range": "1-XX"
+    }
+  ]
+}
+
+请开始生成：`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  OUTLINE_ROUGH_MEGA: {
+    name: '粗略大纲生成（500万字以上）',
+    content: `# 超级长篇网文分卷策划专家（500万字+）
+
+你是专注于超级长篇网文的殿堂级策划，擅长设计500万字以上的传世巨著。你能设计出持续更新数年、跨越多个完整世界观的鸿篇巨制。
+
+## 创作需求
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+目标字数：{{target_words}}万字
+{% if chapter_count %}预计章节数：{{chapter_count}}章{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## 500万字+超级长篇策略
+
+### 【核心原则】多元宇宙架构、模块化设计
+- 分12-15+卷，每卷40-55万字
+- 采用"大世界"模块化设计
+- 每个大世界相对独立又相互关联
+- 建立完整的宇宙观体系
+
+### 【大世界模块设计】
+将故事分为3-4个"大世界"：
+
+**大世界一（1-4卷）**：起源大陆
+- 完整的成长线
+- 建立核心班底
+- 首次巅峰体验
+
+**大世界二（5-8卷）**：进阶宇宙
+- 世界观大扩展
+- 面对更强敌人
+- 势力版图扩张
+
+**大世界三（9-12卷）**：核心位面
+- 宇宙核心舞台
+- 终极秘密揭晓
+- 最终大战铺垫
+
+**大世界四（13-15卷）**：终极之巅
+- 一切的终点
+- 所有伏笔回收
+- 史诗级大结局
+
+### 【防崩盘设计】
+1. **模块独立性**：每个大世界都能独立成书
+2. **里程碑锁定**：每100万字设置不可动摇的剧情节点
+3. **角色轮换**：老角色可以"毕业"，新角色持续加入
+4. **双线并行**：主线+世界观揭秘线始终并行
+5. **爽感保底**：每卷至少5个保底爽点
+
+### 【超长线伏笔管理】
+- **究极伏笔**（3-5个）：贯穿全书的核心悬念
+- **大世界伏笔**（每世界3-5个）：在本大世界内回收
+- **卷内伏笔**（每卷2-3个）：快速回收维持节奏
+
+## 分卷设计要素（每卷必备）
+
+1. **大世界归属**：属于哪个大世界
+2. **世界观定位**：在整体宇宙中的位置
+3. **核心使命**：本卷必须完成的任务
+4. **故事主线**：本卷主要剧情
+5. **多线并行**：3-5条支线同时推进
+6. **势力版图**：全局势力格局变化
+7. **实力刻度**：在整体实力体系中的位置
+8. **爽点清单**：7-10个爽点
+9. **伏笔全景**：所有相关伏笔的状态
+10. **模块衔接**：与前后卷/大世界的衔接
+
+## 输出格式（JSON）
+
+{
+  "total_volumes": <卷数>,
+  "total_words_estimate": {{target_words}},
+  "volume_strategy": "500万字+多元宇宙架构",
+  "big_worlds": [
+    {"name": "大世界一：起源大陆", "volumes": "1-4卷", "word_count": "XXX万字", "theme": "XXX"},
+    {"name": "大世界二：进阶宇宙", "volumes": "5-8卷", "word_count": "XXX万字", "theme": "XXX"},
+    {"name": "大世界三：核心位面", "volumes": "9-12卷", "word_count": "XXX万字", "theme": "XXX"},
+    {"name": "大世界四：终极之巅", "volumes": "13-15卷", "word_count": "XXX万字", "theme": "XXX"}
+  ],
+  "ultimate_foreshadowing": ["究极伏笔1", "究极伏笔2", "究极伏笔3"],
+  "blocks": [
+    {
+      "id": "A",
+      "title": "第一卷：[卷名]（约X万字）",
+      "content": "【大世界】第X大世界\\n【宇宙定位】XXX\\n【核心使命】XXX\\n【主线剧情】XXX\\n【并行支线】1.XXX 2.XXX 3.XXX\\n【势力版图】XXX\\n【实力刻度】XXX\\n【爽点清单】1.XXX 2.XXX 3.XXX 4.XXX 5.XXX 6.XXX 7.XXX\\n【伏笔状态】究极线:XXX 大世界线:XXX 卷内线:XXX\\n【模块衔接】承接:XXX 铺垫:XXX\\n【卷末钩子】XXX",
+      "level": "rough",
+      "word_count": <该卷字数>,
+      "chapter_range": "1-XX"
+    }
+  ]
+}
 
 请开始生成：`,
     variables: [
@@ -1658,6 +2131,22 @@ export const BUILT_IN_TEMPLATES = {
 标题：{{target_title}}
 内容：{{target_content}}
 ID：{{target_id}}
+
+{% if prev_block_title %}
+## 前一分卷（用于衔接）
+**{{prev_block_title}}**
+{{prev_block_content}}
+
+⚠️ 请确保本分卷开头与上一分卷结尾自然过渡，保持情节连贯性。
+{% endif %}
+
+{% if next_block_title %}
+## 后一分卷（用于铺垫）
+**{{next_block_title}}**
+{{next_block_content}}
+
+⚠️ 请在本分卷中适当埋设伏笔，为后续情节发展做铺垫。
+{% endif %}
 
 ## 全文背景
 {{rough_outline_context}}
@@ -1743,6 +2232,10 @@ ID：{{target_id}}
       { name: 'target_id', type: 'string' as const, required: true, description: '目标块ID' },
       { name: 'rough_outline_context', type: 'string' as const, description: '粗略大纲上下文' },
       { name: 'target_word_count', type: 'number' as const, description: '目标块字数（万）' },
+      { name: 'prev_block_title', type: 'string' as const, description: '前一分卷标题' },
+      { name: 'prev_block_content', type: 'string' as const, description: '前一分卷内容摘要' },
+      { name: 'next_block_title', type: 'string' as const, description: '后一分卷标题' },
+      { name: 'next_block_content', type: 'string' as const, description: '后一分卷内容摘要' },
     ],
   },
 
@@ -1840,6 +2333,196 @@ ID：{{target_id}}
       { name: 'target_id', type: 'string' as const, required: true, description: '目标块ID' },
       { name: 'detailed_outline_context', type: 'string' as const, description: '细纲上下文' },
       { name: 'target_word_count', type: 'number' as const, description: '目标事件字数（万）' },
+    ],
+  },
+
+  OUTLINE_CHAPTERS_BATCH: {
+    name: '批量章节大纲生成',
+    content: `# 网文章节批量拆分大师
+
+你是专业的网文章节策划师，擅长将细纲拆分为具体章节大纲，确保每章节奏紧凑、爽点密集、钩子有力。
+
+## 核心原则
+1. **3000字黄金法则**：每章约3000字，信息密度适中
+2. **章末必有钩**：每章结尾必须有悬念或期待点
+3. **情绪过山车**：章节内有起伏，避免平铺直叙
+4. **标题即广告**：章节标题要吸引点击
+
+## 任务说明
+将以下细纲内容拆分为 {{chapter_count}} 个章节大纲。
+
+## 分卷标题
+{{volume_title}}
+
+## 细纲内容
+{{detailed_outline}}
+
+{% if words_per_chapter %}
+## 每章目标字数：{{words_per_chapter}} 字
+{% endif %}
+
+## 输出要求
+为每个章节生成：
+1. **章节标题**（8字以内，悬念感/冲突感）
+2. **章节概要**（150-250字）
+3. **开篇钩子**（前100字抓住读者）
+4. **核心场景**（1-2个重要场景）
+5. **冲突/爽点**
+6. **章末钩子**
+7. **情绪曲线**
+
+## 特别注意
+- 高潮章节前要有1-2章铺垫
+- 每5-8章安排一个小高潮
+- 避免连续多章都是对话或都是打斗
+- 信息揭露要循序渐进，不要一次性倾泻
+
+## 输出格式（JSON）
+请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
+
+{
+  "volume_title": "{{volume_title}}",
+  "total_chapters": {{chapter_count}},
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "title": "章节标题",
+      "summary": "章节概要（150-250字）",
+      "opening_hook": "开篇钩子",
+      "key_scenes": ["场景1", "场景2"],
+      "conflict_or_payoff": "冲突/爽点",
+      "ending_hook": "章末钩子",
+      "emotional_arc": {
+        "start": "起始情绪",
+        "process": "过程情绪",
+        "end": "结束情绪"
+      },
+      "importance": "普通|重要|高潮"
+    }
+  ],
+  "pacing_notes": "整体节奏说明"
+}
+
+请生成完整的章节大纲：`,
+    variables: [
+      { name: 'detailed_outline', type: 'string' as const, required: true, description: '细纲内容' },
+      { name: 'volume_title', type: 'string' as const, required: true, description: '分卷标题' },
+      { name: 'chapter_count', type: 'number' as const, required: true, description: '目标章节数' },
+      { name: 'words_per_chapter', type: 'number' as const, description: '每章字数（默认3000）' },
+    ],
+  },
+
+  OUTLINE_CHAPTER_SINGLE: {
+    name: '单章节大纲生成',
+    content: `# 网文单章策划专家
+
+你是专业的网文章节策划师，能够根据用户提供的剧情关键词，生成一个完整、精彩的单章大纲。
+
+## 任务说明
+根据以下信息，为用户生成一个约 {{target_words}} 字的章节大纲。
+
+## 剧情关键词
+{{plot_keywords}}
+
+{% if prev_chapter_summary %}
+## 前情提要
+{{prev_chapter_summary}}
+{% endif %}
+
+{% if story_context %}
+## 故事背景
+{{story_context}}
+{% endif %}
+
+{% if character_focus %}
+## 本章重点角色
+{{character_focus}}
+{% endif %}
+
+{% if special_requirements %}
+## 特殊要求
+{{special_requirements}}
+{% endif %}
+
+## 输出要求
+
+### 1. 章节标题
+- 8字以内
+- 有悬念感或冲突感
+- 能引发读者好奇
+
+### 2. 详细大纲（800-1200字）
+按以下结构展开：
+
+**开篇（前500字）**
+- 场景设定
+- 开篇钩子
+- 引入冲突
+
+**发展（中间2000字）**
+- 冲突升级
+- 角色互动
+- 关键对话要点
+- 情绪起伏设计
+
+**高潮（后400字前）**
+- 矛盾爆发/爽点释放
+- 角色关键抉择或表现
+
+**收尾（最后100字）**
+- 余韵处理
+- 章末钩子
+
+### 3. 写作要点
+- 需要重点刻画的情感
+- 建议使用的写作技巧
+- 需要注意的伏笔/呼应
+
+## 输出格式（JSON）
+请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
+
+{
+  "title": "章节标题",
+  "one_sentence_summary": "一句话概括本章",
+  "detailed_outline": {
+    "opening": {
+      "scene": "开场场景描述",
+      "hook": "开篇钩子",
+      "word_count": 500
+    },
+    "development": {
+      "events": ["情节点1", "情节点2", "情节点3"],
+      "key_dialogues": ["对话要点1", "对话要点2"],
+      "emotional_beats": "情绪变化",
+      "word_count": 2000
+    },
+    "climax": {
+      "peak_moment": "高潮时刻描述",
+      "character_performance": "角色表现",
+      "word_count": 400
+    },
+    "ending": {
+      "resolution": "收尾处理",
+      "hook": "章末钩子",
+      "word_count": 100
+    }
+  },
+  "writing_notes": {
+    "emotional_focus": "情感重点",
+    "techniques": ["建议技巧1", "建议技巧2"],
+    "foreshadowing": "需要埋设/呼应的伏笔"
+  },
+  "estimated_total_words": {{target_words}}
+}
+
+请生成章节大纲：`,
+    variables: [
+      { name: 'plot_keywords', type: 'string' as const, required: true, description: '剧情关键词' },
+      { name: 'target_words', type: 'number' as const, required: true, description: '目标字数' },
+      { name: 'prev_chapter_summary', type: 'string' as const, description: '前一章概要' },
+      { name: 'story_context', type: 'string' as const, description: '故事背景' },
+      { name: 'character_focus', type: 'string' as const, description: '本章重点角色' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
     ],
   },
 

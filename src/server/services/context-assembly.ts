@@ -42,7 +42,17 @@ export interface ContextSection {
 }
 
 function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 1.5);
+  let tokenCount = 0;
+  for (const char of text) {
+    if (char.charCodeAt(0) > 0x4e00 && char.charCodeAt(0) < 0x9fff) {
+      tokenCount += 1.5;
+    } else if (char.charCodeAt(0) > 127) {
+      tokenCount += 1.2;
+    } else {
+      tokenCount += 0.25;
+    }
+  }
+  return Math.ceil(tokenCount);
 }
 
 export async function getRecentChapters(
@@ -84,6 +94,17 @@ export async function assembleContext(
   currentChapterOrder: number,
   customConfig?: Partial<ContextConfig>
 ): Promise<AssembledContext> {
+  const novel = await prisma.novel.findUnique({
+    where: { id: novelId },
+    select: { userId: true, outline: true },
+  });
+  
+  if (!novel) {
+    throw new Error('Novel not found');
+  }
+  
+  const userId = novel.userId;
+  
   const config: ContextConfig = {
     recentChaptersCount: customConfig?.recentChaptersCount ?? DEFAULT_WORKFLOW_CONFIG.context.recentChaptersFull,
     summaryChaptersCount: customConfig?.summaryChaptersCount ?? DEFAULT_WORKFLOW_CONFIG.context.summaryChaptersCount,
@@ -99,76 +120,92 @@ export async function assembleContext(
   const sections: ContextSection[] = [];
   const warnings: string[] = [];
   
-  if (config.includeOutline) {
-    const outline = await getNovelOutline(novelId);
-    if (outline) {
-      sections.push({
-        type: 'outline',
-        title: '## Story Outline',
-        content: outline,
-        estimatedTokens: estimateTokens(outline),
-        priority: 1,
-      });
-    }
+  const summaryStartChapter = currentChapterOrder - config.recentChaptersCount;
+  
+  const [
+    materialsContext,
+    mentionResult,
+    hooksContext,
+    pendingContext,
+    recentChapters,
+    hierarchicalCtx,
+    summaries,
+  ] = await Promise.all([
+    config.includeMaterials 
+      ? buildMaterialContext(novelId, userId) 
+      : Promise.resolve(''),
+    config.useMentionBasedContext && novel.outline 
+      ? buildMentionBasedContext(novelId, novel.outline, currentChapterOrder, 8) 
+      : Promise.resolve({ formattedContext: '', mentionedMaterials: [] }),
+    config.includeHooks 
+      ? formatHooksForContext(novelId, currentChapterOrder) 
+      : Promise.resolve(''),
+    config.includePendingEntities 
+      ? formatPendingEntitiesForContext(novelId, currentChapterOrder) 
+      : Promise.resolve(''),
+    getRecentChapters(novelId, currentChapterOrder, config.recentChaptersCount),
+    config.useHierarchicalContext 
+      ? getHierarchicalContext(novelId, currentChapterOrder, {
+          recentChapterCount: config.summaryChaptersCount,
+          includeScenes: true
+        }) 
+      : Promise.resolve(null),
+    !config.useHierarchicalContext && summaryStartChapter > 1 
+      ? getSummariesForContextWindow(novelId, summaryStartChapter, config.summaryChaptersCount) 
+      : Promise.resolve([] as ChapterSummary[]),
+  ]);
+  
+  if (config.includeOutline && novel.outline) {
+    sections.push({
+      type: 'outline',
+      title: '## Story Outline',
+      content: novel.outline,
+      estimatedTokens: estimateTokens(novel.outline),
+      priority: 1,
+    });
   }
   
-  if (config.includeMaterials) {
-    const materialsContext = await buildMaterialContext(novelId);
-    if (materialsContext.trim()) {
-      sections.push({
-        type: 'materials',
-        title: '## World & Characters',
-        content: materialsContext,
-        estimatedTokens: estimateTokens(materialsContext),
-        priority: 2,
-      });
-    }
+  if (materialsContext.trim()) {
+    sections.push({
+      type: 'materials',
+      title: '## World & Characters',
+      content: materialsContext,
+      estimatedTokens: estimateTokens(materialsContext),
+      priority: 2,
+    });
   }
 
-  if (config.useMentionBasedContext) {
-    const outline = await getNovelOutline(novelId);
-    if (outline) {
-      const mentionResult = await buildMentionBasedContext(novelId, outline, currentChapterOrder, 8);
-      if (mentionResult.formattedContext.trim()) {
-        sections.push({
-          type: 'mentions',
-          title: '',
-          content: mentionResult.formattedContext,
-          estimatedTokens: estimateTokens(mentionResult.formattedContext),
-          priority: 2.5,
-        });
-      }
-    }
+  if (mentionResult.formattedContext.trim()) {
+    sections.push({
+      type: 'mentions',
+      title: '',
+      content: mentionResult.formattedContext,
+      estimatedTokens: estimateTokens(mentionResult.formattedContext),
+      priority: 2.5,
+    });
   }
   
-  if (config.includeHooks) {
-    const hooksContext = await formatHooksForContext(novelId, currentChapterOrder);
-    if (hooksContext.trim()) {
-      sections.push({
-        type: 'hooks',
-        title: '',
-        content: hooksContext,
-        estimatedTokens: estimateTokens(hooksContext),
-        priority: 3,
-      });
-    }
+  if (hooksContext.trim()) {
+    sections.push({
+      type: 'hooks',
+      title: '',
+      content: hooksContext,
+      estimatedTokens: estimateTokens(hooksContext),
+      priority: 3,
+    });
   }
   
-  if (config.includePendingEntities) {
-    const pendingContext = await formatPendingEntitiesForContext(novelId, currentChapterOrder);
-    if (pendingContext.trim()) {
-      sections.push({
-        type: 'pending_entities',
-        title: '',
-        content: pendingContext,
-        estimatedTokens: estimateTokens(pendingContext),
-        priority: 4,
-      });
-      warnings.push('Pending entities require confirmation before proceeding');
-    }
+  if (pendingContext.trim()) {
+    sections.push({
+      type: 'pending_entities',
+      title: '',
+      content: pendingContext,
+      estimatedTokens: estimateTokens(pendingContext),
+      priority: 4,
+    });
+    warnings.push('Pending entities require confirmation before proceeding');
   }
   
-  const recentChapters = await getRecentChapters(novelId, currentChapterOrder, config.recentChaptersCount);
   if (recentChapters.length > 0) {
     const recentContent = recentChapters.map(ch => 
       `### Chapter ${ch.order}: ${ch.title || 'Untitled'}\n\n${ch.content}`
@@ -183,13 +220,7 @@ export async function assembleContext(
     });
   }
   
-  const summaryStartChapter = currentChapterOrder - config.recentChaptersCount;
-  if (config.useHierarchicalContext) {
-    const hierarchicalCtx = await getHierarchicalContext(novelId, currentChapterOrder, {
-      recentChapterCount: config.summaryChaptersCount,
-      includeScenes: true
-    });
-    
+  if (hierarchicalCtx) {
     const hierarchicalContent = formatHierarchicalContextForPrompt(hierarchicalCtx);
     if (hierarchicalContent.trim()) {
       sections.push({
@@ -200,23 +231,15 @@ export async function assembleContext(
         priority: 6,
       });
     }
-  } else if (summaryStartChapter > 1) {
-    const summaries = await getSummariesForContextWindow(
-      novelId, 
-      summaryStartChapter,
-      config.summaryChaptersCount
-    );
-    
-    if (summaries.length > 0) {
-      const summaryContent = formatMultipleSummariesForContext(summaries);
-      sections.push({
-        type: 'summaries',
-        title: '',
-        content: summaryContent,
-        estimatedTokens: estimateTokens(summaryContent),
-        priority: 6,
-      });
-    }
+  } else if (summaries.length > 0) {
+    const summaryContent = formatMultipleSummariesForContext(summaries);
+    sections.push({
+      type: 'summaries',
+      title: '',
+      content: summaryContent,
+      estimatedTokens: estimateTokens(summaryContent),
+      priority: 6,
+    });
   }
   
   const totalEstimatedTokens = sections.reduce((sum, s) => sum + s.estimatedTokens, 0);
@@ -310,13 +333,14 @@ export async function assembleTruncatedContext(
 }
 
 function truncateContent(content: string, maxTokens: number): string {
-  const estimatedChars = maxTokens * 1.5;
-  
-  if (content.length <= estimatedChars) {
+  const currentTokens = estimateTokens(content);
+  if (currentTokens <= maxTokens) {
     return content;
   }
   
-  const truncated = content.substring(content.length - estimatedChars);
+  const ratio = maxTokens / currentTokens;
+  const targetLength = Math.floor(content.length * ratio);
+  const truncated = content.substring(content.length - targetLength);
   
   const firstNewline = truncated.indexOf('\n');
   if (firstNewline > 0 && firstNewline < 200) {

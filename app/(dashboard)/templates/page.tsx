@@ -241,14 +241,15 @@ export default function TemplatesPage() {
             </div>
             <CardTitle className="text-sm font-semibold tracking-wide text-zinc-100">所有模板</CardTitle>
           </div>
-          <Button 
+            <Button 
             variant="ghost" 
             size="sm"
             onClick={handleCreateNew}
             className="h-7 w-7 p-0 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors"
-            aria-label="Create new template"
+            aria-label="新建模板"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </Button>
@@ -312,7 +313,7 @@ export default function TemplatesPage() {
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] uppercase tracking-wider text-zinc-500 bg-zinc-900/50 px-1.5 py-0.5 rounded border border-white/5">
-                          {template.variables?.length || 0} VARS
+                          {template.variables?.length || 0} 变量
                         </span>
                         <span className="text-[10px] text-zinc-600 truncate">
                           {new Date(template.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
@@ -332,7 +333,7 @@ export default function TemplatesPage() {
           <>
             <CardHeader className="h-14 p-0 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0 bg-zinc-900/30">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-zinc-500 text-xs uppercase tracking-wider font-semibold hidden md:inline-block">Template /</span>
+                <span className="text-zinc-500 text-xs uppercase tracking-wider font-semibold hidden md:inline-block">模板 /</span>
                 <Input
                   type="text"
                   value={selectedTemplate.name}
@@ -341,7 +342,7 @@ export default function TemplatesPage() {
                     setHasChanges(true);
                   }}
                   className="text-base font-medium bg-transparent border-transparent hover:border-white/10 focus:border-emerald-500/50 h-8 py-0 px-2 w-full max-w-md text-zinc-200 placeholder:text-zinc-600"
-                  placeholder="Template Name"
+                  placeholder="模板名称"
                 />
               </div>
               <div className="flex items-center gap-3">
@@ -349,7 +350,7 @@ export default function TemplatesPage() {
                   "text-xs transition-opacity duration-300",
                   hasChanges ? "text-amber-500 opacity-100" : "opacity-0"
                 )}>
-                  ● Unsaved
+                  ● 未保存
                 </span>
                 <Button
                   variant="primary"
@@ -362,7 +363,7 @@ export default function TemplatesPage() {
                     hasChanges ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-zinc-800 text-zinc-500"
                   )}
                 >
-                  {isSaving ? 'Saving...' : 'Save'}
+                  {isSaving ? '保存中...' : '保存'}
                 </Button>
               </div>
             </CardHeader>
@@ -392,11 +393,11 @@ export default function TemplatesPage() {
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
-                      <span className="font-medium">LiquidJS Enabled</span>
+                      <span className="font-medium">LiquidJS 已启用</span>
                    </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span>{charCount} chars</span>
+                  <span>{charCount} 字符</span>
                   <span className="hidden sm:inline">UTF-8</span>
                 </div>
               </div>
@@ -409,9 +410,9 @@ export default function TemplatesPage() {
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                </svg>
             </div>
-            <h3 className="text-lg font-medium text-zinc-300 mb-2">Ready to Write</h3>
+            <h3 className="text-lg font-medium text-zinc-300 mb-2">准备写作</h3>
             <p className="max-w-xs text-center text-sm text-zinc-600">
-              Select an existing template from the sidebar or create a new one to get started.
+              从左侧选择现有模板或创建一个新模板以开始。
             </p>
           </div>
         )}
@@ -427,36 +428,36 @@ export default function TemplatesPage() {
                   variant="boxed" 
                   className="flex-1 rounded-t-lg border-b-2 border-transparent data-[state=active]:bg-zinc-800/50 data-[state=active]:border-emerald-500 data-[state=active]:text-emerald-400 text-xs font-medium text-zinc-500"
                 >
-                  Variables
+                  变量配置
                 </TabsTrigger>
                 <TabsTrigger 
                   value="preview" 
                   variant="boxed" 
                   className="flex-1 rounded-t-lg border-b-2 border-transparent data-[state=active]:bg-zinc-800/50 data-[state=active]:border-amber-500 data-[state=active]:text-amber-400 text-xs font-medium text-zinc-500"
                 >
-                  Preview
+                  预览结果
                 </TabsTrigger>
               </TabsList>
             </div>
 
             <TabsContent value="variables" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0 space-y-4">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Parameters</h3>
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">参数列表</h3>
                 <Button 
                   variant="ghost" 
                   size="sm"
                   onClick={addVariable}
                   className="h-6 px-2 text-xs text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
                 >
-                  + Add New
+                  + 添加变量
                 </Button>
               </div>
               
               {selectedTemplate.variables?.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-zinc-800 p-8 flex flex-col items-center text-center">
-                  <span className="text-xs text-zinc-600 mb-2">No variables defined</span>
+                  <span className="text-xs text-zinc-600 mb-2">未定义变量</span>
                   <Button variant="ghost" size="sm" onClick={addVariable} className="h-7 text-xs border border-zinc-700 text-zinc-400 hover:text-zinc-200">
-                    Create One
+                    创建一个
                   </Button>
                 </div>
               ) : (
@@ -471,7 +472,7 @@ export default function TemplatesPage() {
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div className="flex-1">
-                          <label className="text-[10px] text-zinc-600 font-mono mb-1 block uppercase">Name</label>
+                          <label className="text-[10px] text-zinc-600 font-mono mb-1 block uppercase">变量名</label>
                           <Input
                             type="text"
                             value={variable.name}
@@ -485,7 +486,7 @@ export default function TemplatesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => insertVariableToContent(variable.name)}
-                            title="Copy tag"
+                            title="复制标签"
                             className="h-7 w-7 p-0 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -506,17 +507,17 @@ export default function TemplatesPage() {
                       </div>
                       
                       <div>
-                        <label className="text-[10px] text-zinc-600 font-mono mb-1 block uppercase">Type</label>
+                        <label className="text-[10px] text-zinc-600 font-mono mb-1 block uppercase">类型</label>
                         <div className="relative">
                           <select
                             value={variable.type}
                             onChange={(e) => updateVariable(idx, 'type', e.target.value)}
                             className="appearance-none bg-zinc-900/50 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-zinc-300 border border-zinc-800 focus:border-emerald-500/30 transition-colors"
                           >
-                            <option value="string">String</option>
-                            <option value="number">Number</option>
-                            <option value="boolean">Boolean</option>
-                            <option value="array">Array</option>
+                            <option value="string">文本 (String)</option>
+                            <option value="number">数字 (Number)</option>
+                            <option value="boolean">布尔 (Boolean)</option>
+                            <option value="array">数组 (Array)</option>
                           </select>
                           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-zinc-500">
                              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -531,19 +532,19 @@ export default function TemplatesPage() {
               <div className="mt-8 pt-4 border-t border-dashed border-zinc-800">
                 <div className="flex items-center gap-2 mb-2">
                    <div className="w-1 h-1 rounded-full bg-amber-500"></div>
-                   <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Quick Tips</h3>
+                   <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">使用提示</h3>
                 </div>
                 <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
                    <p className="text-xs text-zinc-500 leading-relaxed">
-                     Insert variables using <code className="bg-amber-500/10 text-amber-500 px-1 rounded mx-0.5">{`{{ name }}`}</code> syntax.
-                     Logic blocks like <code className="bg-amber-500/10 text-amber-500 px-1 rounded mx-0.5">{`{% if %}`}</code> are also supported.
+                     使用 <code className="bg-amber-500/10 text-amber-500 px-1 rounded mx-0.5">{`{{ name }}`}</code> 语法插入变量。
+                     支持逻辑控制块，如 <code className="bg-amber-500/10 text-amber-500 px-1 rounded mx-0.5">{`{% if %}`}</code>。
                    </p>
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="preview" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0 space-y-4">
-              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Test Data</h3>
+              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">测试数据</h3>
               <div className="space-y-3">
                 {selectedTemplate.variables?.map((v) => (
                   <div key={v.name} className="space-y-1">
@@ -556,12 +557,12 @@ export default function TemplatesPage() {
                       value={String(previewData[v.name] ?? '')}
                       onChange={(e) => setPreviewData({ ...previewData, [v.name]: e.target.value })}
                       className="h-9 text-sm bg-zinc-950/50 border-zinc-800 text-zinc-300 focus:border-amber-500/50"
-                      placeholder={`Value for ${v.name}`}
+                      placeholder={`输入 ${v.name} 的值`}
                     />
                   </div>
                 ))}
                 {(!selectedTemplate.variables || selectedTemplate.variables.length === 0) && (
-                  <p className="text-xs text-zinc-600 italic text-center py-2">No variables to configure</p>
+                  <p className="text-xs text-zinc-600 italic text-center py-2">无需配置变量</p>
                 )}
               </div>
               
@@ -578,7 +579,7 @@ export default function TemplatesPage() {
                   </svg>
                 }
               >
-                Generate Preview
+                生成预览
               </Button>
               
               {previewResult && (
@@ -587,7 +588,7 @@ export default function TemplatesPage() {
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-6 space-y-2"
                 >
-                  <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Output</h3>
+                  <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">输出结果</h3>
                   <div className="bg-zinc-950 rounded-xl p-4 text-sm text-zinc-300 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto border border-zinc-800 custom-scrollbar shadow-inner">
                     {previewResult}
                   </div>
@@ -600,7 +601,7 @@ export default function TemplatesPage() {
              <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 mb-4 transform rotate-12 flex items-center justify-center">
                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
              </div>
-            <p className="text-sm">Configure variables & preview results here</p>
+            <p className="text-sm">在此配置变量并预览结果</p>
           </div>
         )}
       </Card>

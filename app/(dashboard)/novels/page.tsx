@@ -29,8 +29,8 @@ export default function NovelsPage() {
     <div className="min-h-screen p-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2">我的小说</h1>
-          <p className="text-gray-400">管理和创作你的杰作</p>
+          <h1 className="text-3xl font-bold mb-1 tracking-tight text-zinc-100">我的小说</h1>
+          <p className="text-zinc-500">管理和创作你的杰作</p>
         </div>
         <Button
           onClick={() => router.push('/novels/create')}

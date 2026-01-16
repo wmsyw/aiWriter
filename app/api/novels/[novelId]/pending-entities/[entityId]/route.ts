@@ -40,7 +40,7 @@ export async function GET(
   const includeSuggestions = searchParams.get('includeSuggestions') === 'true';
 
   if (includeSuggestions) {
-    const suggestions = await findMatchSuggestions(novelId, entityId);
+    const suggestions = await findMatchSuggestions(novelId, session.userId, entityId);
     return NextResponse.json({ entity, suggestions });
   }
 

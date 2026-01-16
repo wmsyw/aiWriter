@@ -9,6 +9,7 @@ import { Input, Textarea } from '@/app/components/ui/Input';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import { Select } from '@/app/components/ui/Select';
 import { Progress } from '@/app/components/ui/Progress';
+import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
 
 const GENRES = ['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'];
 const OUTLINE_MODES = [
@@ -201,6 +202,7 @@ interface OutlineNode {
   content: string;
   level: 'rough' | 'detailed' | 'chapter';
   children: OutlineNode[];
+  parentId?: string;
   isExpanded?: boolean;
   isGenerating?: boolean;
 }
@@ -232,11 +234,13 @@ const OutlineTreeNode = ({
   node, 
   onToggle, 
   onGenerateNext,
+  onRegenerate,
   onUpdate
 }: { 
   node: OutlineNode; 
   onToggle: (id: string) => void;
   onGenerateNext: (node: OutlineNode) => void;
+  onRegenerate: (node: OutlineNode) => void;
   onUpdate: (id: string, content: string) => void;
 }) => {
   const isLeaf = node.level === 'chapter';
@@ -266,6 +270,15 @@ const OutlineTreeNode = ({
             </h4>
             <div className="flex items-center gap-2 flex-shrink-0">
               {node.children && node.children.length > 0 && <span className="text-green-400">✓</span>}
+              {node.content && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRegenerate(node); }}
+                  disabled={node.isGenerating}
+                  className="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-1 rounded transition-colors border border-amber-500/30 disabled:opacity-50"
+                >
+                  {node.isGenerating ? '生成中...' : '重新生成'}
+                </button>
+              )}
               {!isLeaf && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onGenerateNext(node); }}
@@ -296,6 +309,7 @@ const OutlineTreeNode = ({
               node={child} 
               onToggle={onToggle}
               onGenerateNext={onGenerateNext}
+              onRegenerate={onRegenerate}
               onUpdate={onUpdate}
             />
           ))}
@@ -344,7 +358,29 @@ function NovelWizardContent() {
   const [outlineTree, setOutlineTree] = useState<OutlineNode[]>([]);
   const stepLabels = ['基础设定', '核心设定', '粗略大纲', '大纲细化', '完成'];
 
-  // Helper to parse JSON from AI response
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: 'danger' | 'warning' | 'info';
+    requireConfirmation?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    variant: 'warning',
+    onConfirm: () => {},
+  });
+
+  const showConfirmModal = (options: Omit<typeof confirmModalState, 'isOpen'>) => {
+    setConfirmModalState({ ...options, isOpen: true });
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
   const safeParseJSON = (text: string) => {
     try {
       const cleanText = text.replace(/```json\n|\n```/g, '').replace(/```/g, '').trim();
@@ -767,19 +803,27 @@ function NovelWizardContent() {
     setNodeGenerating(node.id, true);
 
     try {
-      // Build context from rough outline nodes
-      const context = outlineTree
-        .filter(n => n.level === 'rough')
+      const roughNodes = outlineTree.filter(n => n.level === 'rough');
+      const currentIndex = roughNodes.findIndex(n => n.id === node.id);
+      
+      const prevBlock = currentIndex > 0 ? roughNodes[currentIndex - 1] : null;
+      const nextBlock = currentIndex < roughNodes.length - 1 ? roughNodes[currentIndex + 1] : null;
+      
+      const context = roughNodes
         .map(n => `${n.id}. ${n.title}: ${n.content}`)
         .join('\n');
 
       const output = await runJob('OUTLINE_DETAILED', {
         novelId,
-        roughOutline: {}, // Schema requirement
+        roughOutline: {},
         target_title: node.title,
         target_content: node.content,
         target_id: node.id,
         rough_outline_context: context,
+        prev_block_title: prevBlock?.title || '',
+        prev_block_content: prevBlock?.content || '',
+        next_block_title: nextBlock?.title || '',
+        next_block_content: nextBlock?.content || '',
       });
 
       const json = typeof output === 'string' ? safeParseJSON(output) : output;
@@ -799,7 +843,6 @@ function NovelWizardContent() {
     setNodeGenerating(node.id, true);
 
     try {
-      // Build context from available detailed nodes
       const context = outlineTree
         .flatMap(rough => rough.children || [])
         .map(detailed => `${detailed.id}. ${detailed.title}`)
@@ -807,7 +850,7 @@ function NovelWizardContent() {
 
       const output = await runJob('OUTLINE_CHAPTERS', {
         novelId,
-        detailedOutline: {}, // Schema requirement
+        detailedOutline: {},
         target_title: node.title,
         target_content: node.content,
         target_id: node.id,
@@ -826,6 +869,134 @@ function NovelWizardContent() {
     }
   };
 
+  const regenerateSingleNode = async (node: OutlineNode, parentNode: OutlineNode) => {
+    if (!novelId) return;
+    setNodeGenerating(node.id, true);
+
+    try {
+      const allDetailedNodes = outlineTree.flatMap(n => n.children || []);
+      const currentIndex = allDetailedNodes.findIndex(n => n.id === node.id);
+      
+      const prevDetailedNode = currentIndex > 0 ? allDetailedNodes[currentIndex - 1] : null;
+      const nextDetailedNode = currentIndex < allDetailedNodes.length - 1 ? allDetailedNodes[currentIndex + 1] : null;
+
+      const output = await runJob('OUTLINE_DETAILED', {
+        novelId,
+        roughOutline: {},
+        target_title: node.title,
+        target_content: parentNode.content,
+        target_id: node.id,
+        rough_outline_context: `当前分卷：${parentNode.title}\n${parentNode.content}`,
+        prev_block_title: prevDetailedNode?.title || '',
+        prev_block_content: prevDetailedNode?.content || '',
+        next_block_title: nextDetailedNode?.title || '',
+        next_block_content: nextDetailedNode?.content || '',
+        regenerate_single: true,
+        original_node_title: node.title,
+      });
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      
+      if (json) {
+        const newContent = json.content || json.children?.[0]?.content || '';
+        const newTitle = json.title || json.children?.[0]?.title || node.title;
+        
+        const updateSingleNode = (nodes: OutlineNode[]): OutlineNode[] => {
+          return nodes.map(n => {
+            if (n.id === parentNode.id && n.children) {
+              return {
+                ...n,
+                children: n.children.map(child => 
+                  child.id === node.id 
+                    ? { ...child, title: newTitle, content: newContent }
+                    : child
+                )
+              };
+            }
+            if (n.children && n.children.length > 0) {
+              return { ...n, children: updateSingleNode(n.children) };
+            }
+            return n;
+          });
+        };
+        const updatedTree = updateSingleNode(outlineTree);
+        setOutlineTree(updatedTree);
+        await saveOutlineTree(updatedTree);
+      }
+    } catch (error) {
+      console.error('Failed to regenerate single node', error);
+      alert('重新生成失败，请重试');
+    } finally {
+      setNodeGenerating(node.id, false);
+    }
+  };
+
+  const regenerateSingleChapter = async (node: OutlineNode, parentDetailedNode: OutlineNode) => {
+    if (!novelId) return;
+    setNodeGenerating(node.id, true);
+
+    try {
+      const siblingChapters = parentDetailedNode.children || [];
+      const currentIndex = siblingChapters.findIndex(c => c.id === node.id);
+      
+      const prevChapter = currentIndex > 0 ? siblingChapters[currentIndex - 1] : null;
+      const nextChapter = currentIndex < siblingChapters.length - 1 ? siblingChapters[currentIndex + 1] : null;
+
+      const output = await runJob('OUTLINE_CHAPTERS', {
+        novelId,
+        detailedOutline: {},
+        target_title: node.title,
+        target_content: parentDetailedNode.content,
+        target_id: node.id,
+        detailed_outline_context: `当前细纲：${parentDetailedNode.title}\n${parentDetailedNode.content}`,
+        prev_chapter_title: prevChapter?.title || '',
+        prev_chapter_content: prevChapter?.content || '',
+        next_chapter_title: nextChapter?.title || '',
+        next_chapter_content: nextChapter?.content || '',
+        regenerate_single: true,
+        original_chapter_title: node.title,
+      });
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      
+      if (json) {
+        const newContent = json.content || json.chapters?.[0]?.content || '';
+        const newTitle = json.title || json.chapters?.[0]?.title || node.title;
+        
+        const updateSingleChapter = (nodes: OutlineNode[]): OutlineNode[] => {
+          return nodes.map(roughNode => {
+            if (!roughNode.children) return roughNode;
+            
+            return {
+              ...roughNode,
+              children: roughNode.children.map(detailedNode => {
+                if (detailedNode.id === parentDetailedNode.id && detailedNode.children) {
+                  return {
+                    ...detailedNode,
+                    children: detailedNode.children.map(chapterNode =>
+                      chapterNode.id === node.id
+                        ? { ...chapterNode, title: newTitle, content: newContent }
+                        : chapterNode
+                    )
+                  };
+                }
+                return detailedNode;
+              })
+            };
+          });
+        };
+        const updatedTree = updateSingleChapter(outlineTree);
+        setOutlineTree(updatedTree);
+        await saveOutlineTree(updatedTree);
+      }
+    } catch (error) {
+      console.error('Failed to regenerate single chapter', error);
+      alert('重新生成章节失败，请重试');
+    } finally {
+      setNodeGenerating(node.id, false);
+    }
+  };
+
   const handleGenerateNext = (node: OutlineNode) => {
     if (node.level === 'rough') {
       generateDetailedForBlock(node);
@@ -834,6 +1005,111 @@ function NovelWizardContent() {
     }
   };
 
+  const handleRegenerate = (node: OutlineNode) => {
+    const hasChildren = outlineTree.some(n => 
+      n.id === node.id && (n.children?.length ?? 0) > 0
+    );
+    
+    if (node.level === 'rough') {
+      const childCount = outlineTree.reduce((acc, n) => {
+        const detailed = n.children?.length ?? 0;
+        const chapters = n.children?.reduce((a, c) => a + (c.children?.length ?? 0), 0) ?? 0;
+        return acc + detailed + chapters;
+      }, 0);
+      
+      if (childCount > 0) {
+        showConfirmModal({
+          title: '⚠️ 高危操作确认',
+          message: `重新生成粗纲将删除所有已生成的细纲和章节（共 ${childCount} 个节点）。此操作不可撤销！`,
+          variant: 'danger',
+          requireConfirmation: '确认删除',
+          onConfirm: () => startRoughOutline(),
+        });
+        return;
+      }
+      
+      showConfirmModal({
+        title: '重新生成粗纲',
+        message: '确定要重新生成粗略大纲吗？当前粗纲内容将被覆盖。',
+        variant: 'warning',
+        onConfirm: () => startRoughOutline(),
+      });
+    } else if (node.level === 'detailed') {
+      const parentNode = outlineTree.find(n => n.children?.some(c => c.id === node.id));
+      
+      if (parentNode) {
+        showConfirmModal({
+          title: '重新生成此细纲',
+          message: `确定要重新生成"${node.title}"吗？只会影响当前节点。`,
+          variant: 'info',
+          onConfirm: () => regenerateSingleNode(node, parentNode),
+        });
+      }
+    } else if (node.level === 'chapter') {
+      const grandParentNode = outlineTree.find(n => 
+        n.children?.some(c => c.children?.some(gc => gc.id === node.id))
+      );
+      const parentDetailedNode = grandParentNode?.children?.find(c => c.children?.some(gc => gc.id === node.id));
+      
+      if (parentDetailedNode) {
+        showConfirmModal({
+          title: '重新生成此章节',
+          message: `确定要重新生成"${node.title}"吗？只会影响当前章节。`,
+          variant: 'info',
+          onConfirm: () => regenerateSingleChapter(node, parentDetailedNode),
+        });
+      }
+    }
+  };
+
+
+  const saveOutlineTree = async (treeToSave: OutlineNode[]) => {
+    if (!novelId) return;
+    
+    const serialized = treeToSave.map(node => {
+      let text = `# ${node.title}\n${node.content}\n`;
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => {
+           text += `## ${child.title}\n${child.content}\n`;
+           if (child.children && child.children.length > 0) {
+             child.children.forEach(grandChild => {
+               text += `### ${grandChild.title}\n${grandChild.content}\n`;
+             });
+           }
+        });
+      }
+      return text;
+    }).join('\n\n');
+
+    const roughNodes = treeToSave.filter(n => n.level === 'rough');
+    const detailedNodes = treeToSave.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
+    const chapterNodes = treeToSave.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
+
+    let outlineStage = 'none';
+    if (chapterNodes.length > 0) {
+      outlineStage = 'chapters';
+    } else if (detailedNodes.length > 0) {
+      outlineStage = 'detailed';
+    } else if (roughNodes.length > 0) {
+      outlineStage = 'rough';
+    }
+
+    try {
+      await fetch(`/api/novels/${novelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outline: serialized,
+          outlineRough: roughNodes.length > 0 ? { blocks: roughNodes } : null,
+          outlineDetailed: detailedNodes.length > 0 ? { blocks: detailedNodes } : null,
+          outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
+          outlineStage,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to auto-save outline', error);
+    }
+  };
 
   const applyOutline = async () => {
     if (!novelId) return;
@@ -892,6 +1168,16 @@ function NovelWizardContent() {
 
   return (
     <div className="min-h-screen p-6 md:p-12 max-w-7xl mx-auto space-y-12">
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        onClose={closeConfirmModal}
+        onConfirm={confirmModalState.onConfirm}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        variant={confirmModalState.variant}
+        requireConfirmation={confirmModalState.requireConfirmation}
+      />
+      
       {/* Header */}
       <div className="flex items-end justify-between border-b border-white/5 pb-6">
         <div>
@@ -1356,15 +1642,16 @@ function NovelWizardContent() {
                 </div>
               ) : (
                 <div>
-                  {outlineTree.map(node => (
-                     <OutlineTreeNode 
-                       key={node.id} 
-                       node={node} 
-                       onToggle={toggleNode}
-                       onGenerateNext={handleGenerateNext}
-                       onUpdate={updateNodeContent}
-                     />
-                  ))}
+                {outlineTree.map(node => (
+                      <OutlineTreeNode 
+                        key={node.id} 
+                        node={node} 
+                        onToggle={toggleNode}
+                        onGenerateNext={handleGenerateNext}
+                        onRegenerate={handleRegenerate}
+                        onUpdate={updateNodeContent}
+                      />
+                   ))}
                 </div>
               )}
             </div>
@@ -1402,15 +1689,16 @@ function NovelWizardContent() {
 
             <div className="flex-1 w-full border border-white/10 bg-black/20 rounded-xl p-6 min-h-[400px] custom-scrollbar overflow-y-auto">
                <div>
-                  {outlineTree.map(node => (
-                     <OutlineTreeNode 
-                       key={node.id} 
-                       node={node} 
-                       onToggle={toggleNode}
-                       onGenerateNext={handleGenerateNext}
-                       onUpdate={updateNodeContent}
-                     />
-                  ))}
+                {outlineTree.map(node => (
+                      <OutlineTreeNode 
+                        key={node.id} 
+                        node={node} 
+                        onToggle={toggleNode}
+                        onGenerateNext={handleGenerateNext}
+                        onRegenerate={handleRegenerate}
+                        onUpdate={updateNodeContent}
+                      />
+                   ))}
                 </div>
             </div>
 

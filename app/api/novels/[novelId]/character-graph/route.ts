@@ -17,7 +17,7 @@ export async function GET(
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId: session.userId } });
   if (!novel) return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
 
-  const characters = await getCharacterGraph(novelId);
+  const characters = await getCharacterGraph(novelId, session.userId);
   
   const nodes = characters.map(c => ({
     data: {

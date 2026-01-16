@@ -101,12 +101,22 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
 
   const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
 
-  let enhancedContext;
-  try {
-    enhancedContext = await assembleContextAsString(chapter.novelId, chapter.order);
-  } catch (err) {
-    console.warn('Failed to assemble enhanced context, falling back to basic:', err.message);
-    enhancedContext = null;
+  let enhancedContext = null;
+  let contextAssemblyAttempts = 0;
+  const maxContextRetries = 2;
+  
+  while (contextAssemblyAttempts < maxContextRetries && !enhancedContext) {
+    try {
+      enhancedContext = await assembleContextAsString(chapter.novelId, chapter.order);
+    } catch (err) {
+      contextAssemblyAttempts++;
+      if (contextAssemblyAttempts < maxContextRetries) {
+        console.warn(`Context assembly attempt ${contextAssemblyAttempts} failed, retrying:`, err.message);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } else {
+        console.warn('Context assembly failed after retries, using fallback:', err.message);
+      }
+    }
   }
 
   const previousChapters = await prisma.chapter.findMany({
@@ -116,7 +126,7 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
   });
   const previousSummary = enhancedContext?.context || previousChapters.map(c => `Chapter ${c.order}: ${c.title}`).join('\n');
 
-  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding', 'plotPoint']);
+  const materials = await buildMaterialContext(chapter.novelId, userId, ['character', 'worldbuilding', 'plotPoint']);
 
   let hooksContext = '';
   try {
@@ -246,7 +256,7 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     take: 3,
   });
   const previousSummary = enhancedContext?.context || previousChapters.map(c => `Chapter ${c.order}: ${c.title}`).join('\n');
-  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding', 'plotPoint']);
+  const materials = await buildMaterialContext(chapter.novelId, userId, ['character', 'worldbuilding', 'plotPoint']);
 
   let hooksContext = '';
   try {

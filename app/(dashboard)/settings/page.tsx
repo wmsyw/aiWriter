@@ -597,161 +597,151 @@ export default function SettingsPage() {
             <p className="text-gray-400">自定义编辑器和界面设置</p>
           </div>
 
-          <motion.div className="space-y-6" variants={staggerContainer} initial="hidden" animate="visible">
-            <motion.div variants={staggerItem}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>编辑器设置</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">自动保存</div>
-                      <div className="text-gray-400 text-sm">每隔一段时间自动保存章节内容</div>
-                    </div>
-                    <Toggle 
-                      checked={preferences.autoSave} 
-                      onChange={() => setPreferences(p => ({ ...p, autoSave: !p.autoSave }))} 
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">字数统计</div>
-                      <div className="text-gray-400 text-sm">在编辑器底部显示字数统计</div>
-                    </div>
-                    <Toggle 
-                      checked={preferences.wordCount} 
-                      onChange={() => setPreferences(p => ({ ...p, wordCount: !p.wordCount }))} 
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">行号显示</div>
-                      <div className="text-gray-400 text-sm">在编辑器左侧显示行号</div>
-                    </div>
-                    <Toggle 
-                      checked={preferences.lineNumbers} 
-                      onChange={() => setPreferences(p => ({ ...p, lineNumbers: !p.lineNumbers }))} 
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+          <Card>
+            <CardHeader>
+              <CardTitle>编辑器设置</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-white font-medium">自动保存</div>
+                  <div className="text-gray-400 text-sm">每隔一段时间自动保存章节内容</div>
+                </div>
+                <Toggle 
+                  checked={preferences.autoSave} 
+                  onChange={() => setPreferences(p => ({ ...p, autoSave: !p.autoSave }))} 
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-white font-medium">字数统计</div>
+                  <div className="text-gray-400 text-sm">在编辑器底部显示字数统计</div>
+                </div>
+                <Toggle 
+                  checked={preferences.wordCount} 
+                  onChange={() => setPreferences(p => ({ ...p, wordCount: !p.wordCount }))} 
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-white font-medium">行号显示</div>
+                  <div className="text-gray-400 text-sm">在编辑器左侧显示行号</div>
+                </div>
+                <Toggle 
+                  checked={preferences.lineNumbers} 
+                  onChange={() => setPreferences(p => ({ ...p, lineNumbers: !p.lineNumbers }))} 
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-            <motion.div variants={staggerItem}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>AI 写作设置</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <Select
-                    label="默认生成字数"
-                    value={preferences.defaultWordCount}
-                    onChange={(val) => setPreferences(p => ({ ...p, defaultWordCount: val }))}
-                    options={[
-                      { value: '500', label: '约 500 字' },
-                      { value: '1000', label: '约 1000 字' },
-                      { value: '2000', label: '约 2000 字' },
-                      { value: '3000', label: '约 3000 字' },
-                    ]}
-                  />
-                  <Select
-                    label="写作风格"
-                    value={preferences.writingStyle}
-                    onChange={(val) => setPreferences(p => ({ ...p, writingStyle: val }))}
-                    options={[
-                      { value: 'literary', label: '文学性' },
-                      { value: 'popular', label: '通俗易懂' },
-                      { value: 'humorous', label: '幽默诙谐' },
-                      { value: 'serious', label: '严肃正式' },
-                    ]}
-                  />
-                </CardContent>
-              </Card>
-            </motion.div>
+          <Card>
+            <CardHeader>
+              <CardTitle>AI 写作设置</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Select
+                label="默认生成字数"
+                value={preferences.defaultWordCount}
+                onChange={(val) => setPreferences(p => ({ ...p, defaultWordCount: val }))}
+                options={[
+                  { value: '500', label: '约 500 字' },
+                  { value: '1000', label: '约 1000 字' },
+                  { value: '2000', label: '约 2000 字' },
+                  { value: '3000', label: '约 3000 字' },
+                ]}
+              />
+              <Select
+                label="写作风格"
+                value={preferences.writingStyle}
+                onChange={(val) => setPreferences(p => ({ ...p, writingStyle: val }))}
+                options={[
+                  { value: 'literary', label: '文学性' },
+                  { value: 'popular', label: '通俗易懂' },
+                  { value: 'humorous', label: '幽默诙谐' },
+                  { value: 'serious', label: '严肃正式' },
+                ]}
+              />
+            </CardContent>
+          </Card>
 
-            <motion.div variants={staggerItem}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>网络搜索</CardTitle>
-                  <CardDescription>启用后，AI 在生成涉及专业知识、时事热点等内容时会自动联网搜索</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">启用网络搜索</div>
-                      <div className="text-gray-400 text-sm">允许 AI 在写作时联网查询信息</div>
-                    </div>
-                    <Toggle 
-                      checked={preferences.webSearchEnabled} 
-                      onChange={() => setPreferences(p => ({ ...p, webSearchEnabled: !p.webSearchEnabled }))} 
+          <Card>
+            <CardHeader>
+              <CardTitle>网络搜索</CardTitle>
+              <CardDescription>启用后，AI 在生成涉及专业知识、时事热点等内容时会自动联网搜索</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-white font-medium">启用网络搜索</div>
+                  <div className="text-gray-400 text-sm">允许 AI 在写作时联网查询信息</div>
+                </div>
+                <Toggle 
+                  checked={preferences.webSearchEnabled} 
+                  onChange={() => setPreferences(p => ({ ...p, webSearchEnabled: !p.webSearchEnabled }))} 
+                />
+              </div>
+
+              <AnimatePresence>
+                {preferences.webSearchEnabled && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="space-y-6 overflow-hidden"
+                  >
+                    <Select
+                      label="搜索服务商"
+                      value={preferences.webSearchProvider}
+                      onChange={(val) => setPreferences(p => ({ ...p, webSearchProvider: val as 'tavily' | 'exa' | 'model' }))}
+                      options={[
+                        { value: 'model', label: '模型内置搜索 (推荐)' },
+                        { value: 'tavily', label: 'Tavily' },
+                        { value: 'exa', label: 'Exa AI' },
+                      ]}
                     />
-                  </div>
-
-                  <AnimatePresence>
-                    {preferences.webSearchEnabled && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="space-y-6 overflow-hidden"
-                      >
-                        <Select
-                          label="搜索服务商"
-                          value={preferences.webSearchProvider}
-                          onChange={(val) => setPreferences(p => ({ ...p, webSearchProvider: val as 'tavily' | 'exa' | 'model' }))}
-                          options={[
-                            { value: 'model', label: '模型内置搜索 (推荐)' },
-                            { value: 'tavily', label: 'Tavily' },
-                            { value: 'exa', label: 'Exa AI' },
-                          ]}
-                        />
-                        
-                        {preferences.webSearchProvider === 'model' ? (
-                          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
-                            使用 AI 模型自带的联网搜索功能，无需额外配置 API 密钥
-                          </div>
-                        ) : (
-                          <Input
-                            type="password"
-                            label="搜索 API 密钥"
-                            helperText={
-                              preferences.webSearchProvider === 'tavily' 
-                                ? "在 tavily.com 获取密钥" 
-                                : "在 exa.ai 获取密钥"
-                            }
-                            value={preferences.webSearchApiKey}
-                            onChange={(e) => setPreferences(p => ({ ...p, webSearchApiKey: e.target.value }))}
-                            placeholder={preferences.webSearchProvider === 'tavily' ? 'tvly-...' : 'exa-...'}
-                          />
-                        )}
-                      </motion.div>
+                    
+                    {preferences.webSearchProvider === 'model' ? (
+                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
+                        使用 AI 模型自带的联网搜索功能，无需额外配置 API 密钥
+                      </div>
+                    ) : (
+                      <Input
+                        type="password"
+                        label="搜索 API 密钥"
+                        helperText={
+                          preferences.webSearchProvider === 'tavily' 
+                            ? "在 tavily.com 获取密钥" 
+                            : "在 exa.ai 获取密钥"
+                        }
+                        value={preferences.webSearchApiKey}
+                        onChange={(e) => setPreferences(p => ({ ...p, webSearchApiKey: e.target.value }))}
+                        placeholder={preferences.webSearchProvider === 'tavily' ? 'tvly-...' : 'exa-...'}
+                      />
                     )}
-                  </AnimatePresence>
-                </CardContent>
-              </Card>
-            </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+          </Card>
 
-            <motion.div variants={staggerItem}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>界面设置</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Select
-                    label="界面语言"
-                    value={preferences.language}
-                    onChange={(val) => setPreferences(p => ({ ...p, language: val }))}
-                    options={[
-                      { value: 'zh-CN', label: '简体中文' },
-                      { value: 'zh-TW', label: '繁體中文' },
-                      { value: 'en', label: 'English' },
-                    ]}
-                  />
-                </CardContent>
-              </Card>
-            </motion.div>
-          </motion.div>
+          <Card>
+            <CardHeader>
+              <CardTitle>界面设置</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                label="界面语言"
+                value={preferences.language}
+                onChange={(val) => setPreferences(p => ({ ...p, language: val }))}
+                options={[
+                  { value: 'zh-CN', label: '简体中文' },
+                  { value: 'zh-TW', label: '繁體中文' },
+                  { value: 'en', label: 'English' },
+                ]}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ nove
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId: session.userId } });
   if (!novel) return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
 
-  const material = await materials.getMaterial(materialId);
+  const material = await materials.getMaterial(materialId, session.userId);
   if (!material || material.novelId !== novelId) {
     return NextResponse.json({ error: 'Material not found' }, { status: 404 });
   }
@@ -35,17 +35,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ nove
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId: session.userId } });
   if (!novel) return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
 
-  const existing = await materials.getMaterial(materialId);
-  if (!existing || existing.novelId !== novelId) {
-    return NextResponse.json({ error: 'Material not found' }, { status: 404 });
-  }
-
   const body = await req.json();
   const parsed = updateMaterialSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const updated = await materials.updateMaterial(materialId, parsed.data as materials.UpdateMaterialInput);
-  return NextResponse.json(updated);
+  try {
+    const updated = await materials.updateMaterial(materialId, session.userId, parsed.data as materials.UpdateMaterialInput);
+    return NextResponse.json(updated);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ novelId: string; materialId: string }> }) {
@@ -57,11 +57,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ n
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId: session.userId } });
   if (!novel) return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
 
-  const existing = await materials.getMaterial(materialId);
-  if (!existing || existing.novelId !== novelId) {
-    return NextResponse.json({ error: 'Material not found' }, { status: 404 });
+  try {
+    await materials.deleteMaterial(materialId, session.userId);
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  await materials.deleteMaterial(materialId);
-  return NextResponse.json({ success: true });
 }

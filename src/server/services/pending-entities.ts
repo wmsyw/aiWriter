@@ -191,13 +191,14 @@ export async function getPendingEntitiesSummary(novelId: string): Promise<Pendin
 
 export async function findMatchSuggestions(
   novelId: string,
+  userId: string,
   pendingEntityId: string
 ): Promise<EntityMatchSuggestion[]> {
   const entity = await prisma.pendingEntity.findUnique({ where: { id: pendingEntityId } });
   if (!entity) throw new Error('Pending entity not found');
   
   const materialType = entity.entityType === 'character' ? 'character' : undefined;
-  const existingMaterials = await listMaterials(novelId, { type: materialType });
+  const existingMaterials = await listMaterials(novelId, userId, { type: materialType });
   
   const existingNames = existingMaterials.map(m => m.name);
   const matches = findPotentialMatches(entity.name, existingNames);

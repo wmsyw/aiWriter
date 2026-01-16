@@ -170,6 +170,7 @@ model Material {
   @@index([genre])
   @@index([searchGroup])
   @@index([novelId, lastActiveChapter])
+  @@index([novelId, type])
 }
 
 model PromptTemplate {

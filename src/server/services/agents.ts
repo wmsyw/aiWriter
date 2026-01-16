@@ -68,8 +68,10 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentDefinit
   return toAgentDefinition(agent);
 }
 
-export async function getAgent(id: string): Promise<AgentDefinition | null> {
-  const agent = await prisma.agentDefinition.findUnique({ where: { id } });
+export async function getAgent(id: string, userId: string): Promise<AgentDefinition | null> {
+  const agent = await prisma.agentDefinition.findFirst({ 
+    where: { id, userId } 
+  });
   return agent ? toAgentDefinition(agent) : null;
 }
 
@@ -84,9 +86,9 @@ export async function listAgents(userId: string, options?: { includeBuiltIn?: bo
   return agents.map(toAgentDefinition);
 }
 
-export async function updateAgent(id: string, input: UpdateAgentInput): Promise<AgentDefinition> {
-  const agent = await getAgent(id);
-  if (!agent) throw new Error('Agent not found');
+export async function updateAgent(id: string, userId: string, input: UpdateAgentInput): Promise<AgentDefinition> {
+  const agent = await getAgent(id, userId);
+  if (!agent) throw new Error('Agent not found or access denied');
   
   if (agent.isBuiltIn) {
     const allowedUpdates: Prisma.AgentDefinitionUpdateInput = {};
@@ -108,9 +110,9 @@ export async function updateAgent(id: string, input: UpdateAgentInput): Promise<
   return toAgentDefinition(updated);
 }
 
-export async function deleteAgent(id: string): Promise<void> {
-  const agent = await getAgent(id);
-  if (!agent) throw new Error('Agent not found');
+export async function deleteAgent(id: string, userId: string): Promise<void> {
+  const agent = await getAgent(id, userId);
+  if (!agent) throw new Error('Agent not found or access denied');
   if (agent.isBuiltIn) throw new Error('Cannot delete built-in agents');
   await prisma.agentDefinition.delete({ where: { id } });
 }
@@ -164,9 +166,9 @@ export async function initializeUserAgents(userId: string): Promise<{ templates:
   return { templates, agents };
 }
 
-export async function duplicateAgent(id: string, newName: string): Promise<AgentDefinition> {
-  const agent = await getAgent(id);
-  if (!agent) throw new Error('Agent not found');
+export async function duplicateAgent(id: string, userId: string, newName: string): Promise<AgentDefinition> {
+  const agent = await getAgent(id, userId);
+  if (!agent) throw new Error('Agent not found or access denied');
   
   return createAgent({
     userId: agent.userId,

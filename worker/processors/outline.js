@@ -1,12 +1,10 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson } from '../utils/helpers.js';
 import { generateCharacterBios } from './character.js';
+import { getOutlineRoughTemplateName, TEMPLATE_NAMES } from '../../src/shared/template-names.js';
 
 function extractCharactersFromMarkdown(content) {
   const characters = [];
-  // Pattern: - **Name**: Role, Description
-  // Matches: - **李逍遥**: 主角，性格机智...
-  // Matches: - **赵灵儿** (女主角): 温柔善良...
   const regex = /-\s*\*\*([^*]+)\*\*[:：]?\s*(?:[\(（]([^)）]+)[\)）])?[:：]?\s*([^\n]+)/g;
   let match;
   while ((match = regex.exec(content)) !== null) {
@@ -25,12 +23,14 @@ function extractCharactersFromMarkdown(content) {
 export async function handleOutlineRough(prisma, job, { jobId, userId, input }) {
   const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId } = input;
 
+  const selectedTemplateName = getOutlineRoughTemplateName(targetWords);
+
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
     agentId,
-    agentName: '粗纲生成器',
-    fallbackAgentName: '大纲生成器',
-    templateName: '粗略大纲生成',
+    agentName: TEMPLATE_NAMES.AGENT_ROUGH_OUTLINE,
+    fallbackAgentName: TEMPLATE_NAMES.AGENT_OUTLINE,
+    templateName: selectedTemplateName,
   });
 
   const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
@@ -58,7 +58,6 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   }));
 
   let roughOutline = parseModelJson(response.content);
-  // Support both JSON and raw string (Markdown)
   if (roughOutline.raw) {
     roughOutline = response.content;
   }
@@ -80,14 +79,30 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
 }
 
 export async function handleOutlineDetailed(prisma, job, { jobId, userId, input }) {
-  const { novelId, roughOutline, targetWords, chapterCount, agentId } = input;
+  const { 
+    novelId, 
+    roughOutline, 
+    targetWords, 
+    chapterCount, 
+    agentId, 
+    prev_block_title, 
+    prev_block_content, 
+    next_block_title, 
+    next_block_content,
+    regenerate_single,
+    target_id,
+    target_title,
+    target_content,
+    rough_outline_context,
+    original_node_title,
+  } = input;
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
     agentId,
-    agentName: '细纲生成器',
-    fallbackAgentName: '大纲生成器',
-    templateName: '细纲生成',
+    agentName: TEMPLATE_NAMES.AGENT_DETAILED_OUTLINE,
+    fallbackAgentName: TEMPLATE_NAMES.AGENT_OUTLINE,
+    templateName: TEMPLATE_NAMES.OUTLINE_DETAILED,
   });
 
   const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
@@ -96,13 +111,30 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     ? (typeof roughOutline === 'string' ? roughOutline : JSON.stringify(roughOutline, null, 2))
     : '';
 
-  const context = {
+  const context = regenerate_single ? {
+    target_id: target_id || '',
+    target_title: target_title || '',
+    target_content: target_content || '',
+    rough_outline_context: rough_outline_context || '',
+    prev_block_title: prev_block_title || '',
+    prev_block_content: prev_block_content || '',
+    next_block_title: next_block_title || '',
+    next_block_content: next_block_content || '',
+    original_node_title: original_node_title || '',
+    regenerate_single: true,
+  } : {
     rough_outline: roughOutlinePayload,
     target_words: targetWords || null,
     chapter_count: chapterCount || null,
+    prev_block_title: prev_block_title || '',
+    prev_block_content: prev_block_content || '',
+    next_block_title: next_block_title || '',
+    next_block_content: next_block_content || '',
   };
 
-  const fallbackPrompt = `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
+  const fallbackPrompt = regenerate_single
+    ? `请重新生成细纲节点（JSON 输出）：\n当前节点：${target_title || '未知'}\n上下文：${rough_outline_context || '无'}`
+    : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
@@ -114,12 +146,10 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
   }));
 
   let detailedOutline = parseModelJson(response.content);
-  // Support Markdown raw output
   if (detailedOutline.raw) {
     detailedOutline = response.content;
   }
 
-  // Extract characters (supports both JSON and Markdown)
   let uniqueCharacters = new Map();
   
   if (typeof detailedOutline === 'string') {
@@ -139,7 +169,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
   }
 
   let characterBiosResult = { characters: [], materialIds: [] };
-  if (novelId && uniqueCharacters.size > 0) {
+  if (novelId && uniqueCharacters.size > 0 && !regenerate_single) {
     characterBiosResult = await generateCharacterBios(prisma, {
       userId,
       novelId,
@@ -150,7 +180,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     });
   }
 
-  if (novelId) {
+  if (novelId && !regenerate_single) {
     await prisma.novel.updateMany({
       where: { id: novelId, userId },
       data: {
@@ -175,14 +205,32 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
 }
 
 export async function handleOutlineChapters(prisma, job, { jobId, userId, input }) {
-  const { novelId, detailedOutline, agentId } = input;
+  const { 
+    novelId, 
+    detailedOutline, 
+    agentId,
+    regenerate_single,
+    target_id,
+    target_title,
+    target_content,
+    detailed_outline_context,
+    prev_chapter_title,
+    prev_chapter_content,
+    next_chapter_title,
+    next_chapter_content,
+    original_chapter_title,
+  } = input;
+
+  const templateName = regenerate_single 
+    ? TEMPLATE_NAMES.OUTLINE_CHAPTER_SINGLE 
+    : TEMPLATE_NAMES.OUTLINE_CHAPTERS;
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
     agentId,
-    agentName: '章节大纲生成器',
-    fallbackAgentName: '大纲生成器',
-    templateName: '章节大纲生成',
+    agentName: TEMPLATE_NAMES.AGENT_CHAPTER_OUTLINE,
+    fallbackAgentName: TEMPLATE_NAMES.AGENT_OUTLINE,
+    templateName,
   });
 
   const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
@@ -191,11 +239,23 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
     : '';
 
-  const context = {
+  const context = regenerate_single ? {
+    target_id: target_id || '',
+    target_title: target_title || '',
+    target_content: target_content || '',
+    detailed_outline_context: detailed_outline_context || '',
+    prev_chapter_title: prev_chapter_title || '',
+    prev_chapter_content: prev_chapter_content || '',
+    next_chapter_title: next_chapter_title || '',
+    next_chapter_content: next_chapter_content || '',
+    original_chapter_title: original_chapter_title || '',
+  } : {
     detailed_outline: detailedPayload,
   };
 
-  const fallbackPrompt = `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`;
+  const fallbackPrompt = regenerate_single
+    ? `请重新生成章节大纲（JSON 输出）：\n当前章节：${target_title || '未知'}\n上下文：${detailed_outline_context || '无'}`
+    : `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
@@ -207,12 +267,11 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
   }));
 
   let chapterOutlines = parseModelJson(response.content);
-  // Support Markdown raw output
   if (chapterOutlines.raw) {
     chapterOutlines = response.content;
   }
 
-  if (novelId) {
+  if (novelId && !regenerate_single) {
     await prisma.novel.updateMany({
       where: { id: novelId, userId },
       data: {
@@ -236,7 +295,7 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
   
   const agent = agentId
     ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: '大纲生成器' }, orderBy: { createdAt: 'desc' } });
+    : await prisma.agentDefinition.findFirst({ where: { userId, name: TEMPLATE_NAMES.AGENT_OUTLINE }, orderBy: { createdAt: 'desc' } });
   
   const template = agent?.templateId
     ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
@@ -268,7 +327,6 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
   }));
   
   const output = parseModelJson(response.content);
-  // Support raw output
   const result = output.raw ? response.content : output;
   
   await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);

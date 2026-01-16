@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Button } from './Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -13,6 +14,18 @@ interface ModalProps {
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
   className?: string;
+}
+
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'danger' | 'warning' | 'info';
+  requireConfirmation?: string;
 }
 
 const SIZE_CLASSES = {
@@ -106,4 +119,83 @@ export default function Modal({
   );
 
   return createPortal(modalContent, document.body);
+}
+
+export function ConfirmModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = '确认',
+  cancelText = '取消',
+  variant = 'warning',
+  requireConfirmation,
+}: ConfirmModalProps) {
+  const [confirmInput, setConfirmInput] = useState('');
+  const isConfirmDisabled = requireConfirmation ? confirmInput !== requireConfirmation : false;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setConfirmInput('');
+    }
+  }, [isOpen]);
+
+  const variantStyles = {
+    danger: {
+      icon: '⚠️',
+      buttonClass: 'bg-red-600 hover:bg-red-700',
+      borderClass: 'border-red-500/30',
+    },
+    warning: {
+      icon: '⚡',
+      buttonClass: 'bg-amber-600 hover:bg-amber-700',
+      borderClass: 'border-amber-500/30',
+    },
+    info: {
+      icon: 'ℹ️',
+      buttonClass: 'bg-blue-600 hover:bg-blue-700',
+      borderClass: 'border-blue-500/30',
+    },
+  };
+
+  const styles = variantStyles[variant];
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="sm" title="">
+      <div className="text-center space-y-4">
+        <div className="text-4xl">{styles.icon}</div>
+        <h3 className="text-lg font-bold text-white">{title}</h3>
+        <p className="text-gray-400 text-sm">{message}</p>
+        
+        {requireConfirmation && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500">
+              请输入 <code className="bg-white/10 px-1 py-0.5 rounded text-amber-400">{requireConfirmation}</code> 以确认
+            </p>
+            <input
+              type="text"
+              value={confirmInput}
+              onChange={(e) => setConfirmInput(e.target.value)}
+              className={`w-full px-3 py-2 bg-black/30 border rounded-lg text-center text-white focus:outline-none focus:ring-2 ${styles.borderClass}`}
+              placeholder={requireConfirmation}
+            />
+          </div>
+        )}
+        
+        <div className="flex gap-3 justify-center pt-2">
+          <Button variant="secondary" onClick={onClose}>
+            {cancelText}
+          </Button>
+          <button
+            onClick={() => { onConfirm(); onClose(); }}
+            disabled={isConfirmDisabled}
+            className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${styles.buttonClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
 }

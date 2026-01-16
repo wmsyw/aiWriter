@@ -1,24 +1,48 @@
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { prisma } from '../db';
 
 export type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'custom';
 export type MaterialGenre = '男频' | '女频' | '通用';
 
-export interface MaterialData {
-  name: string;
-  description?: string;
-  traits?: string[];
-  relationships?: Array<{ targetId: string; type: string; description?: string }>;
-  backstory?: string;
-  geography?: string;
-  culture?: string;
-  significance?: string;
-  chapter?: number;
-  importance?: 'major' | 'minor' | 'foreshadowing';
-  resolved?: boolean;
-  category?: string;
-  rules?: string[];
-  [key: string]: unknown;
+const RelationshipSchema = z.object({
+  targetId: z.string(),
+  type: z.string(),
+  description: z.string().optional(),
+});
+
+export const MaterialDataSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  traits: z.array(z.string()).optional(),
+  relationships: z.array(RelationshipSchema).optional(),
+  backstory: z.string().optional(),
+  geography: z.string().optional(),
+  culture: z.string().optional(),
+  significance: z.string().optional(),
+  chapter: z.number().optional(),
+  importance: z.enum(['major', 'minor', 'foreshadowing']).optional(),
+  resolved: z.boolean().optional(),
+  category: z.string().optional(),
+  rules: z.array(z.string()).optional(),
+  attributes: z.record(z.string(), z.unknown()).optional(),
+}).passthrough();
+
+export type MaterialData = z.infer<typeof MaterialDataSchema>;
+
+function parseMaterialData(data: Prisma.JsonValue | null): MaterialData {
+  if (!data || typeof data !== 'object') {
+    return { name: '' };
+  }
+  const result = MaterialDataSchema.safeParse(data);
+  if (result.success) {
+    return result.data;
+  }
+  const rawData = data as Record<string, unknown>;
+  return {
+    ...rawData,
+    name: typeof rawData.name === 'string' ? rawData.name : '',
+  } as MaterialData;
 }
 
 export interface Material {
@@ -33,6 +57,24 @@ export interface Material {
   data: MaterialData;
   createdAt: Date;
   updatedAt: Date;
+}
+
+type PrismaMaterial = Awaited<ReturnType<typeof prisma.material.findFirst>>;
+
+function toMaterial(m: NonNullable<PrismaMaterial>): Material {
+  return {
+    id: m.id,
+    novelId: m.novelId,
+    userId: m.userId,
+    type: m.type as MaterialType,
+    name: m.name,
+    genre: m.genre as MaterialGenre,
+    searchGroup: m.searchGroup,
+    sourceUrl: m.sourceUrl,
+    data: parseMaterialData(m.data),
+    createdAt: m.createdAt,
+    updatedAt: m.updatedAt,
+  };
 }
 
 export interface CreateMaterialInput {
@@ -55,7 +97,7 @@ export interface UpdateMaterialInput {
 }
 
 export async function createMaterial(input: CreateMaterialInput): Promise<Material> {
-  return prisma.material.create({
+  const material = await prisma.material.create({
     data: {
       novelId: input.novelId,
       userId: input.userId,
@@ -66,60 +108,94 @@ export async function createMaterial(input: CreateMaterialInput): Promise<Materi
       sourceUrl: input.sourceUrl || null,
       data: input.data as Prisma.InputJsonValue,
     },
-  }) as unknown as Material;
+  });
+  return toMaterial(material);
 }
 
-export async function getMaterial(id: string): Promise<Material | null> {
-  return prisma.material.findUnique({ where: { id } }) as unknown as Material | null;
+export async function getMaterial(id: string, userId: string): Promise<Material | null> {
+  const material = await prisma.material.findFirst({ 
+    where: { 
+      id,
+      novel: { userId }
+    } 
+  });
+  return material ? toMaterial(material) : null;
 }
 
 export async function listMaterials(
   novelId: string,
+  userId: string,
   options?: { type?: MaterialType; genre?: MaterialGenre; search?: string }
 ): Promise<Material[]> {
-  const where: any = { novelId };
+  const where: Prisma.MaterialWhereInput = { 
+    novelId,
+    novel: { userId }
+  };
   if (options?.type) where.type = options.type;
   if (options?.genre) where.genre = options.genre;
   if (options?.search) where.name = { contains: options.search, mode: 'insensitive' };
   
-  return prisma.material.findMany({
+  const materials = await prisma.material.findMany({
     where,
     orderBy: [{ genre: 'asc' }, { type: 'asc' }, { name: 'asc' }],
-  }) as unknown as Material[];
+  });
+  return materials.map(toMaterial);
 }
 
-export async function updateMaterial(id: string, input: UpdateMaterialInput): Promise<Material> {
-  const updateData: any = {};
+export async function updateMaterial(id: string, userId: string, input: UpdateMaterialInput): Promise<Material> {
+  // First verify ownership
+  const existing = await getMaterial(id, userId);
+  if (!existing) {
+    throw new Error('Material not found or access denied');
+  }
+  
+  const updateData: Prisma.MaterialUpdateInput = {};
   if (input.name !== undefined) updateData.name = input.name;
   if (input.genre !== undefined) updateData.genre = input.genre;
   if (input.searchGroup !== undefined) updateData.searchGroup = input.searchGroup;
   if (input.sourceUrl !== undefined) updateData.sourceUrl = input.sourceUrl;
   if (input.data !== undefined) updateData.data = input.data as Prisma.InputJsonValue;
   
-  return prisma.material.update({ where: { id }, data: updateData }) as unknown as Material;
+  const updated = await prisma.material.update({ where: { id }, data: updateData });
+  return toMaterial(updated);
 }
 
-export async function deleteMaterial(id: string): Promise<void> {
+export async function deleteMaterial(id: string, userId: string): Promise<void> {
+  // First verify ownership
+  const existing = await getMaterial(id, userId);
+  if (!existing) {
+    throw new Error('Material not found or access denied');
+  }
+  
   await prisma.material.delete({ where: { id } });
 }
 
-export async function getMaterialsByType(novelId: string, type: MaterialType): Promise<Material[]> {
-  return prisma.material.findMany({
-    where: { novelId, type },
+export async function getMaterialsByType(novelId: string, userId: string, type: MaterialType): Promise<Material[]> {
+  const materials = await prisma.material.findMany({
+    where: { 
+      novelId, 
+      type,
+      novel: { userId }
+    },
     orderBy: { name: 'asc' },
-  }) as unknown as Material[];
+  });
+  return materials.map(toMaterial);
 }
 
-export async function getCharacterGraph(novelId: string): Promise<Array<Material & { relatedTo: Material[] }>> {
-  const characters = await prisma.material.findMany({
-    where: { novelId, type: 'character' },
-  }) as unknown as Material[];
+export async function getCharacterGraph(novelId: string, userId: string): Promise<Array<Material & { relatedTo: Material[] }>> {
+  const rawCharacters = await prisma.material.findMany({
+    where: { 
+      novelId, 
+      type: 'character',
+      novel: { userId }
+    },
+  });
+  const characters = rawCharacters.map(toMaterial);
   
   const characterMap = new Map(characters.map(c => [c.id, c]));
   
   return characters.map(char => {
-    const data = char.data as MaterialData;
-    const relationships = data.relationships || [];
+    const relationships = char.data.relationships || [];
     const relatedTo = relationships
       .map(r => characterMap.get(r.targetId))
       .filter((c): c is Material => c !== undefined);
@@ -127,11 +203,26 @@ export async function getCharacterGraph(novelId: string): Promise<Array<Material
   });
 }
 
-export async function buildMaterialContext(novelId: string, types?: MaterialType[]): Promise<string> {
-  const materials = await prisma.material.findMany({
-    where: { novelId, ...(types ? { type: { in: types } } : {}) },
-    orderBy: [{ type: 'asc' }, { name: 'asc' }],
-  }) as unknown as Material[];
+export async function buildMaterialContext(
+  novelId: string, 
+  userId: string, 
+  types?: MaterialType[],
+  options?: { limit?: number; prioritizeRecent?: boolean }
+): Promise<string> {
+  const limit = options?.limit || 50;
+  
+  const rawMaterials = await prisma.material.findMany({
+    where: { 
+      novelId, 
+      novel: { userId },
+      ...(types ? { type: { in: types } } : {}) 
+    },
+    orderBy: options?.prioritizeRecent 
+      ? [{ lastActiveChapter: 'desc' }, { codexPriority: 'desc' }, { name: 'asc' }]
+      : [{ codexPriority: 'desc' }, { type: 'asc' }, { name: 'asc' }],
+    take: limit,
+  });
+  const materials = rawMaterials.map(toMaterial);
   
   const sections: string[] = [];
   let currentType = '';
@@ -165,6 +256,15 @@ export async function importMaterials(
   userId: string,
   materials: Array<{ type: MaterialType; name: string; data: MaterialData }>
 ): Promise<number> {
+  // Verify novel ownership before importing
+  const novel = await prisma.novel.findFirst({
+    where: { id: novelId, userId },
+    select: { id: true }
+  });
+  if (!novel) {
+    throw new Error('Novel not found or access denied');
+  }
+  
   const created = await prisma.material.createMany({
     data: materials.map(m => ({
       novelId,
@@ -177,13 +277,17 @@ export async function importMaterials(
   return created.count;
 }
 
-export async function exportMaterials(novelId: string): Promise<Array<{ type: MaterialType; name: string; data: MaterialData }>> {
-  const materials = await prisma.material.findMany({
-    where: { novelId },
+export async function exportMaterials(novelId: string, userId: string): Promise<Array<{ type: MaterialType; name: string; data: MaterialData }>> {
+  const rawMaterials = await prisma.material.findMany({
+    where: { 
+      novelId,
+      novel: { userId }
+    },
     orderBy: [{ type: 'asc' }, { name: 'asc' }],
-  }) as unknown as Material[];
+  });
+  const materials = rawMaterials.map(toMaterial);
   
-  return materials.map(m => ({ type: m.type as MaterialType, name: m.name, data: m.data }));
+  return materials.map(m => ({ type: m.type, name: m.name, data: m.data }));
 }
 
 export interface MaterialWithNovel extends Material {
@@ -209,5 +313,8 @@ export async function listAllMaterials(
     orderBy: [{ genre: 'asc' }, { novelId: 'asc' }, { type: 'asc' }, { name: 'asc' }],
   });
   
-  return result as unknown as MaterialWithNovel[];
+  return result.map(m => ({
+    ...toMaterial(m),
+    novel: m.novel,
+  }));
 }
