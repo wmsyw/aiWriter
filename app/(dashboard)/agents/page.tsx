@@ -95,15 +95,13 @@ const BuiltInAgentCard = memo(({
   agentKey, 
   agent, 
   template, 
-  isExpanded, 
-  onToggleExpand, 
+  onViewTemplate, 
   onCreateInstance 
 }: {
   agentKey: string;
   agent: BuiltInAgentDefinition;
   template?: Template;
-  isExpanded: boolean;
-  onToggleExpand: (key: string) => void;
+  onViewTemplate: (key: string) => void;
   onCreateInstance: (key: string) => void;
 }) => {
   const categoryLabel = CATEGORY_LABELS[agent.category];
@@ -113,10 +111,10 @@ const BuiltInAgentCard = memo(({
     <motion.div
       variants={staggerItem}
       layout
-      className={isExpanded ? 'col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4' : ''}
+      className="col-span-1"
     >
       <Card variant="interactive" className="h-full flex flex-col">
-        <div className="p-6">
+        <div className="p-6 h-full flex flex-col">
           <div className="flex items-start justify-between mb-4">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center border bg-gradient-to-br ${
               agent.category === 'writing' ? 'from-emerald-500/20 to-purple-500/20 border-emerald-500/30 text-emerald-400' :
@@ -144,10 +142,10 @@ const BuiltInAgentCard = memo(({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onToggleExpand(agentKey)}
+              onClick={() => onViewTemplate(agentKey)}
               className="flex-1"
             >
-              {isExpanded ? '收起' : '查看模板'}
+              查看模板
             </Button>
             <Button
               variant="primary"
@@ -159,44 +157,6 @@ const BuiltInAgentCard = memo(({
             </Button>
           </div>
         </div>
-
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="border-t border-white/10 bg-black/20"
-            >
-              <div className="p-4">
-                {template ? (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-medium text-gray-300">提示词模板内容</h4>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <Badge variant="outline" size="sm">温度: {agent.defaultParams.temperature ?? 0.7}</Badge>
-                        <Badge variant="outline" size="sm">MaxTokens: {agent.defaultParams.maxTokens ?? 2000}</Badge>
-                      </div>
-                    </div>
-                    <pre className="text-xs text-gray-300 font-mono bg-[#0d1117] border border-white/5 rounded-lg p-4 max-h-64 overflow-auto custom-scrollbar whitespace-pre-wrap break-words leading-relaxed">
-                      {template.content}
-                    </pre>
-                  </>
-                ) : (
-                  <div className="p-4 text-center">
-                    <p className="text-sm text-amber-400 flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      未找到对应模板 "{agent.templateName}"，请先在模板页面创建该模板。
-                    </p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </Card>
     </motion.div>
   );
@@ -268,9 +228,15 @@ export default function AgentsPage() {
   const [customModel, setCustomModel] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
-  const [selectedBuiltInAgent, setSelectedBuiltInAgent] = useState<string | null>(null);
+  const [viewingAgentKey, setViewingAgentKey] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
   const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
+  
+  const viewingAgent = viewingAgentKey ? BUILT_IN_AGENTS[viewingAgentKey] : null;
+  const viewingTemplate = useMemo(() => {
+    if (!viewingAgent) return null;
+    return templates.find(t => t.name === viewingAgent.templateName);
+  }, [viewingAgent, templates]);
 
   const builtInAgentsByCategory = useMemo(() => {
     const groups: Record<AgentCategory, Array<[string, typeof BUILT_IN_AGENTS[string]]>> = {
@@ -355,7 +321,7 @@ export default function AgentsPage() {
   }, [templates]);
 
   const handleViewBuiltInAgent = useCallback((key: string) => {
-    setSelectedBuiltInAgent(prev => prev === key ? null : key);
+    setViewingAgentKey(key);
   }, []);
 
   const handleCreateInstance = useCallback((key: string) => {
@@ -500,8 +466,7 @@ export default function AgentsPage() {
                 agentKey={key}
                 agent={agent}
                 template={getBuiltInAgentTemplate(agent.templateName)}
-                isExpanded={selectedBuiltInAgent === key}
-                onToggleExpand={handleViewBuiltInAgent}
+                onViewTemplate={handleViewBuiltInAgent}
                 onCreateInstance={handleCreateInstance}
               />
             ))}
@@ -741,6 +706,87 @@ export default function AgentsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!viewingAgentKey}
+        onClose={() => setViewingAgentKey(null)}
+        title={viewingAgent?.name || '模板详情'}
+        size="lg"
+      >
+        {viewingAgent && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center border bg-gradient-to-br ${
+                viewingAgent.category === 'writing' ? 'from-emerald-500/20 to-purple-500/20 border-emerald-500/30 text-emerald-400' :
+                viewingAgent.category === 'review' ? 'from-amber-500/20 to-orange-500/20 border-amber-500/30 text-amber-400' :
+                'from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-400'
+              }`}>
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <Badge variant={getCategoryBadgeVariant(viewingAgent.category)}>
+                  {CATEGORY_LABELS[viewingAgent.category]}
+                </Badge>
+                <p className="text-gray-400 text-sm mt-1">{viewingAgent.description}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-gray-300">模板内容</h4>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" size="sm" className="font-mono">Temp: {viewingAgent.defaultParams.temperature ?? 0.7}</Badge>
+                  <Badge variant="outline" size="sm" className="font-mono">Tokens: {viewingAgent.defaultParams.maxTokens ?? 2000}</Badge>
+                </div>
+              </div>
+              
+              {viewingTemplate ? (
+                <div className="relative group">
+                  <pre className="text-xs text-gray-300 font-mono bg-[#0d1117] border border-white/5 rounded-lg p-4 max-h-[50vh] overflow-auto custom-scrollbar whitespace-pre-wrap break-words leading-relaxed selection:bg-emerald-500/30">
+                    {viewingTemplate.content}
+                  </pre>
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        navigator.clipboard.writeText(viewingTemplate.content);
+                      }}
+                    >
+                      复制
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 text-center bg-white/5 rounded-lg border border-dashed border-white/10">
+                  <p className="text-sm text-amber-400 flex flex-col items-center justify-center gap-2">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>未找到模板 "{viewingAgent.templateName}"</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">请确认该模板已在系统中创建</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setViewingAgentKey(null);
+                  if (viewingAgentKey) handleCreateInstance(viewingAgentKey);
+                }}
+              >
+                使用此模板创建
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

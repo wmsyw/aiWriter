@@ -16,40 +16,184 @@ const OUTLINE_MODES = [
   { id: 'detailed', label: '详细大纲' },
 ];
 
-const INSPIRATION_PRESETS = [
-  {
-    name: '废柴逆袭',
-    theme: '成长与逆袭',
-    genre: '玄幻',
-    keywords: ['废柴', '奇遇', '逆天改命'],
-    protagonist: '天赋低微却意志坚定的少年',
-    worldSetting: '强者为尊的修炼大陆',
-  },
-  {
-    name: '都市热血',
-    theme: '都市争霸',
-    genre: '都市',
-    keywords: ['商战', '兄弟', '崛起'],
-    protagonist: '从底层打拼的青年',
-    worldSetting: '高速变革的现代都市',
-  },
-  {
-    name: '星际冒险',
-    theme: '探索与自由',
-    genre: '科幻',
-    keywords: ['星际', '文明', '远征'],
-    protagonist: '被命运选中的探索者',
-    worldSetting: '多文明共存的星际联邦',
-  },
-  {
-    name: '江湖风云',
-    theme: '恩怨与成长',
-    genre: '武侠',
-    keywords: ['门派', '江湖', '侠义'],
-    protagonist: '被卷入江湖纷争的侠客',
-    worldSetting: '门派林立的江湖世界',
-  },
-];
+// 每个频道的热门主题灵感预设 - 2024-2025年热门题材
+const INSPIRATION_PRESETS: Record<string, Array<{
+  name: string;
+  theme: string;
+  keywords: string[];
+  protagonist: string;
+  worldSetting: string;
+}>> = {
+  '玄幻': [
+    {
+      name: '诡秘复苏',
+      theme: '诡异降临，规则怪谈',
+      keywords: ['规则怪谈', '诡异', '都市异能', '序列'],
+      protagonist: '获得诡异能力的普通人，在规则中求生',
+      worldSetting: '诡异复苏的现代世界，规则即是生存法则',
+    },
+    {
+      name: '万古神帝',
+      theme: '天骄争霸，万界称尊',
+      keywords: ['天骄', '神体', '万界', '称帝'],
+      protagonist: '拥有无上神体的天骄，从低谷崛起',
+      worldSetting: '万族林立、强者如云的修炼大世界',
+    },
+  ],
+  '仙侠': [
+    {
+      name: '修仙模拟器',
+      theme: '无限重生，完美人生',
+      keywords: ['模拟器', '无限流', '重生', '完美'],
+      protagonist: '获得人生模拟器的修士，可预演推衍',
+      worldSetting: '正邪对立的传统修仙世界',
+    },
+    {
+      name: '剑道第一仙',
+      theme: '剑道独尊，一剑破万法',
+      keywords: ['剑道', '一剑破万法', '逍遥', '天骄'],
+      protagonist: '专注剑道的纯粹剑修，以剑证道',
+      worldSetting: '百花齐放的修真界，剑道式微待复兴',
+    },
+  ],
+  '都市': [
+    {
+      name: '从外卖员开始',
+      theme: '草根逆袭，商业帝国',
+      keywords: ['系统', '逆袭', '商战', '暴富'],
+      protagonist: '获得金手指的普通打工人',
+      worldSetting: '竞争激烈的现代都市商业战场',
+    },
+    {
+      name: '我能看见战力值',
+      theme: '都市异能，守护者',
+      keywords: ['异能', '觉醒', '都市', '战力'],
+      protagonist: '能看到他人属性面板的觉醒者',
+      worldSetting: '异能觉醒的近未来都市',
+    },
+  ],
+  '历史': [
+    {
+      name: '家父汉武帝',
+      theme: '皇子争霸，王朝崛起',
+      keywords: ['皇子', '争霸', '历史', '权谋'],
+      protagonist: '穿越成皇子，运用现代知识',
+      worldSetting: '风起云涌的大争之世',
+    },
+    {
+      name: '科技改变历史',
+      theme: '工业革命，文明跃升',
+      keywords: ['科技', '种田', '发展', '争霸'],
+      protagonist: '带着现代知识改变历史进程的穿越者',
+      worldSetting: '等待开发的古代王朝',
+    },
+  ],
+  '科幻': [
+    {
+      name: '机械飞升',
+      theme: '赛博朋克，人机融合',
+      keywords: ['赛博朋克', '改造', '义体', '飞升'],
+      protagonist: '在义体改造中追寻人性的佣兵',
+      worldSetting: '巨型企业统治的赛博朋克未来',
+    },
+    {
+      name: '星门文明',
+      theme: '星际探索，文明对决',
+      keywords: ['星际', '文明', '虫族', '舰队'],
+      protagonist: '指挥人类舰队对抗异族的统帅',
+      worldSetting: '星门连接万千星域的宇宙时代',
+    },
+  ],
+  '游戏': [
+    {
+      name: '全民领主',
+      theme: '领地经营，争霸天下',
+      keywords: ['领主', '建设', '争霸', '全民'],
+      protagonist: '获得稀有初始的新晋领主',
+      worldSetting: '全球穿越的领主争霸游戏世界',
+    },
+    {
+      name: '无限副本',
+      theme: '无限流，副本求生',
+      keywords: ['无限流', '副本', '恐怖', '求生'],
+      protagonist: '在诡异副本中挣扎求生的玩家',
+      worldSetting: '被神秘游戏选中的现实世界',
+    },
+  ],
+  '悬疑': [
+    {
+      name: '诡秘侦探',
+      theme: '灵异探案，真相追寻',
+      keywords: ['灵异', '探案', '悬疑', '诡秘'],
+      protagonist: '能看到死亡线索的特殊侦探',
+      worldSetting: '灵异事件频发的现代都市暗面',
+    },
+    {
+      name: '规则怪谈',
+      theme: '规则即生存，打破规则',
+      keywords: ['规则', '怪谈', '恐怖', '生存'],
+      protagonist: '在规则怪谈中寻找真相的普通人',
+      worldSetting: '规则与怪谈交织的异常世界',
+    },
+  ],
+  '奇幻': [
+    {
+      name: '魔法工业',
+      theme: '魔法与科技的碰撞',
+      keywords: ['魔法', '工业', '革命', '领主'],
+      protagonist: '用科学思维解析魔法的穿越者',
+      worldSetting: '魔法与蒸汽交织的奇幻大陆',
+    },
+    {
+      name: '巫师之路',
+      theme: '巫师晋升，真理探索',
+      keywords: ['巫师', '晋升', '真理', '冷静'],
+      protagonist: '理性冷静追求真理的巫师学徒',
+      worldSetting: '巫师塔林立的黑暗中世纪',
+    },
+  ],
+  '武侠': [
+    {
+      name: '江湖烟雨',
+      theme: '快意恩仇，侠之大者',
+      keywords: ['江湖', '门派', '武学', '侠义'],
+      protagonist: '被卷入江湖恩怨的少年侠客',
+      worldSetting: '门派林立、武学昌盛的江湖',
+    },
+    {
+      name: '武道巅峰',
+      theme: '武道探索，天下第一',
+      keywords: ['武道', '突破', '宗师', '争锋'],
+      protagonist: '追求武道极致的天才武者',
+      worldSetting: '高手如云的武林盛世',
+    },
+  ],
+  '言情': [
+    {
+      name: '重生复仇',
+      theme: '重生虐渣，逆袭人生',
+      keywords: ['重生', '复仇', '虐渣', '逆袭'],
+      protagonist: '重生后看透一切的复仇女主',
+      worldSetting: '豪门恩怨的现代都市',
+    },
+    {
+      name: '穿书女配',
+      theme: '穿书改命，反派大佬',
+      keywords: ['穿书', '女配', '反派', '改命'],
+      protagonist: '穿越成炮灰女配的现代人',
+      worldSetting: '小说世界的剧情漩涡中心',
+    },
+  ],
+  '其他': [
+    {
+      name: '自由创作',
+      theme: '不拘一格',
+      keywords: ['创新', '融合', '独特'],
+      protagonist: '由你定义的独特主角',
+      worldSetting: '由你构建的新世界',
+    },
+  ],
+};
 
 interface OutlineNode {
   id: string;
@@ -166,7 +310,6 @@ function NovelWizardContent() {
   const searchParams = useSearchParams();
   const presetTitle = searchParams.get('title') || '';
   const presetDescription = searchParams.get('description') || '';
-  const presetType = (searchParams.get('type') as 'short' | 'long') || 'long';
 
   const [step, setStep] = useState(0);
   const [novelId, setNovelId] = useState<string | null>(searchParams.get('novelId'));
@@ -184,11 +327,11 @@ function NovelWizardContent() {
   const [formData, setFormData] = useState({
     title: presetTitle,
     description: presetDescription,
-    type: presetType,
+    type: 'long' as const,
     theme: '',
     genre: '',
-    targetWords: 200,
-    chapterCount: 100,
+    targetWords: 100,
+    chapterCount: 300,
     protagonist: '',
     worldSetting: '',
     goldenFinger: '',
@@ -287,17 +430,18 @@ function NovelWizardContent() {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  const applyPreset = (preset: typeof INSPIRATION_PRESETS[number]) => {
+  const applyPreset = (preset: { name: string; theme: string; keywords: string[]; protagonist: string; worldSetting: string }) => {
     setFormData(prev => ({
       ...prev,
       theme: preset.theme,
-      genre: preset.genre,
       protagonist: preset.protagonist,
       worldSetting: preset.worldSetting,
       keywords: preset.keywords,
       keywordsInput: preset.keywords.join(', '),
     }));
   };
+  
+  const currentGenrePresets = INSPIRATION_PRESETS[formData.genre] || INSPIRATION_PRESETS['其他'] || [];
 
   const persistWizardStep = async (nextStep: number, overrideStatus?: 'draft' | 'in_progress' | 'completed') => {
     if (!novelId) {
@@ -305,13 +449,35 @@ function NovelWizardContent() {
       return;
     }
     try {
+      const roughNodes = outlineTree.filter(n => n.level === 'rough');
+      const detailedNodes = outlineTree.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
+      const chapterNodes = outlineTree.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
+
+      let outlineStage = 'none';
+      if (chapterNodes.length > 0) {
+        outlineStage = 'chapters';
+      } else if (detailedNodes.length > 0) {
+        outlineStage = 'detailed';
+      } else if (roughNodes.length > 0) {
+        outlineStage = 'rough';
+      }
+
+      const payload: Record<string, unknown> = {
+        wizardStatus: overrideStatus || (nextStep >= 4 ? 'completed' : 'in_progress'),
+        wizardStep: nextStep,
+      };
+
+      if (outlineTree.length > 0) {
+        payload.outlineRough = roughNodes.length > 0 ? { blocks: outlineTree } : null;
+        payload.outlineDetailed = detailedNodes.length > 0 ? { blocks: detailedNodes } : null;
+        payload.outlineChapters = chapterNodes.length > 0 ? { blocks: chapterNodes } : null;
+        payload.outlineStage = outlineStage;
+      }
+
       await fetch(`/api/novels/${novelId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wizardStatus: overrideStatus || (nextStep >= 4 ? 'completed' : 'in_progress'),
-          wizardStep: nextStep,
-        }),
+        body: JSON.stringify(payload),
       });
     } catch (error) {
       console.error('Failed to persist wizard step', error);
@@ -688,12 +854,29 @@ function NovelWizardContent() {
       return text;
     }).join('\n\n');
 
+    const roughNodes = outlineTree.filter(n => n.level === 'rough');
+    const detailedNodes = outlineTree.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
+    const chapterNodes = outlineTree.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
+
+    let outlineStage = 'none';
+    if (chapterNodes.length > 0) {
+      outlineStage = 'chapters';
+    } else if (detailedNodes.length > 0) {
+      outlineStage = 'detailed';
+    } else if (roughNodes.length > 0) {
+      outlineStage = 'rough';
+    }
+
     try {
       const res = await fetch(`/api/novels/${novelId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           outline: serialized,
+          outlineRough: roughNodes.length > 0 ? { blocks: roughNodes } : null,
+          outlineDetailed: detailedNodes.length > 0 ? { blocks: detailedNodes } : null,
+          outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
+          outlineStage,
           wizardStatus: 'completed',
           wizardStep: 5,
         }),
@@ -905,28 +1088,33 @@ function NovelWizardContent() {
                   
                   <div className="glass-panel p-5 rounded-xl space-y-5">
                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">篇幅设定</h4>
-                    
-                    <div className="flex bg-black/20 p-1 rounded-lg gap-1">
-                      {(['short', 'long'] as const).map(type => (
-                        <Button
-                          key={type}
-                          type="button"
-                          variant={formData.type === type ? 'primary' : 'ghost'}
-                          onClick={() => setField('type', type)}
-                          className="flex-1"
-                          size="sm"
-                        >
-                          {type === 'short' ? '短篇' : '长篇'}
-                        </Button>
-                      ))}
-                    </div>
 
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs text-gray-500">预计字数 (万)</label>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                          {[50, 100, 150, 200, 250, 300, 400, 500].map(preset => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                setField('targetWords', preset);
+                                // Auto-adjust chapter count based on word count (avg 3000 words per chapter)
+                                setField('chapterCount', Math.round(preset * 10000 / 3000));
+                              }}
+                              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                                formData.targetWords === preset
+                                  ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                                  : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200'
+                              }`}
+                            >
+                              {preset}万
+                            </button>
+                          ))}
+                        </div>
                         <Input
                           type="number"
-                          min={1}
+                          min={10}
                           className="mt-1 text-right font-mono text-emerald-300"
                           value={formData.targetWords}
                           onChange={e => setField('targetWords', Number(e.target.value))}
@@ -936,7 +1124,7 @@ function NovelWizardContent() {
                         <label className="text-xs text-gray-500">预估章节数</label>
                         <Input
                           type="number"
-                          min={1}
+                          min={30}
                           className="mt-1 text-right font-mono text-emerald-300"
                           value={formData.chapterCount}
                           onChange={e => setField('chapterCount', Number(e.target.value))}
@@ -956,27 +1144,39 @@ function NovelWizardContent() {
                   </div>
 
                   <div className="space-y-3">
-                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider px-1">灵感预设</h4>
-                    <div className="grid grid-cols-1 gap-3">
-                      {INSPIRATION_PRESETS.map(preset => (
-                        <button
-                          key={preset.name}
-                          onClick={() => applyPreset(preset)}
-                          className="group relative overflow-hidden glass-panel p-4 rounded-xl text-left hover:border-emerald-500/50 transition-all duration-300 hover:-translate-y-1"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 to-purple-500/0 group-hover:from-emerald-500/10 group-hover:to-purple-500/10 transition-all duration-500"/>
-                          <div className="relative z-10">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-white font-medium group-hover:text-emerald-300 transition-colors">{preset.name}</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-gray-400">
-                                {preset.genre}
-                              </span>
+                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider px-1">
+                      灵感预设 {formData.genre && <span className="text-emerald-400 normal-case">· {formData.genre}</span>}
+                    </h4>
+                    {!formData.genre ? (
+                      <div className="glass-panel p-4 rounded-xl text-center text-gray-500 text-sm">
+                        请先选择频道以查看热门题材预设
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3">
+                        {currentGenrePresets.map(preset => (
+                          <button
+                            key={preset.name}
+                            onClick={() => applyPreset(preset)}
+                            className="group relative overflow-hidden glass-panel p-4 rounded-xl text-left hover:border-emerald-500/50 transition-all duration-300 hover:-translate-y-1"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 to-purple-500/0 group-hover:from-emerald-500/10 group-hover:to-purple-500/10 transition-all duration-500"/>
+                            <div className="relative z-10">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-white font-medium group-hover:text-emerald-300 transition-colors">{preset.name}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 line-clamp-2">{preset.theme}</div>
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {preset.keywords.slice(0, 3).map(kw => (
+                                  <span key={kw} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    {kw}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500 line-clamp-2">{preset.theme}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

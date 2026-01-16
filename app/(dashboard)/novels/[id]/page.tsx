@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import OutlineGeneratorModal from './OutlineGeneratorModal';
+import OutlineTree from '@/app/components/OutlineTree';
 import PlotBranchingView, { type PlotBranch } from '@/app/components/PlotBranchingView';
 import { 
   Tabs, 
@@ -41,12 +42,26 @@ interface Chapter {
   lastReviewAt?: string;
 }
 
+interface OutlineNode {
+  id: string;
+  title: string;
+  content: string;
+  level: 'rough' | 'detailed' | 'chapter';
+  children?: OutlineNode[];
+  isExpanded?: boolean;
+  isGenerating?: boolean;
+}
+
 interface Novel {
   id: string;
   title: string;
   description?: string;
-  type?: 'short' | 'long';
+  type?: 'long';
   outline?: string;
+  outlineRough?: { blocks: OutlineNode[] };
+  outlineDetailed?: { blocks: OutlineNode[] };
+  outlineChapters?: { blocks: OutlineNode[] };
+  outlineStage?: string;
   updatedAt: string;
 }
 
@@ -90,6 +105,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   
   const [plotBranches, setPlotBranches] = useState<PlotBranch[]>([]);
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
+  const [outlineNodes, setOutlineNodes] = useState<OutlineNode[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,6 +124,14 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setEditedTitle(novelData.title);
           setEditedDescription(novelData.description || '');
           setEditedOutline(novelData.outline || '');
+          
+          if (novelData.outlineRough?.blocks) {
+            setOutlineNodes(novelData.outlineRough.blocks);
+          } else if (novelData.outlineDetailed?.blocks) {
+            setOutlineNodes(novelData.outlineDetailed.blocks);
+          } else if (novelData.outlineChapters?.blocks) {
+            setOutlineNodes(novelData.outlineChapters.blocks);
+          }
         }
         
         if (chaptersRes.ok) {
@@ -390,10 +414,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           <div className="flex-1 mr-8 relative z-10">
             <div className="flex items-center gap-3 mb-2">
               <Badge 
-                variant={novel.type === 'long' ? 'default' : 'info'} 
-                className={novel.type === 'long' ? 'bg-purple-500/20 text-purple-300 border-purple-500/20' : ''}
+                variant="default" 
+                className="bg-purple-500/20 text-purple-300 border-purple-500/20"
               >
-                {novel.type === 'long' ? '长篇小说' : '短篇故事'}
+                长篇小说
               </Badge>
               <span className="text-xs text-gray-500 font-mono">ID: {novel.id.slice(0, 8)}</span>
             </div>
@@ -507,17 +531,66 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           <AnimatePresence mode="wait">
             <TabsContent value="outline" key="outline">
               {novel?.type === 'long' && (
-                <div className="max-w-5xl mx-auto">
+                <div className="max-w-5xl mx-auto space-y-6">
+                  {outlineNodes.length > 0 && (
+                    <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500/30 to-transparent" />
+                      
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                            <span className="text-2xl">🌳</span>
+                            大纲结构
+                          </h3>
+                          <p className="text-sm text-gray-400">
+                            {novel.outlineStage === 'rough' && '粗纲阶段 - 可展开生成细纲'}
+                            {novel.outlineStage === 'detailed' && '细纲阶段 - 可展开生成章节'}
+                            {novel.outlineStage === 'chapters' && '章节大纲已完成'}
+                            {(!novel.outlineStage || novel.outlineStage === 'none') && '已生成大纲'}
+                          </p>
+                        </div>
+                        <Badge 
+                          variant={novel.outlineStage === 'chapters' ? 'success' : 'info'}
+                          className="px-3 py-1"
+                        >
+                          {outlineNodes.length} 个主节点
+                        </Badge>
+                      </div>
+                      
+                      <OutlineTree 
+                        nodes={outlineNodes}
+                        onGenerateNext={(node) => {
+                          console.log('Generate next level for:', node);
+                        }}
+                        onUpdateNode={(id, content) => {
+                          const updateNodes = (nodes: OutlineNode[]): OutlineNode[] => {
+                            return nodes.map(n => {
+                              if (n.id === id) return { ...n, content };
+                              if (n.children) return { ...n, children: updateNodes(n.children) };
+                              return n;
+                            });
+                          };
+                          setOutlineNodes(prev => updateNodes(prev));
+                        }}
+                        readOnly={false}
+                      />
+                    </Card>
+                  )}
+                  
                   <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
                     
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-xl font-bold text-white mb-1">小说大纲</h3>
-                        <p className="text-sm text-gray-400">规划故事主线与核心节奏</p>
+                        <h3 className="text-xl font-bold text-white mb-1">
+                          {outlineNodes.length > 0 ? '纯文本大纲' : '小说大纲'}
+                        </h3>
+                        <p className="text-sm text-gray-400">
+                          {outlineNodes.length > 0 ? '可在此编辑或查看完整文本' : '规划故事主线与核心节奏'}
+                        </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        {!novel.outline && (
+                        {!novel.outline && outlineNodes.length === 0 && (
                           <span className="text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-3 py-1.5 rounded-lg flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
                             需要先创建大纲才能添加章节

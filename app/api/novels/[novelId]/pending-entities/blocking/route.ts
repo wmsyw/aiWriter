@@ -5,7 +5,7 @@ import { getSessionUser } from '@/src/server/middleware/audit';
 import { checkBlockingPendingEntities } from '@/src/server/services/pending-entities';
 
 const querySchema = z.object({
-  chapterNumber: z.coerce.number().int().positive(),
+  chapterNumber: z.coerce.number().int().positive().optional(),
 });
 
 export async function GET(
@@ -24,11 +24,22 @@ export async function GET(
 
   try {
     const { searchParams } = new URL(request.url);
+    const chapterNumberParam = searchParams.get('chapterNumber');
     const query = querySchema.parse({
-      chapterNumber: searchParams.get('chapterNumber'),
+      chapterNumber: chapterNumberParam ?? undefined,
     });
 
-    const result = await checkBlockingPendingEntities(novelId, query.chapterNumber);
+    let targetChapter = query.chapterNumber;
+    if (!targetChapter) {
+      const lastChapter = await prisma.chapter.findFirst({
+        where: { novelId },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+      targetChapter = (lastChapter?.order ?? 0) + 1;
+    }
+
+    const result = await checkBlockingPendingEntities(novelId, targetChapter);
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
