@@ -76,9 +76,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ inputs.no_cache != 'true' && format('type=gha,scope={0}', matrix.suffix) || '' }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
-          no-cache: ${{ inputs.no_cache == 'true' }}
+          no-cache: true
 
   manifest:
     needs: build

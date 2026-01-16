@@ -80,7 +80,12 @@ const placeholderTypes = [
   JobType.IMAGE_GENERATE,
 ];
 
-async function handleJob(job) {
+async function handleJob([job]) {
+  if (!job) {
+    log('WARN', 'Empty job array received');
+    return;
+  }
+  
   const { id: pgBossJobId, name: jobType, data: jobData } = job;
   
   log('INFO', '>>> JOB PICKED UP', { pgBossJobId, jobType, jobData: JSON.stringify(jobData || {}).slice(0, 200) });
