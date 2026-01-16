@@ -71,12 +71,71 @@
     animation: progress-indeterminate 1.5s infinite linear;
   }
 
+  .text-primary {
+    @apply text-[var(--color-primary-start)];
+  }
+
+  .text-primary-hover {
+    @apply hover:text-[var(--color-primary-end)];
+  }
+
+  .bg-primary {
+    @apply bg-[var(--color-primary-start)];
+  }
+
+  .bg-primary-subtle {
+    @apply bg-[var(--color-primary-start)]/20;
+  }
+
+  .border-primary {
+    @apply border-[var(--color-primary-start)];
+  }
+
+  .border-primary-subtle {
+    @apply border-[var(--color-primary-start)]/30;
+  }
+
+  .ring-primary {
+    @apply ring-[var(--color-primary-start)];
+  }
+
+  .shadow-primary {
+    @apply shadow-[var(--color-primary-start)]/30;
+  }
+
+  .shadow-primary-lg {
+    @apply shadow-lg shadow-[var(--color-primary-start)]/20;
+  }
+
+  .shadow-primary-glow {
+    @apply shadow-[0_0_20px_-5px_var(--color-primary-start)];
+  }
+
+  /* Focus state utilities */
+  .focus-primary {
+    @apply focus:border-[var(--color-primary-start)]/50 focus:ring-1 focus:ring-[var(--color-primary-start)]/50;
+  }
+
+  /* Gradient backgrounds */
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-[var(--color-primary-start)] to-[var(--color-primary-end)];
+  }
+
+  .bg-gradient-primary-subtle {
+    @apply bg-gradient-to-r from-[var(--color-primary-start)]/10 to-[var(--color-primary-end)]/10;
+  }
+
+  /* Accent bar */
+  .accent-bar {
+    @apply w-1 h-6 bg-[var(--color-primary-start)] rounded-full;
+  }
+
   .glass-card {
     @apply bg-[#1e2030]/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] transition-all duration-300;
   }
 
   .glass-card:hover {
-    @apply border-white/20 shadow-[0_8px_32px_0_rgba(99,102,241,0.15)];
+    @apply border-white/20 shadow-[0_8px_32px_0_color-mix(in_srgb,var(--color-primary-start)_15%,transparent)];
   }
   
   .glass-panel {
@@ -84,7 +143,7 @@
   }
 
   .glass-input {
-    @apply bg-black/20 border border-white/10 text-white placeholder-gray-500 focus:border-indigo-500/50 focus:bg-black/30 focus:ring-1 focus:ring-indigo-500/50 transition-all duration-300 rounded-xl hover:border-white/20;
+    @apply bg-black/20 border border-white/10 text-white placeholder-gray-500 focus:border-[var(--color-primary-start)]/50 focus:bg-black/30 focus:ring-1 focus:ring-[var(--color-primary-start)]/50 transition-all duration-300 rounded-xl hover:border-white/20;
   }
   
   .text-gradient {
@@ -96,7 +155,7 @@
   }
   
   .btn-primary {
-    @apply bg-gradient-to-r from-[var(--color-primary-start)] to-[var(--color-primary-end)] text-white font-medium shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 rounded-xl;
+    @apply bg-gradient-to-r from-[var(--color-primary-start)] to-[var(--color-primary-end)] text-white font-medium shadow-lg hover:shadow-[var(--color-primary-start)]/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 rounded-xl;
   }
   
   .btn-secondary {
@@ -104,7 +163,7 @@
   }
 
   .btn-ai {
-    @apply relative overflow-hidden bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_auto] animate-gradient-xy text-white font-bold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 rounded-xl border border-white/10 flex items-center justify-center gap-2;
+    @apply relative overflow-hidden bg-gradient-to-r from-[var(--color-primary-start)] via-purple-500 to-[var(--color-primary-start)] bg-[length:200%_auto] animate-gradient-xy text-white font-bold shadow-lg shadow-[var(--color-primary-start)]/30 hover:shadow-[var(--color-primary-start)]/50 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 rounded-xl border border-white/10 flex items-center justify-center gap-2;
   }
 
   .btn-ghost {

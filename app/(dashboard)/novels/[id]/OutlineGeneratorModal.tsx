@@ -130,7 +130,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         onClick={onClose} 
       />
       
-      <div className="glass-card w-full max-w-5xl h-[85vh] flex flex-col rounded-2xl relative z-10 animate-slide-up overflow-hidden shadow-2xl shadow-indigo-500/10 border-white/10">
+      <div className="glass-card w-full max-w-5xl h-[85vh] flex flex-col rounded-2xl relative z-10 animate-slide-up overflow-hidden shadow-2xl shadow-indigo-500/10 border-white/10 bg-gray-900/95">
         <div className="flex items-center justify-between px-8 py-5 border-b border-white/5 bg-white/5 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
@@ -153,8 +153,8 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-          <div className="lg:col-span-5 lg:h-full lg:overflow-y-auto p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-white/5 custom-scrollbar bg-black/10">
+        <div className="flex-1 w-full min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 isolate">
+          <div className="lg:col-span-5 min-w-0 lg:h-full lg:overflow-y-auto p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-white/5 custom-scrollbar bg-black/10">
             <div className="space-y-6">
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-sm font-medium text-indigo-300">
@@ -335,7 +335,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
             </div>
           </div>
 
-          <div className="lg:col-span-7 bg-black/20 flex flex-col lg:h-full lg:overflow-hidden min-h-[500px] lg:min-h-0">
+          <div className="lg:col-span-7 min-w-0 bg-black/20 flex flex-col lg:h-full lg:overflow-hidden min-h-[500px] lg:min-h-0">
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5">
               <span className="text-sm font-medium text-gray-300 flex items-center gap-2">
                 <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

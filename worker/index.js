@@ -68,22 +68,58 @@ const placeholderTypes = [
 ];
 
 async function handleJob(job) {
-  const { id: jobId, name: jobType, data: input } = job;
-  const { userId } = input;
+  const { id: pgBossJobId, name: jobType, data: input } = job;
+  const { jobId, userId } = input;
+
+  try {
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { status: 'running' },
+    });
+  } catch (updateErr) {
+    console.warn(`Failed to mark job ${jobId} as running:`, updateErr.message);
+  }
 
   try {
     const handler = handlers[jobType];
+    let result;
+    
     if (handler) {
-      return await handler(prisma, job, { jobId, userId, input });
+      result = await handler(prisma, job, { jobId, userId, input });
+    } else if (placeholderTypes.includes(jobType)) {
+      result = await placeholderHandler();
+    } else {
+      throw new Error(`Unknown job type: ${jobType}`);
     }
 
-    if (placeholderTypes.includes(jobType)) {
-      return await placeholderHandler();
+    try {
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { 
+          status: 'succeeded', 
+          output: result ?? null,
+        },
+      });
+    } catch (updateErr) {
+      console.error(`Failed to mark job ${jobId} as succeeded:`, updateErr.message);
     }
 
-    throw new Error(`Unknown job type: ${jobType}`);
+    return result;
   } catch (error) {
     console.error(`Job ${jobId} failed:`, error);
+    
+    try {
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { 
+          status: 'failed', 
+          error: error.message || 'Unknown error',
+        },
+      });
+    } catch (updateErr) {
+      console.error(`Failed to mark job ${jobId} as failed:`, updateErr.message);
+    }
+    
     throw error;
   }
 }

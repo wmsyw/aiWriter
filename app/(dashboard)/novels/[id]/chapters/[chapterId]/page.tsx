@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import * as Diff from 'diff';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogTrigger, Skeleton, Progress, Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/app/components/ui';
+import { fadeIn, slideUp, scaleIn, staggerContainer } from '@/app/lib/animations';
 
 const Icons = {
   ChevronLeft: (props: any) => (
@@ -81,36 +84,6 @@ interface Job {
   id: string;
   type: string;
   status: 'queued' | 'processing' | 'succeeded' | 'failed';
-}
-
-function Button({ 
-  children, 
-  variant = 'primary', 
-  className = '', 
-  loading = false,
-  disabled = false,
-  onClick,
-  ...props 
-}: any) {
-  const baseClass = "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm active:scale-95";
-  const variants = {
-    primary: "btn-primary shadow-indigo-500/20",
-    secondary: "btn-secondary",
-    ghost: "text-gray-400 hover:text-white hover:bg-white/5",
-    danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20"
-  };
-
-  return (
-    <button 
-      className={`${baseClass} ${variants[variant as keyof typeof variants]} ${className}`}
-      disabled={disabled || loading}
-      onClick={onClick}
-      {...props}
-    >
-      {loading && <Icons.Loader2 className="animate-spin w-4 h-4" />}
-      {children}
-    </button>
-  );
 }
 
 export default function ChapterEditorPage() {
@@ -436,111 +409,125 @@ export default function ChapterEditorPage() {
   const canComplete = stage === 'humanized';
 
   const renderBranchPanel = () => {
-    if (!showBranchPanel) return null;
-
     const isLoading = activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES');
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6">
-        <div className="glass-card w-full max-w-6xl h-[85vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-          <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Icons.GitBranch className="w-5 h-5 text-indigo-400" />
-                分支迭代生成
-                <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
-                  第 {iterationRound} 轮
-                </span>
-              </h2>
-              <p className="text-sm text-gray-400 mt-1">
-                选择一个满意的分支应用到正文，或者基于它进行下一轮迭代
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowBranchPanel(false)}
-              className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+      <AnimatePresence>
+        {showBranchPanel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-6xl h-[85vh]"
             >
-              <Icons.X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="flex-1 flex overflow-hidden">
-            <div className={`${selectedBranch ? 'w-1/3' : 'w-full'} p-6 overflow-y-auto custom-scrollbar transition-all duration-300 grid grid-cols-1 ${!selectedBranch ? 'md:grid-cols-3' : ''} gap-4`}>
-              {isLoading ? (
-                <div className="col-span-full flex flex-col items-center justify-center h-full text-gray-400">
-                  <Icons.Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-4" />
-                  <p className="animate-pulse">AI 正在疯狂构思中...</p>
-                </div>
-              ) : branches.length === 0 ? (
-                <div className="col-span-full text-center py-20 text-gray-500">
-                  暂无生成的分支，请点击"生成分支"开始
-                </div>
-              ) : (
-                branches.map((branch, idx) => (
-                  <div 
-                    key={branch.id}
-                    onClick={() => setSelectedBranch(branch)}
-                    className={`
-                      group relative p-5 rounded-xl border transition-all cursor-pointer hover:-translate-y-1 hover:shadow-xl
-                      ${selectedBranch?.id === branch.id 
-                        ? 'bg-indigo-500/10 border-indigo-500/50 shadow-indigo-500/20' 
-                        : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'}
-                    `}
-                  >
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-mono text-xs text-gray-500 uppercase tracking-wider">选项 {idx + 1}</span>
-                      <span className="text-xs text-gray-600">{new Date(branch.createdAt).toLocaleTimeString()}</span>
-                    </div>
-                    <div className="text-sm text-gray-300 line-clamp-6 leading-relaxed font-serif opacity-80 group-hover:opacity-100">
-                      {branch.content}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {selectedBranch && (
-              <div className="w-2/3 border-l border-white/10 flex flex-col bg-[#0f1117]/50">
-                <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                  <div className="prose prose-invert max-w-none font-serif leading-loose text-lg text-gray-200">
-                    {selectedBranch.content}
-                  </div>
-                </div>
-                
-                <div className="p-6 border-t border-white/10 bg-white/5 backdrop-blur-xl space-y-4">
+              <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
                   <div>
-                    <label className="text-xs font-medium text-gray-400 mb-2 block">迭代反馈 (告诉 AI 如何改进此版本)</label>
-                    <textarea 
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      placeholder="例如：稍微增加一些环境描写，或者让主角的语气更强硬一点..."
-                      className="glass-input w-full p-3 h-24 text-sm resize-none"
-                    />
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Icons.GitBranch className="w-5 h-5 text-indigo-400" />
+                      分支迭代生成
+                      <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                        第 {iterationRound} 轮
+                      </span>
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                      选择一个满意的分支应用到正文，或者基于它进行下一轮迭代
+                    </p>
                   </div>
-                  
-                  <div className="flex gap-4">
-                    <Button 
-                      variant="primary" 
-                      className="flex-1 py-3"
-                      onClick={() => handleApplyBranch(selectedBranch)}
-                    >
-                      <Icons.CheckCircle className="w-4 h-4" /> 采用此版本
-                    </Button>
-                    <Button 
-                      variant="secondary" 
-                      className="flex-1 py-3"
-                      onClick={handleIterate}
-                      disabled={isLoading}
-                    >
-                      <Icons.RotateCcw className="w-4 h-4" /> 基于反馈迭代
-                    </Button>
-                  </div>
+                  <button 
+                    onClick={() => setShowBranchPanel(false)}
+                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                  >
+                    <Icons.X className="w-6 h-6" />
+                  </button>
                 </div>
-              </div>
-            )}
+
+                <div className="flex-1 flex overflow-hidden">
+                  <div className={`${selectedBranch ? 'w-1/3' : 'w-full'} p-6 overflow-y-auto custom-scrollbar transition-all duration-300 grid grid-cols-1 ${!selectedBranch ? 'md:grid-cols-3' : ''} gap-4`}>
+                    {isLoading ? (
+                      <div className="col-span-full flex flex-col items-center justify-center h-full text-gray-400">
+                        <Icons.Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-4" />
+                        <p className="animate-pulse">AI 正在疯狂构思中...</p>
+                      </div>
+                    ) : branches.length === 0 ? (
+                      <div className="col-span-full text-center py-20 text-gray-500">
+                        暂无生成的分支，请点击"生成分支"开始
+                      </div>
+                    ) : (
+                      branches.map((branch, idx) => (
+                        <Card 
+                          key={branch.id}
+                          onClick={() => setSelectedBranch(branch)}
+                          className={`
+                            group relative p-5 rounded-xl border transition-all cursor-pointer hover:-translate-y-1 hover:shadow-xl
+                            ${selectedBranch?.id === branch.id 
+                              ? 'bg-indigo-500/10 border-indigo-500/50 shadow-indigo-500/20' 
+                              : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'}
+                          `}
+                        >
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-mono text-xs text-gray-500 uppercase tracking-wider">选项 {idx + 1}</span>
+                            <span className="text-xs text-gray-600">{new Date(branch.createdAt).toLocaleTimeString()}</span>
+                          </div>
+                          <div className="text-sm text-gray-300 line-clamp-6 leading-relaxed font-serif opacity-80 group-hover:opacity-100">
+                            {branch.content}
+                          </div>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+
+                  {selectedBranch && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="w-2/3 border-l border-white/10 flex flex-col bg-[#0f1117]/50"
+                    >
+                      <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                        <div className="prose prose-invert max-w-none font-serif leading-loose text-lg text-gray-200">
+                          {selectedBranch.content}
+                        </div>
+                      </div>
+                      
+                      <div className="p-6 border-t border-white/10 bg-white/5 backdrop-blur-xl space-y-4">
+                        <div>
+                          <label className="text-xs font-medium text-gray-400 mb-2 block">迭代反馈 (告诉 AI 如何改进此版本)</label>
+                          <textarea 
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            placeholder="例如：稍微增加一些环境描写，或者让主角的语气更强硬一点..."
+                            className="w-full p-3 h-24 text-sm resize-none rounded-lg bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all text-white placeholder-gray-500 outline-none"
+                          />
+                        </div>
+                        
+                        <div className="flex gap-4">
+                          <Button 
+                            variant="primary" 
+                            className="flex-1 py-3"
+                            onClick={() => handleApplyBranch(selectedBranch)}
+                          >
+                            <Icons.CheckCircle className="w-4 h-4" /> 采用此版本
+                          </Button>
+                          <Button 
+                            variant="secondary" 
+                            className="flex-1 py-3"
+                            onClick={handleIterate}
+                            isLoading={isLoading}
+                          >
+                            <Icons.RotateCcw className="w-4 h-4" /> 基于反馈迭代
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </Card>
+            </motion.div>
           </div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
     );
   };
 
@@ -585,267 +572,250 @@ export default function ChapterEditorPage() {
   };
 
   const renderReviewPanel = () => {
-    if (!showReviewPanel) return null;
-
     const hasReview = !!reviewResult;
     const hasConsistency = !!consistencyResult;
-
-    if (!hasReview && !hasConsistency) return null;
 
     const [activeTab, setActiveTab] = useState<'review' | 'consistency'>(hasReview ? 'review' : 'consistency');
     const isMulti = reviewResult?.isMultiReview;
     const [activeReviewIdx, setActiveReviewIdx] = useState(0);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6">
-        <div className="glass-card w-full max-w-5xl h-[85vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-          <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
-                章节评审与检查
-              </h2>
-              <p className="text-sm text-gray-400 mt-1">
-                AI 评审员针对情节、节奏、一致性等维度的专业反馈
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowReviewPanel(false)}
-              className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+      <AnimatePresence>
+        {showReviewPanel && (hasReview || hasConsistency) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-5xl h-[85vh]"
             >
-              <Icons.X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="flex border-b border-white/10 px-6">
-            {hasReview && (
-              <button 
-                onClick={() => setActiveTab('review')}
-                className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'review' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-              >
-                质量评审
-              </button>
-            )}
-            {hasConsistency && (
-              <button 
-                onClick={() => setActiveTab('consistency')}
-                className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'consistency' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-              >
-                一致性检查
-              </button>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-            {activeTab === 'review' && reviewResult && (
-              isMulti ? (
-              <div className="space-y-8">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="glass-card p-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
-                    <div className="text-sm text-gray-400 mb-1">平均评分</div>
-                    <div className="text-3xl font-bold text-white">{reviewResult.aggregated.averageScore}</div>
-                  </div>
-                  <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-gray-400 mb-1">最高分</div>
-                    <div className="text-2xl font-bold text-emerald-400">{reviewResult.aggregated.maxScore}</div>
-                  </div>
-                   <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-gray-400 mb-1">最低分</div>
-                    <div className="text-2xl font-bold text-orange-400">{reviewResult.aggregated.minScore}</div>
-                  </div>
-                  <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-gray-400 mb-1">评审员数量</div>
-                    <div className="text-2xl font-bold text-blue-400">{reviewResult.aggregated.reviewCount}</div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-full md:w-64 flex-shrink-0 space-y-2">
-                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">评审员观点</h3>
-                     {reviewResult.reviews.map((review: any, idx: number) => (
-                       <button
-                         key={idx}
-                         onClick={() => setActiveReviewIdx(idx)}
-                         className={`w-full text-left p-3 rounded-xl transition-all border ${
-                           activeReviewIdx === idx
-                             ? 'bg-indigo-500/20 border-indigo-500/50 text-white shadow-lg shadow-indigo-500/10'
-                             : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                         }`}
-                       >
-                         <div className="flex justify-between items-center mb-1">
-                           <span className="font-bold text-sm">{review.persona || 'AI Reviewer'}</span>
-                           <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                             review.score >= 8 ? 'bg-green-500/20 text-green-400' :
-                             review.score >= 6 ? 'bg-yellow-500/20 text-yellow-400' :
-                             'bg-red-500/20 text-red-400'
-                           }`}>{review.score}</span>
-                         </div>
-                         <div className="text-xs opacity-70 truncate">{review.model}</div>
-                       </button>
-                     ))}
-                  </div>
-
-                  <div className="flex-1 glass-card bg-black/20 rounded-2xl p-6 border border-white/5">
-                    {reviewResult.reviews[activeReviewIdx] && (
-                      <div className="space-y-6 animate-fade-in">
-                        <div className="flex items-start gap-4">
-                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                             {reviewResult.reviews[activeReviewIdx].persona?.[0] || 'A'}
-                           </div>
-                           <div>
-                             <h3 className="text-lg font-bold text-white">
-                               {reviewResult.reviews[activeReviewIdx].persona || '评审员'}
-                             </h3>
-                             <p className="text-sm text-gray-400">
-                               模型: {reviewResult.reviews[activeReviewIdx].model}
-                             </p>
-                           </div>
-                        </div>
-
-                        <div className="prose prose-invert max-w-none text-gray-300 leading-relaxed">
-                          <p className="text-lg font-serif italic border-l-4 border-indigo-500/50 pl-4 py-2 bg-indigo-500/5 rounded-r-lg">
-                            "{reviewResult.reviews[activeReviewIdx].comment}"
-                          </p>
-                          
-                          {reviewResult.reviews[activeReviewIdx].critique && (
-                             <div className="mt-6 grid gap-4">
-                               {Object.entries(reviewResult.reviews[activeReviewIdx].critique).map(([key, value]) => (
-                                 <div key={key} className="bg-white/5 p-4 rounded-xl">
-                                   <h4 className="font-bold text-indigo-300 mb-2 capitalize">{key}</h4>
-                                   <p className="text-sm">{String(value)}</p>
-                                 </div>
-                               ))}
-                             </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                 <div className="glass-card p-6 rounded-2xl bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-indigo-500/30">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-                        {reviewResult.score || reviewResult.totalScore || 0}
-                        <span className="text-lg text-gray-500 font-normal ml-2">/ 10</span>
-                      </div>
-                    </div>
-                    <p className="text-lg text-gray-200 font-serif leading-relaxed">
-                      {reviewResult.comment || reviewResult.summary}
+              <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
+                      章节评审与检查
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                      AI 评审员针对情节、节奏、一致性等维度的专业反馈
                     </p>
-                 </div>
-                 
-                 {reviewResult.critique && (
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     {Object.entries(reviewResult.critique).map(([key, value]) => (
-                       <div key={key} className="glass-card p-5 rounded-xl">
-                         <h4 className="font-bold text-indigo-300 mb-2 capitalize border-b border-white/5 pb-2">
-                           {key.replace(/([A-Z])/g, ' $1').trim()}
-                         </h4>
-                         <p className="text-gray-300 text-sm leading-relaxed">
-                           {String(value)}
-                         </p>
-                       </div>
-                     ))}
-                   </div>
-                 )}
-              </div>
-            ))}
+                  </div>
+                  <button 
+                    onClick={() => setShowReviewPanel(false)}
+                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                  >
+                    <Icons.X className="w-6 h-6" />
+                  </button>
+                </div>
 
-            {activeTab === 'consistency' && consistencyResult && (
-               <div className="space-y-6 animate-fade-in">
-                 <div className="glass-card p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-900/10 to-purple-900/10">
-                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                     <Icons.CheckCircle className="w-5 h-5 text-indigo-400" />
-                     一致性检查报告
-                   </h3>
-                   <div className="space-y-4">
-                     {consistencyResult.issues && consistencyResult.issues.length > 0 ? (
-                       consistencyResult.issues.map((issue: any, i: number) => (
-                         <div key={i} className="bg-white/5 p-4 rounded-xl border border-red-500/20">
-                            <div className="flex items-start gap-3">
-                              <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                              <div>
-                                <h4 className="font-bold text-red-200 mb-1">{issue.type || '潜在冲突'}</h4>
-                                <p className="text-gray-300 text-sm">{issue.description}</p>
-                                {issue.reference && (
-                                  <div className="mt-2 text-xs text-gray-500 bg-black/20 p-2 rounded">
-                                    参考: {issue.reference}
-                                  </div>
+                <div className="flex border-b border-white/10 px-6">
+                  {hasReview && (
+                    <button 
+                      onClick={() => setActiveTab('review')}
+                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'review' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                    >
+                      质量评审
+                    </button>
+                  )}
+                  {hasConsistency && (
+                    <button 
+                      onClick={() => setActiveTab('consistency')}
+                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'consistency' ? 'border-indigo-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                    >
+                      一致性检查
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                  {activeTab === 'review' && reviewResult && (
+                    isMulti ? (
+                    <div className="space-y-8">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Card className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
+                          <div className="text-sm text-gray-400 mb-1">平均评分</div>
+                          <div className="text-3xl font-bold text-white">{reviewResult.aggregated.averageScore}</div>
+                        </Card>
+                        <Card className="p-4 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">最高分</div>
+                          <div className="text-2xl font-bold text-emerald-400">{reviewResult.aggregated.maxScore}</div>
+                        </Card>
+                         <Card className="p-4 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">最低分</div>
+                          <div className="text-2xl font-bold text-orange-400">{reviewResult.aggregated.minScore}</div>
+                        </Card>
+                        <Card className="p-4 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">评审员数量</div>
+                          <div className="text-2xl font-bold text-blue-400">{reviewResult.aggregated.reviewCount}</div>
+                        </Card>
+                      </div>
+
+                      <div className="flex flex-col md:flex-row gap-6">
+                        <div className="w-full md:w-64 flex-shrink-0 space-y-2">
+                           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">评审员观点</h3>
+                           {reviewResult.reviews.map((review: any, idx: number) => (
+                             <button
+                               key={idx}
+                               onClick={() => setActiveReviewIdx(idx)}
+                               className={`w-full text-left p-3 rounded-xl transition-all border ${
+                                 activeReviewIdx === idx
+                                   ? 'bg-indigo-500/20 border-indigo-500/50 text-white shadow-lg shadow-indigo-500/10'
+                                   : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                               }`}
+                             >
+                               <div className="flex justify-between items-center mb-1">
+                                 <span className="font-bold text-sm">{review.persona || 'AI Reviewer'}</span>
+                                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                                   review.score >= 8 ? 'bg-green-500/20 text-green-400' :
+                                   review.score >= 6 ? 'bg-yellow-500/20 text-yellow-400' :
+                                   'bg-red-500/20 text-red-400'
+                                 }`}>{review.score}</span>
+                               </div>
+                               <div className="text-xs opacity-70 truncate">{review.model}</div>
+                             </button>
+                           ))}
+                        </div>
+
+                        <Card className="flex-1 bg-black/20 rounded-2xl p-6 border border-white/5">
+                          {reviewResult.reviews[activeReviewIdx] && (
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="space-y-6"
+                            >
+                              <div className="flex items-start gap-4">
+                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                   {reviewResult.reviews[activeReviewIdx].persona?.[0] || 'A'}
+                                 </div>
+                                 <div>
+                                   <h3 className="text-lg font-bold text-white">
+                                     {reviewResult.reviews[activeReviewIdx].persona || '评审员'}
+                                   </h3>
+                                   <p className="text-sm text-gray-400">
+                                     模型: {reviewResult.reviews[activeReviewIdx].model}
+                                   </p>
+                                 </div>
+                              </div>
+
+                              <div className="prose prose-invert max-w-none text-gray-300 leading-relaxed">
+                                <p className="text-lg font-serif italic border-l-4 border-indigo-500/50 pl-4 py-2 bg-indigo-500/5 rounded-r-lg">
+                                  "{reviewResult.reviews[activeReviewIdx].comment}"
+                                </p>
+                                
+                                {reviewResult.reviews[activeReviewIdx].critique && (
+                                   <div className="mt-6 grid gap-4">
+                                     {Object.entries(reviewResult.reviews[activeReviewIdx].critique).map(([key, value]) => (
+                                       <div key={key} className="bg-white/5 p-4 rounded-xl">
+                                         <h4 className="font-bold text-indigo-300 mb-2 capitalize">{key}</h4>
+                                         <p className="text-sm">{String(value)}</p>
+                                       </div>
+                                     ))}
+                                   </div>
                                 )}
                               </div>
+                            </motion.div>
+                          )}
+                        </Card>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                       <Card className="p-6 rounded-2xl bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-indigo-500/30">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+                              {reviewResult.score || reviewResult.totalScore || 0}
+                              <span className="text-lg text-gray-500 font-normal ml-2">/ 10</span>
                             </div>
+                          </div>
+                          <p className="text-lg text-gray-200 font-serif leading-relaxed">
+                            {reviewResult.comment || reviewResult.summary}
+                          </p>
+                       </Card>
+                       
+                       {reviewResult.critique && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {Object.entries(reviewResult.critique).map(([key, value]) => (
+                             <Card key={key} className="p-5 rounded-xl">
+                               <h4 className="font-bold text-indigo-300 mb-2 capitalize border-b border-white/5 pb-2">
+                                 {key.replace(/([A-Z])/g, ' $1').trim()}
+                               </h4>
+                               <p className="text-gray-300 text-sm leading-relaxed">
+                                 {String(value)}
+                               </p>
+                             </Card>
+                           ))}
                          </div>
-                       ))
-                     ) : (
-                       <div className="text-center py-10 text-gray-400">
-                         <Icons.CheckCircle className="w-12 h-12 text-green-500/50 mx-auto mb-3" />
-                         <p>未发现明显的一致性问题，您的设定保持得很好！</p>
-                       </div>
-                     )}
-                   </div>
-                 </div>
-               </div>
-            )}
+                       )}
+                    </div>
+                  ))}
+
+                  {activeTab === 'consistency' && consistencyResult && (
+                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                       <Card className="p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-900/10 to-purple-900/10">
+                         <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                           <Icons.CheckCircle className="w-5 h-5 text-indigo-400" />
+                           一致性检查报告
+                         </h3>
+                         <div className="space-y-4">
+                           {consistencyResult.issues && consistencyResult.issues.length > 0 ? (
+                             consistencyResult.issues.map((issue: any, i: number) => (
+                               <div key={i} className="bg-white/5 p-4 rounded-xl border border-red-500/20">
+                                  <div className="flex items-start gap-3">
+                                    <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                                    <div>
+                                      <h4 className="font-bold text-red-200 mb-1">{issue.type || '潜在冲突'}</h4>
+                                      <p className="text-gray-300 text-sm">{issue.description}</p>
+                                      {issue.reference && (
+                                        <div className="mt-2 text-xs text-gray-500 bg-black/20 p-2 rounded">
+                                          参考: {issue.reference}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                               </div>
+                             ))
+                           ) : (
+                             <div className="text-center py-10 text-gray-400">
+                               <Icons.CheckCircle className="w-12 h-12 text-green-500/50 mx-auto mb-3" />
+                               <p>未发现明显的一致性问题，您的设定保持得很好！</p>
+                             </div>
+                           )}
+                         </div>
+                       </Card>
+                     </motion.div>
+                  )}
+                </div>
+                
+                <div className="p-4 border-t border-white/10 bg-white/5 space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-gray-400 mb-2 block">用户反馈（可用于下一轮改写）</label>
+                    <textarea
+                      value={reviewFeedback}
+                      onChange={(e) => setReviewFeedback(e.target.value)}
+                      placeholder="告诉 AI 需要怎么改，比如节奏更快或补充情感描写..."
+                      className="w-full p-3 h-24 text-sm resize-none rounded-lg bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all text-white placeholder-gray-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <Button variant="secondary" onClick={() => setShowReviewPanel(false)}>关闭</Button>
+                    <Button variant="secondary" onClick={handleRequestRevision} disabled={!reviewFeedback.trim()}>
+                      <Icons.RotateCcw className="w-4 h-4" /> 按反馈迭代
+                    </Button>
+                    <Button variant="primary" onClick={handleAcceptReview}>
+                      <Icons.CheckCircle className="w-4 h-4" /> 接受评审
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
           </div>
-          
-          <div className="p-4 border-t border-white/10 bg-white/5 space-y-4">
-            <div>
-              <label className="text-xs font-medium text-gray-400 mb-2 block">用户反馈（可用于下一轮改写）</label>
-              <textarea
-                value={reviewFeedback}
-                onChange={(e) => setReviewFeedback(e.target.value)}
-                placeholder="告诉 AI 需要怎么改，比如节奏更快或补充情感描写..."
-                className="glass-input w-full p-3 h-24 text-sm resize-none"
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowReviewPanel(false)}>关闭</Button>
-              <Button variant="secondary" onClick={handleRequestRevision} disabled={!reviewFeedback.trim()}>
-                <Icons.RotateCcw className="w-4 h-4" /> 按反馈迭代
-              </Button>
-              <Button variant="primary" onClick={handleAcceptReview}>
-                <Icons.CheckCircle className="w-4 h-4" /> 接受评审
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
     );
   };
 
   const renderCanonCheckPanel = () => {
-    if (!showCanonCheckPanel) return null;
-    if (!canonCheckResult && !canonCheckError) return null;
-
-    if (canonCheckError) {
-      return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6">
-          <div className="glass-card w-full max-w-lg flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 p-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/20">
-              <Icons.X className="w-8 h-8 text-red-500" />
-            </div>
-            <h2 className="text-xl font-bold text-white mb-2">检测失败</h2>
-            <p className="text-gray-400 mb-8">{canonCheckError}</p>
-            <div className="flex gap-4 justify-center">
-              <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
-              <Button 
-                variant="primary" 
-                onClick={() => {
-                  setCanonCheckError(null);
-                  createJob('CANON_CHECK');
-                }}
-              >
-                <Icons.RotateCcw className="w-4 h-4" /> 重试
-              </Button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     const getScoreColor = (score: any) => {
       if (typeof score !== 'number') return 'text-gray-400';
       if (score >= 8) return 'text-emerald-400';
@@ -867,327 +837,384 @@ export default function ChapterEditorPage() {
       ? Math.round((scores.reduce((a: number, b: number) => a + b, 0) / scores.length) * 10) / 10 
       : 0;
     
-    const overallGrade = canonCheckResult.overall_assessment?.grade || (typeof canonCheckResult.overall_assessment === 'string' ? canonCheckResult.overall_assessment : null) || (avgScore >= 8 ? '高度还原' : avgScore >= 6 ? '良' : '需改进');
+    const overallGrade = canonCheckResult?.overall_assessment?.grade || (typeof canonCheckResult?.overall_assessment === 'string' ? canonCheckResult.overall_assessment : null) || (avgScore >= 8 ? '高度还原' : avgScore >= 6 ? '良' : '需改进');
     
-    const rawSummary = canonCheckResult.overall_assessment?.summary || canonCheckResult.summary;
-    const summaryText = typeof rawSummary === 'string' ? rawSummary : (typeof canonCheckResult.summary === 'string' ? canonCheckResult.summary : '');
-    const summaryObj = typeof rawSummary === 'object' ? rawSummary : (typeof canonCheckResult.summary === 'object' ? canonCheckResult.summary : null);
+    const rawSummary = canonCheckResult?.overall_assessment?.summary || canonCheckResult?.summary;
+    const summaryText = typeof rawSummary === 'string' ? rawSummary : (typeof canonCheckResult?.summary === 'string' ? canonCheckResult.summary : '');
+    const summaryObj = typeof rawSummary === 'object' ? rawSummary : (typeof canonCheckResult?.summary === 'object' ? canonCheckResult.summary : null);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6">
-        <div className="glass-card w-full max-w-6xl h-[85vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-          <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Icons.BookOpen className="w-5 h-5 text-amber-400" />
-                原作符合度检查
-              </h2>
-              <p className="text-sm text-gray-400 mt-1">
-                基于设定集(Lorebook)的深度一致性分析报告
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowCanonCheckPanel(false)}
-              className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
-            >
-              <Icons.X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <div className="md:col-span-1 glass-card p-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20 flex flex-col items-center justify-center text-center">
-                <div className="text-sm text-gray-400 mb-2 uppercase tracking-wider font-bold">综合得分</div>
-                <div className={`text-5xl font-bold mb-2 ${getScoreColor(avgScore)}`}>
-                  {avgScore}<span className="text-xl text-gray-500">/10</span>
-                </div>
-                <div className="px-3 py-1 rounded-full bg-white/5 text-xs text-gray-300 border border-white/10">
-                  {overallGrade}
-                </div>
-              </div>
-
-              <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                 {Object.entries(dimensionScores).map(([key, value]: [string, any]) => {
-                   const score = value?.score || 0;
-                   const comment = value?.comment;
-                   return (
-                     <div key={key} className="glass-card p-4 rounded-xl flex flex-col justify-center">
-                       <div className="flex justify-between items-end mb-2">
-                         <span className="text-gray-400 text-sm capitalize">{key.replace(/_/g, ' ')}</span>
-                         <span className={`font-bold ${getScoreColor(score)}`}>
-                           {score}
-                         </span>
-                       </div>
-                       <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
-                         <div 
-                           className={`h-full rounded-full transition-all duration-1000 ${getProgressBarColor(score)}`}
-                           style={{ width: `${score * 10}%` }}
-                         />
-                       </div>
-                       {comment && <div className="text-[10px] text-gray-500 truncate">{comment}</div>}
-                     </div>
-                   );
-                 })}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="glass-card p-6 rounded-2xl border border-white/5">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <Icons.CheckCircle className="w-5 h-5 text-indigo-400" />
-                    检测详情与建议
-                  </h3>
-                  
-
-                  {(summaryText || summaryObj) && (
-                    <div className="mb-6 space-y-3">
-                      {summaryText && (
-                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-gray-300 leading-relaxed text-sm">
-                          {summaryText}
-                        </div>
-                      )}
-                      
-
-                      {summaryObj && (
-                         <div className="grid grid-cols-3 gap-2">
-                            {summaryObj.most_problematic_character && (
-                              <div className="bg-red-500/10 border border-red-500/20 p-2 rounded-lg text-xs">
-                                <span className="block text-red-400/70 mb-0.5">问题最大角色</span>
-                                <span className="text-red-300 font-bold">{summaryObj.most_problematic_character}</span>
-                              </div>
-                            )}
-                            {summaryObj.strongest_aspect && (
-                              <div className="bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-lg text-xs">
-                                <span className="block text-emerald-400/70 mb-0.5">最佳表现</span>
-                                <span className="text-emerald-300 font-bold">{summaryObj.strongest_aspect}</span>
-                              </div>
-                            )}
-                            {summaryObj.weakest_aspect && (
-                              <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg text-xs">
-                                <span className="block text-amber-400/70 mb-0.5">最弱环节</span>
-                                <span className="text-amber-300 font-bold">{summaryObj.weakest_aspect}</span>
-                              </div>
-                            )}
-                         </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {canonCheckResult.issues && canonCheckResult.issues.length > 0 ? (
-                    <div className="space-y-3">
-                      {canonCheckResult.issues.map((issue: any, idx: number) => (
-                        <details key={idx} className="group glass-card border border-white/5 bg-white/[0.02] rounded-xl overflow-hidden open:bg-white/[0.04] transition-colors">
-                          <summary className="flex items-start gap-3 p-4 cursor-pointer select-none">
-                            <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
-                              issue.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-                              issue.severity === 'major' ? 'bg-orange-500' : 
-                              issue.severity === 'creative_liberty' ? 'bg-blue-400' : 'bg-yellow-500'
-                            }`} />
-                            <div className="flex-1">
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-gray-200 font-medium text-sm">{issue.title || issue.description}</span>
-                                  {issue.severity && (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                      issue.severity === 'critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
-                                      issue.severity === 'major' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 
-                                      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                    }`}>
-                                      {issue.severity === 'critical' ? '严重冲突' : issue.severity === 'major' ? '主要问题' : issue.severity === 'creative_liberty' ? '二创自由' : '一般瑕疵'}
-                                    </span>
-                                  )}
-                                </div>
-                                {issue.location && <div className="text-xs text-gray-500">位置: {issue.location}</div>}
-                              </div>
-                            </div>
-                            <div className="text-gray-500 group-open:rotate-180 transition-transform">
-                              <Icons.ChevronLeft className="w-4 h-4 -rotate-90" />
-                            </div>
-                          </summary>
-                          <div className="px-4 pb-4 pt-0 pl-9 space-y-3">
-                            {issue.contradiction && (
-                              <div className="text-sm text-gray-400 leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
-                                <span className="text-red-400/80 font-bold text-xs block mb-1">矛盾点</span>
-                                {issue.contradiction}
-                              </div>
-                            )}
-                             {issue.canon_reference && (
-                              <div className="text-xs text-gray-500 bg-white/5 p-2 rounded">
-                                <span className="font-bold">原作参考:</span> {issue.canon_reference}
-                              </div>
-                            )}
-                            {issue.suggestion && (
-                              <div className="flex gap-2 text-xs text-emerald-400/80">
-                                <Icons.Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                                <span>建议：{issue.suggestion}</span>
-                              </div>
-                            )}
-                          </div>
-                        </details>
-                      ))}
-                    </div>
-                  ) : (
-                     <div className="text-center py-12 text-gray-500">
-                       <Icons.CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                       <p>未发现明显的设定冲突</p>
-                     </div>
-                  )}
-                </div>
-
-                {canonCheckResult.improvement_suggestions && canonCheckResult.improvement_suggestions.length > 0 && (
-                  <div className="glass-card p-6 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-900/10 to-orange-900/10">
-                    <h3 className="text-lg font-bold text-amber-200 mb-4 flex items-center gap-2">
-                      <Icons.Sparkles className="w-5 h-5" />
-                      改进建议
-                    </h3>
-                    <ul className="space-y-3">
-                      {canonCheckResult.improvement_suggestions.map((s: any, i: number) => (
-                        <li key={i} className="flex gap-3 text-sm text-amber-100/80 leading-relaxed">
-                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs border border-amber-500/30">{i+1}</span>
-                          <div className="flex-1">
-                             {typeof s === 'string' ? (
-                               <span>{s}</span>
-                              ) : (
-                               <>
-                                 <div className="font-bold text-amber-200/90 mb-0.5 flex items-center gap-2">
-                                    {s.suggestion}
-                                    {s.category && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70 bg-amber-500/10">{s.category}</span>}
-                                    {s.priority && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70">{s.priority}</span>}
-                                 </div>
-                                 {s.example && <div className="text-xs opacity-70 italic mt-1">"{s.example}"</div>}
-                               </>
-                             )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+      <AnimatePresence>
+        {showCanonCheckPanel && (canonCheckResult || canonCheckError) && (
+          canonCheckError ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full max-w-lg"
+              >
+                <Card className="w-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 p-8 text-center">
+                  <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                    <Icons.X className="w-8 h-8 text-red-500" />
                   </div>
-                )}
-              </div>
-
-              <div className="lg:col-span-1 space-y-6">
-                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">角色深度扫描</h3>
-                 {canonCheckResult.character_analysis?.map((char: any, i: number) => (
-                   <div key={i} className="glass-card p-4 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
-                     <div className="flex justify-between items-center mb-3">
-                        <div className="font-bold text-white">{char.character_name || char.name}</div>
-                        {(char.canon_alignment || char.score) && (
-                          <div className={`text-xs font-mono font-bold px-2 py-1 rounded bg-black/20 ${getScoreColor(char.canon_alignment || char.score)}`}>
-                            {char.canon_alignment || char.score}/10
-                          </div>
-                        )}
-                     </div>
-                     
-                     <div className="space-y-2 mb-3">
-
-                        <div className="grid grid-cols-3 gap-1 text-[10px] text-gray-400">
-                           <div className="bg-white/5 p-1 rounded text-center">
-                             <div className="opacity-50 mb-0.5">性格</div>
-                             <div className={typeof char.personality_match === 'number' ? getScoreColor(char.personality_match) : 'text-gray-300 leading-tight'}>
-                               {char.personality_match || '-'}
-                             </div>
-                           </div>
-                           <div className="bg-white/5 p-1 rounded text-center">
-                             <div className="opacity-50 mb-0.5">语气</div>
-                             <div className={typeof char.speech_pattern_match === 'number' ? getScoreColor(char.speech_pattern_match) : 'text-gray-300 leading-tight'}>
-                               {char.speech_pattern_match || '-'}
-                             </div>
-                           </div>
-                           <div className="bg-white/5 p-1 rounded text-center">
-                             <div className="opacity-50 mb-0.5">行为</div>
-                             <div className={typeof char.behavior_match === 'number' ? getScoreColor(char.behavior_match) : 'text-gray-300 leading-tight'}>
-                               {char.behavior_match || '-'}
-                             </div>
-                           </div>
-                        </div>
-                     </div>
-
-                     {char.well_done && char.well_done.length > 0 && (
-                        <div className="mb-2 space-y-1">
-                          <div className="text-[10px] text-emerald-400 font-bold uppercase">亮点</div>
-                          {char.well_done.slice(0, 2).map((m: string, idx: number) => (
-                            <div key={idx} className="text-xs text-emerald-300/70 bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10 truncate">
-                              {m}
-                            </div>
-                          ))}
-                        </div>
-                     )}
-
-                     {char.ooc_moments?.length > 0 && (
-                       <div className="space-y-1">
-                         <div className="text-[10px] text-red-400 font-bold uppercase">OOC 风险</div>
-                         {char.ooc_moments.slice(0, 2).map((m: string, idx: number) => (
-                           <div key={idx} className="text-xs text-red-300/70 bg-red-500/5 p-1.5 rounded border border-red-500/10 truncate">
-                             {m}
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                   </div>
-                 ))}
-              </div>
+                  <h2 className="text-xl font-bold text-white mb-2">检测失败</h2>
+                  <p className="text-gray-400 mb-8">{canonCheckError}</p>
+                  <div className="flex gap-4 justify-center">
+                    <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
+                    <Button 
+                      variant="primary" 
+                      onClick={() => {
+                        setCanonCheckError(null);
+                        createJob('CANON_CHECK');
+                      }}
+                    >
+                      <Icons.RotateCcw className="w-4 h-4" /> 重试
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
             </div>
-          </div>
-          
-          <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
-            <Button variant="primary" onClick={() => {
-              setShowCanonCheckPanel(false);
-            }}>
-              <Icons.CheckCircle className="w-4 h-4" /> 确认
-            </Button>
-          </div>
-        </div>
-      </div>
+          ) : (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="w-full max-w-6xl h-[85vh]"
+              >
+                <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                  <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                    <div>
+                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <Icons.BookOpen className="w-5 h-5 text-amber-400" />
+                        原作符合度检查
+                      </h2>
+                      <p className="text-sm text-gray-400 mt-1">
+                        基于设定集(Lorebook)的深度一致性分析报告
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setShowCanonCheckPanel(false)}
+                      className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                    >
+                      <Icons.X className="w-6 h-6" />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                      <Card className="md:col-span-1 p-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20 flex flex-col items-center justify-center text-center">
+                        <div className="text-sm text-gray-400 mb-2 uppercase tracking-wider font-bold">综合得分</div>
+                        <div className={`text-5xl font-bold mb-2 ${getScoreColor(avgScore)}`}>
+                          {avgScore}<span className="text-xl text-gray-500">/10</span>
+                        </div>
+                        <div className="px-3 py-1 rounded-full bg-white/5 text-xs text-gray-300 border border-white/10">
+                          {overallGrade}
+                        </div>
+                      </Card>
+
+                      <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                         {Object.entries(dimensionScores).map(([key, value]: [string, any]) => {
+                           const score = value?.score || 0;
+                           const comment = value?.comment;
+                           return (
+                             <Card key={key} className="p-4 rounded-xl flex flex-col justify-center">
+                               <div className="flex justify-between items-end mb-2">
+                                 <span className="text-gray-400 text-sm capitalize">{key.replace(/_/g, ' ')}</span>
+                                 <span className={`font-bold ${getScoreColor(score)}`}>
+                                   {score}
+                                 </span>
+                               </div>
+                               <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
+                                 <div 
+                                   className={`h-full rounded-full transition-all duration-1000 ${getProgressBarColor(score)}`}
+                                   style={{ width: `${score * 10}%` }}
+                                 />
+                               </div>
+                               {comment && <div className="text-[10px] text-gray-500 truncate">{comment}</div>}
+                             </Card>
+                           );
+                         })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2 space-y-6">
+                        <Card className="p-6 rounded-2xl border border-white/5">
+                          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <Icons.CheckCircle className="w-5 h-5 text-indigo-400" />
+                            检测详情与建议
+                          </h3>
+                          
+
+                          {(summaryText || summaryObj) && (
+                            <div className="mb-6 space-y-3">
+                              {summaryText && (
+                                <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-gray-300 leading-relaxed text-sm">
+                                  {summaryText}
+                                </div>
+                              )}
+                              
+
+                              {summaryObj && (
+                                 <div className="grid grid-cols-3 gap-2">
+                                    {summaryObj.most_problematic_character && (
+                                      <div className="bg-red-500/10 border border-red-500/20 p-2 rounded-lg text-xs">
+                                        <span className="block text-red-400/70 mb-0.5">问题最大角色</span>
+                                        <span className="text-red-300 font-bold">{summaryObj.most_problematic_character}</span>
+                                      </div>
+                                    )}
+                                    {summaryObj.strongest_aspect && (
+                                      <div className="bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-lg text-xs">
+                                        <span className="block text-emerald-400/70 mb-0.5">最佳表现</span>
+                                        <span className="text-emerald-300 font-bold">{summaryObj.strongest_aspect}</span>
+                                      </div>
+                                    )}
+                                    {summaryObj.weakest_aspect && (
+                                      <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg text-xs">
+                                        <span className="block text-amber-400/70 mb-0.5">最弱环节</span>
+                                        <span className="text-amber-300 font-bold">{summaryObj.weakest_aspect}</span>
+                                      </div>
+                                    )}
+                                 </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {canonCheckResult.issues && canonCheckResult.issues.length > 0 ? (
+                            <div className="space-y-3">
+                              {canonCheckResult.issues.map((issue: any, idx: number) => (
+                                <details key={idx} className="group glass-card border border-white/5 bg-white/[0.02] rounded-xl overflow-hidden open:bg-white/[0.04] transition-colors">
+                                  <summary className="flex items-start gap-3 p-4 cursor-pointer select-none">
+                                    <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
+                                      issue.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
+                                      issue.severity === 'major' ? 'bg-orange-500' : 
+                                      issue.severity === 'creative_liberty' ? 'bg-blue-400' : 'bg-yellow-500'
+                                    }`} />
+                                    <div className="flex-1">
+                                      <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-gray-200 font-medium text-sm">{issue.title || issue.description}</span>
+                                          {issue.severity && (
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                              issue.severity === 'critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                                              issue.severity === 'major' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 
+                                              'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                            }`}>
+                                              {issue.severity === 'critical' ? '严重冲突' : issue.severity === 'major' ? '主要问题' : issue.severity === 'creative_liberty' ? '二创自由' : '一般瑕疵'}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {issue.location && <div className="text-xs text-gray-500">位置: {issue.location}</div>}
+                                      </div>
+                                    </div>
+                                    <div className="text-gray-500 group-open:rotate-180 transition-transform">
+                                      <Icons.ChevronLeft className="w-4 h-4 -rotate-90" />
+                                    </div>
+                                  </summary>
+                                  <div className="px-4 pb-4 pt-0 pl-9 space-y-3">
+                                    {issue.contradiction && (
+                                      <div className="text-sm text-gray-400 leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
+                                        <span className="text-red-400/80 font-bold text-xs block mb-1">矛盾点</span>
+                                        {issue.contradiction}
+                                      </div>
+                                    )}
+                                     {issue.canon_reference && (
+                                      <div className="text-xs text-gray-500 bg-white/5 p-2 rounded">
+                                        <span className="font-bold">原作参考:</span> {issue.canon_reference}
+                                      </div>
+                                    )}
+                                    {issue.suggestion && (
+                                      <div className="flex gap-2 text-xs text-emerald-400/80">
+                                        <Icons.Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                        <span>建议：{issue.suggestion}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              ))}
+                            </div>
+                          ) : (
+                             <div className="text-center py-12 text-gray-500">
+                               <Icons.CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                               <p>未发现明显的设定冲突</p>
+                             </div>
+                          )}
+                        </Card>
+
+                        {canonCheckResult.improvement_suggestions && canonCheckResult.improvement_suggestions.length > 0 && (
+                          <Card className="p-6 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-900/10 to-orange-900/10">
+                            <h3 className="text-lg font-bold text-amber-200 mb-4 flex items-center gap-2">
+                              <Icons.Sparkles className="w-5 h-5" />
+                              改进建议
+                            </h3>
+                            <ul className="space-y-3">
+                              {canonCheckResult.improvement_suggestions.map((s: any, i: number) => (
+                                <li key={i} className="flex gap-3 text-sm text-amber-100/80 leading-relaxed">
+                                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs border border-amber-500/30">{i+1}</span>
+                                  <div className="flex-1">
+                                     {typeof s === 'string' ? (
+                                       <span>{s}</span>
+                                      ) : (
+                                       <>
+                                         <div className="font-bold text-amber-200/90 mb-0.5 flex items-center gap-2">
+                                            {s.suggestion}
+                                            {s.category && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70 bg-amber-500/10">{s.category}</span>}
+                                            {s.priority && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70">{s.priority}</span>}
+                                         </div>
+                                         {s.example && <div className="text-xs opacity-70 italic mt-1">"{s.example}"</div>}
+                                       </>
+                                     )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </Card>
+                        )}
+                      </div>
+
+                      <div className="lg:col-span-1 space-y-6">
+                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">角色深度扫描</h3>
+                         {canonCheckResult.character_analysis?.map((char: any, i: number) => (
+                           <Card key={i} className="p-4 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
+                             <div className="flex justify-between items-center mb-3">
+                                <div className="font-bold text-white">{char.character_name || char.name}</div>
+                                {(char.canon_alignment || char.score) && (
+                                  <div className={`text-xs font-mono font-bold px-2 py-1 rounded bg-black/20 ${getScoreColor(char.canon_alignment || char.score)}`}>
+                                    {char.canon_alignment || char.score}/10
+                                  </div>
+                                )}
+                             </div>
+                             
+                             <div className="space-y-2 mb-3">
+
+                                <div className="grid grid-cols-3 gap-1 text-[10px] text-gray-400">
+                                   <div className="bg-white/5 p-1 rounded text-center">
+                                     <div className="opacity-50 mb-0.5">性格</div>
+                                     <div className={typeof char.personality_match === 'number' ? getScoreColor(char.personality_match) : 'text-gray-300 leading-tight'}>
+                                       {char.personality_match || '-'}
+                                     </div>
+                                   </div>
+                                   <div className="bg-white/5 p-1 rounded text-center">
+                                     <div className="opacity-50 mb-0.5">语气</div>
+                                     <div className={typeof char.speech_pattern_match === 'number' ? getScoreColor(char.speech_pattern_match) : 'text-gray-300 leading-tight'}>
+                                       {char.speech_pattern_match || '-'}
+                                     </div>
+                                   </div>
+                                   <div className="bg-white/5 p-1 rounded text-center">
+                                     <div className="opacity-50 mb-0.5">行为</div>
+                                     <div className={typeof char.behavior_match === 'number' ? getScoreColor(char.behavior_match) : 'text-gray-300 leading-tight'}>
+                                       {char.behavior_match || '-'}
+                                     </div>
+                                   </div>
+                                </div>
+                             </div>
+
+                             {char.well_done && char.well_done.length > 0 && (
+                                <div className="mb-2 space-y-1">
+                                  <div className="text-[10px] text-emerald-400 font-bold uppercase">亮点</div>
+                                  {char.well_done.slice(0, 2).map((m: string, idx: number) => (
+                                    <div key={idx} className="text-xs text-emerald-300/70 bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10 truncate">
+                                      {m}
+                                    </div>
+                                  ))}
+                                </div>
+                             )}
+
+                             {char.ooc_moments?.length > 0 && (
+                               <div className="space-y-1">
+                                 <div className="text-[10px] text-red-400 font-bold uppercase">OOC 风险</div>
+                                 {char.ooc_moments.slice(0, 2).map((m: string, idx: number) => (
+                                   <div key={idx} className="text-xs text-red-300/70 bg-red-500/5 p-1.5 rounded border border-red-500/10 truncate">
+                                     {m}
+                                   </div>
+                                 ))}
+                               </div>
+                             )}
+                           </Card>
+                         ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
+                    <Button variant="primary" onClick={() => {
+                      setShowCanonCheckPanel(false);
+                    }}>
+                      <Icons.CheckCircle className="w-4 h-4" /> 确认
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
+            </div>
+          )
+        )}
+      </AnimatePresence>
     );
   };
 
   const renderDiffModal = () => {
-    if (!showDiff) return null;
     
-    const diffs = Diff.diffLines(showDiff.content || '', content || '');
-
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8 animate-fade-in">
-        <div className="glass-card w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden rounded-2xl border border-white/10">
-          <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
-            <div>
-              <h3 className="text-xl font-bold text-white">版本对比</h3>
-              <p className="text-sm text-gray-400">对比 {new Date(showDiff.createdAt).toLocaleString()} 的版本与当前版本</p>
-            </div>
-            <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setShowDiff(null)}>关闭</Button>
-              <Button variant="primary" onClick={() => handleRestore(showDiff.id)}>
-                <Icons.RotateCcw className="w-4 h-4" /> 恢复此版本
-              </Button>
-            </div>
+      <AnimatePresence>
+        {showDiff && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-5xl h-[80vh]"
+            >
+              <Card className="w-full h-full flex flex-col overflow-hidden rounded-2xl border border-white/10">
+                <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">版本对比</h3>
+                    <p className="text-sm text-gray-400">对比 {new Date(showDiff.createdAt).toLocaleString()} 的版本与当前版本</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button variant="secondary" onClick={() => setShowDiff(null)}>关闭</Button>
+                    <Button variant="primary" onClick={() => handleRestore(showDiff.id)}>
+                      <Icons.RotateCcw className="w-4 h-4" /> 恢复此版本
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-auto p-6 font-mono text-sm leading-relaxed">
+                  {Diff.diffLines(showDiff.content || '', content || '').map((part, index) => (
+                    <div 
+                      key={index}
+                      className={`
+                        ${part.added ? 'bg-green-500/20 text-green-200 border-l-2 border-green-500' : ''}
+                        ${part.removed ? 'bg-red-500/20 text-red-200 border-l-2 border-red-500 decoration-line-through opacity-70' : ''}
+                        ${!part.added && !part.removed ? 'text-gray-300' : ''}
+                        px-4 py-1 whitespace-pre-wrap
+                      `}
+                    >
+                      {part.value}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </motion.div>
           </div>
-          
-          <div className="flex-1 overflow-auto p-6 font-mono text-sm leading-relaxed">
-            {diffs.map((part, index) => (
-              <div 
-                key={index}
-                className={`
-                  ${part.added ? 'bg-green-500/20 text-green-200 border-l-2 border-green-500' : ''}
-                  ${part.removed ? 'bg-red-500/20 text-red-200 border-l-2 border-red-500 decoration-line-through opacity-70' : ''}
-                  ${!part.added && !part.removed ? 'text-gray-300' : ''}
-                  px-4 py-1 whitespace-pre-wrap
-                `}
-              >
-                {part.value}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
     );
   };
 
   if (!chapter) return <div className="flex items-center justify-center h-screen bg-[var(--color-dark-bg)]"><Icons.Loader2 className="animate-spin w-8 h-8 text-indigo-500" /></div>;
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}>
+    <motion.div 
+      initial="initial"
+      animate="animate"
+      variants={fadeIn}
+      className={`flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
+    >
       <header className={`h-16 border-b border-white/5 flex items-center justify-between px-6 bg-[#0f1117]/80 backdrop-blur-md z-10 shrink-0 transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="text-gray-400 hover:text-white transition-colors hover:bg-white/5 p-1.5 rounded-lg">
@@ -1212,7 +1239,7 @@ export default function ChapterEditorPage() {
               variant="ghost" 
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={() => createJob('CHAPTER_GENERATE')}
-              loading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
+              isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
               disabled={!canGenerate}
             >
               <Icons.Sparkles className="w-3.5 h-3.5 text-indigo-400" /> 
@@ -1223,7 +1250,7 @@ export default function ChapterEditorPage() {
               variant="ghost" 
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
-              loading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
+              isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
               disabled={!canGenerateBranches}
             >
               <Icons.GitBranch className="w-3.5 h-3.5 text-blue-400" /> 
@@ -1237,7 +1264,7 @@ export default function ChapterEditorPage() {
                 createJob('REVIEW_SCORE');
                 createJob('CONSISTENCY_CHECK');
               }}
-              loading={activeJobs.some(j => j.type === 'REVIEW_SCORE' || j.type === 'CONSISTENCY_CHECK')}
+              isLoading={activeJobs.some(j => j.type === 'REVIEW_SCORE' || j.type === 'CONSISTENCY_CHECK')}
               disabled={!canReview}
             >
               <Icons.CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> 
@@ -1248,7 +1275,7 @@ export default function ChapterEditorPage() {
               variant="ghost" 
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={() => createJob('DEAI_REWRITE')}
-              loading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
+              isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
               disabled={!canDeai}
             >
               <Icons.Wand2 className="w-3.5 h-3.5 text-purple-400" /> 
@@ -1259,7 +1286,7 @@ export default function ChapterEditorPage() {
               variant="ghost" 
               className="text-xs py-1.5 h-8 px-3 rounded-lg"
               onClick={handleMemoryExtract}
-              loading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
+              isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
               disabled={saveStatus !== 'saved'}
               title="提取记忆到设定集"
             >
@@ -1274,7 +1301,7 @@ export default function ChapterEditorPage() {
                 setCanonCheckError(null);
                 createJob('CANON_CHECK');
               }}
-              loading={activeJobs.some(j => j.type === 'CANON_CHECK')}
+              isLoading={activeJobs.some(j => j.type === 'CANON_CHECK')}
               disabled={!content || saveStatus !== 'saved'}
               title="检查章节内容是否符合原作设定（同人文专用）"
             >
@@ -1311,7 +1338,10 @@ export default function ChapterEditorPage() {
       </header>
 
       <div className="flex flex-1 overflow-hidden relative">
-        <main className="flex-1 relative flex flex-col h-full bg-[#0f1117] transition-all duration-300">
+        <motion.main 
+          layout
+          className="flex-1 relative flex flex-col h-full bg-[#0f1117] transition-all duration-300"
+        >
           {focusMode && (
             <div className="absolute top-4 right-4 z-50">
                <button 
@@ -1376,21 +1406,24 @@ export default function ChapterEditorPage() {
               )}
             </div>
           </div>
-        </main>
+        </motion.main>
 
-        <aside 
-          className={`
-            border-l border-white/5 bg-[#13141f] shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col z-20
-            ${isSidebarOpen && !focusMode ? 'w-80 opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 overflow-hidden'}
-          `}
+        <motion.aside 
+          initial={false}
+          animate={{ 
+            width: isSidebarOpen && !focusMode ? 320 : 0,
+            opacity: isSidebarOpen && !focusMode ? 1 : 0
+          }}
+          transition={{ ease: "easeInOut", duration: 0.3 }}
+          className="border-l border-white/5 bg-[#13141f] shadow-2xl flex flex-col z-20 overflow-hidden"
         >
-          <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+          <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02] min-w-[320px]">
             <h2 className="font-semibold text-white flex items-center gap-2 text-sm tracking-wide">
               <Icons.History className="w-4 h-4 text-indigo-400" /> 版本历史
             </h2>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar min-w-[320px]">
             {versions.length === 0 ? (
               <div className="text-center py-20">
                 <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-600">
@@ -1401,7 +1434,7 @@ export default function ChapterEditorPage() {
               </div>
             ) : (
               versions.map((version) => (
-                <div key={version.id} className="group p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all cursor-pointer relative overflow-hidden">
+                <Card key={version.id} className="group p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all cursor-pointer relative overflow-hidden">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-mono text-gray-400 group-hover:text-indigo-300 transition-colors">{new Date(version.createdAt).toLocaleString()}</span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-[#1e1f2b] rounded-lg p-0.5 shadow-lg border border-white/10">
@@ -1425,17 +1458,17 @@ export default function ChapterEditorPage() {
                   <div className="text-xs text-gray-500 line-clamp-2 font-serif leading-relaxed">
                     {version.content.substring(0, 100)}...
                   </div>
-                </div>
+                </Card>
               ))
             )}
           </div>
-        </aside>
+        </motion.aside>
       </div>
 
       {renderDiffModal()}
       {renderBranchPanel()}
       {renderCanonCheckPanel()}
       {renderReviewPanel()}
-    </div>
+    </motion.div>
   );
 }

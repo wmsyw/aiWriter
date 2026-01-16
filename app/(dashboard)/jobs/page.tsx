@@ -1,13 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  JobStatusBadge, 
   getJobStatusLabel, 
-  getJobStatusClassName, 
-  getJobTypeLabel,
-  JOB_STATUS_CONFIG 
+  getJobTypeLabel
 } from '@/app/components/JobStatusBadge';
+import { 
+  Button, 
+  Card, 
+  CardContent, 
+  Badge, 
+  Skeleton 
+} from '@/app/components/ui';
+import { staggerContainer, staggerItem, fadeIn } from '@/app/lib/animations';
 
 interface Job {
   id: string;
@@ -119,28 +125,56 @@ export default function JobsPage() {
     setIsDrawerOpen(true);
   };
 
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'queued': return 'queued';
+      case 'running': return 'running';
+      case 'succeeded': return 'success';
+      case 'failed': return 'error';
+      case 'canceled': return 'warning';
+      default: return 'default';
+    }
+  };
+
   if (loading && jobs.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center mb-6">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        {[...Array(5)].map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+        ))}
       </div>
     );
   }
 
   return (
     <div className="relative min-h-[calc(100vh-8rem)]">
-      <div className="space-y-6">
+      <motion.div 
+        className="space-y-6"
+        initial="hidden"
+        animate="visible"
+        variants={staggerContainer}
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+          <motion.div variants={fadeIn}>
             <h1 className="text-3xl font-bold text-white mb-2">任务队列</h1>
             <p className="text-gray-400">实时追踪后台任务执行状态</p>
-          </div>
+          </motion.div>
           
-          <div className="flex gap-3">
+          <motion.div variants={fadeIn} className="flex gap-3">
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="glass-input px-3 py-2 rounded-lg text-sm"
+              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50"
             >
               <option value="all" className="bg-gray-900">全部状态</option>
               <option value="queued" className="bg-gray-900">排队中</option>
@@ -153,75 +187,97 @@ export default function JobsPage() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="glass-input px-3 py-2 rounded-lg text-sm"
+              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50"
             >
               <option value="all" className="bg-gray-900">全部类型</option>
               {uniqueTypes.map(type => (
                 <option key={type} value={type} className="bg-gray-900">{getJobTypeLabel(type)}</option>
               ))}
             </select>
-          </div>
+          </motion.div>
         </div>
 
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-white/5 text-gray-400 font-medium uppercase text-xs">
-                <tr>
-                  <th className="px-6 py-4">任务ID</th>
-                  <th className="px-6 py-4">类型</th>
-                  <th className="px-6 py-4">状态</th>
-                  <th className="px-6 py-4">创建时间</th>
-                  <th className="px-6 py-4 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredJobs.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      没有符合筛选条件的任务
-                    </td>
-                  </tr>
-                ) : (
-                  filteredJobs.map((job) => (
-                    <tr 
-                      key={job.id} 
-                      onClick={() => openDrawer(job)}
-                      className="hover:bg-white/5 transition-colors cursor-pointer group"
-                    >
-                      <td className="px-6 py-4 font-mono text-xs text-gray-500 group-hover:text-indigo-300">
-                        {job.id.substring(0, 8)}...
-                      </td>
-                      <td className="px-6 py-4 font-medium text-white">
-                        {getJobTypeLabel(job.type)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <JobStatusBadge status={job.status} />
-                      </td>
-                      <td className="px-6 py-4 text-gray-400">
-                        {new Date(job.createdAt).toLocaleString('zh-CN')}
-                      </td>
-                      <td className="px-6 py-4 text-right">
+        <motion.div 
+          className="space-y-3"
+          variants={staggerContainer}
+        >
+          <AnimatePresence mode="popLayout">
+            {filteredJobs.length === 0 ? (
+              <motion.div 
+                variants={fadeIn}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="text-center py-12 text-gray-500 bg-white/5 rounded-xl border border-white/5"
+              >
+                没有符合筛选条件的任务
+              </motion.div>
+            ) : (
+              filteredJobs.map((job) => (
+                <motion.div
+                  key={job.id}
+                  variants={staggerItem}
+                  layout
+                >
+                  <Card 
+                    variant="interactive"
+                    onClick={() => openDrawer(job)}
+                    className="cursor-pointer group hover:border-indigo-500/30 transition-colors"
+                  >
+                    <div className="p-4 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center font-mono text-xs text-gray-400 group-hover:text-indigo-300 transition-colors">
+                          {job.id.substring(0, 4)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-medium text-white truncate mb-1">
+                            {getJobTypeLabel(job.type)}
+                          </h3>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>{new Date(job.createdAt).toLocaleString('zh-CN')}</span>
+                            {job.updatedAt && (
+                              <>
+                                <span>•</span>
+                                <span>耗时 {((new Date(job.updatedAt).getTime() - new Date(job.createdAt).getTime()) / 1000).toFixed(1)}s</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <Badge variant={getStatusVariant(job.status) as any} animated={job.status === 'running'}>
+                          {getJobStatusLabel(job.status)}
+                        </Badge>
+                        
                         {(job.status === 'queued' || job.status === 'running') && (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={(e) => handleCancel(job.id, e)}
-                            className="text-gray-500 hover:text-red-400 transition-colors p-1"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-red-400"
                             title="取消任务"
                           >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
-                          </button>
+                          </Button>
                         )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+                        
+                        <div className="text-gray-600 group-hover:text-gray-400">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </motion.div>
 
       <div 
         className={`fixed inset-y-0 right-0 w-full md:w-[600px] glass-card border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${
@@ -232,7 +288,7 @@ export default function JobsPage() {
         aria-labelledby="job-drawer-title"
         aria-hidden={!isDrawerOpen}
       >
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col bg-[#0f1115]">
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-md">
             <h2 id="job-drawer-title" className="text-xl font-bold text-white">任务详情</h2>
             <button 
@@ -250,64 +306,76 @@ export default function JobsPage() {
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">状态</div>
-                  <JobStatusBadge status={selectedJob.status} />
+                  <div className="text-xs text-gray-500 mb-2">状态</div>
+                  <Badge variant={getStatusVariant(selectedJob.status) as any} size="lg" animated={selectedJob.status === 'running'}>
+                    {getJobStatusLabel(selectedJob.status)}
+                  </Badge>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-gray-500 mb-1">耗时</div>
-                  <span className="text-sm text-white">
+                  <span className="text-sm text-white font-mono">
                     {selectedJob.updatedAt ? (
-                      `${((new Date(selectedJob.updatedAt).getTime() - new Date(selectedJob.createdAt).getTime()) / 1000).toFixed(2)}秒`
+                      `${((new Date(selectedJob.updatedAt).getTime() - new Date(selectedJob.createdAt).getTime()) / 1000).toFixed(2)}s`
                     ) : '-'}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div className="glass-card bg-black/20 p-4 rounded-lg">
-                  <h3 className="text-sm font-bold text-gray-300 mb-2 border-b border-white/5 pb-2">输入数据</h3>
-                  <pre className="text-xs font-mono text-gray-400 overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(selectedJob.input, null, 2)}
-                  </pre>
-                </div>
+                <Card className="bg-black/20 border-white/5">
+                  <CardContent className="p-4">
+                    <h3 className="text-sm font-bold text-gray-300 mb-2 border-b border-white/5 pb-2">输入数据</h3>
+                    <pre className="text-xs font-mono text-gray-400 overflow-x-auto whitespace-pre-wrap">
+                      {JSON.stringify(selectedJob.input, null, 2)}
+                    </pre>
+                  </CardContent>
+                </Card>
 
                 {selectedJob.output && (
-                  <div className="glass-card bg-black/20 p-4 rounded-lg">
-                    <h3 className="text-sm font-bold text-green-400 mb-2 border-b border-white/5 pb-2">输出结果</h3>
-                    <pre className="text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap">
-                      {JSON.stringify(selectedJob.output, null, 2)}
-                    </pre>
-                  </div>
+                  <Card className="bg-black/20 border-white/5">
+                    <CardContent className="p-4">
+                      <h3 className="text-sm font-bold text-green-400 mb-2 border-b border-white/5 pb-2">输出结果</h3>
+                      <pre className="text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap">
+                        {JSON.stringify(selectedJob.output, null, 2)}
+                      </pre>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {selectedJob.error && (
-                  <div className="glass-card bg-red-500/10 border border-red-500/20 p-4 rounded-lg">
-                    <h3 className="text-sm font-bold text-red-400 mb-2 border-b border-red-500/20 pb-2">错误信息</h3>
-                    <pre className="text-xs font-mono text-red-300 overflow-x-auto whitespace-pre-wrap">
-                      {selectedJob.error}
-                    </pre>
-                  </div>
+                  <Card className="bg-red-500/10 border-red-500/20">
+                    <CardContent className="p-4">
+                      <h3 className="text-sm font-bold text-red-400 mb-2 border-b border-red-500/20 pb-2">错误信息</h3>
+                      <pre className="text-xs font-mono text-red-300 overflow-x-auto whitespace-pre-wrap">
+                        {selectedJob.error}
+                      </pre>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             </div>
           )}
           
           <div className="p-4 border-t border-white/10 bg-white/5">
-             <button
+             <Button
+               variant="secondary"
                onClick={() => setIsDrawerOpen(false)}
-               className="w-full btn-secondary py-2 rounded-lg"
+               className="w-full"
              >
                关闭
-             </button>
+             </Button>
           </div>
         </div>
       </div>
       
       {isDrawerOpen && (
-        <div 
+        <motion.div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           onClick={() => setIsDrawerOpen(false)}
-        ></div>
+        ></motion.div>
       )}
     </div>
   );
