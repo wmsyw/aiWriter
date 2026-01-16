@@ -86,7 +86,8 @@ export function getProviderBaseURL(providerType: string, customBaseURL?: string)
     const normalizedPathname = url.pathname.replace(/\/+$/, '') || '/';
 
     switch (providerType) {
-      case 'openai': {
+      case 'openai':
+      case 'custom': {
         if (normalizedPathname === '/') {
           url.pathname = '/v1';
         }
@@ -107,6 +108,10 @@ export function getProviderBaseURL(providerType: string, customBaseURL?: string)
     }
 
     return url.toString().replace(/\/+$/, '');
+  }
+
+  if (providerType === 'custom') {
+    throw new Error('Custom provider requires a base URL');
   }
 
   const url = PROVIDER_BASE_URLS[providerType];
@@ -371,6 +376,7 @@ export async function createAdapter(providerType: string, apiKey: string, custom
 
   switch (providerType) {
     case 'openai':
+    case 'custom':
       return {
         async generate(config, req) {
           if (req.webSearch) {

@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import MaterialSearchModal from './MaterialSearchModal';
+import Modal from '@/app/components/ui/Modal';
+import GlassCard from '@/app/components/ui/GlassCard';
+import { useFetch } from '@/src/hooks/useFetch';
 
 type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'custom';
 
@@ -28,38 +31,26 @@ export default function MaterialsPage() {
   const params = useParams();
   const novelId = params.id as string;
   
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: materials, isLoading, refetch } = useFetch<Material[]>(
+    novelId ? `/api/novels/${novelId}/materials` : null,
+    { initialData: [] }
+  );
+  
   const [activeTab, setActiveTab] = useState<MaterialType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchMaterials();
-  }, [novelId]);
+  const materialsList = materials || [];
 
-  const fetchMaterials = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`/api/novels/${novelId}/materials`);
-      if (res.ok) {
-        const data = await res.json();
-        setMaterials(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch materials:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const filteredMaterials = materials.filter(material => {
-    const matchesTab = activeTab === 'all' || material.type === activeTab;
-    const matchesSearch = material.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
+  const filteredMaterials = useMemo(() => {
+    return materialsList.filter(material => {
+      const matchesTab = activeTab === 'all' || material.type === activeTab;
+      const matchesSearch = material.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesTab && matchesSearch;
+    });
+  }, [materialsList, activeTab, searchQuery]);
 
   const handleOpenCreate = () => {
     setEditingMaterial(null);
@@ -86,7 +77,7 @@ export default function MaterialsPage() {
       });
 
       if (res.ok) {
-        fetchMaterials();
+        refetch();
         setIsModalOpen(false);
       }
     } catch (error) {
@@ -197,7 +188,7 @@ export default function MaterialsPage() {
         onClose={() => setIsSearchModalOpen(false)}
         novelId={novelId}
         onComplete={() => {
-          fetchMaterials();
+          refetch();
           setIsSearchModalOpen(false);
         }}
       />
@@ -263,9 +254,12 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
   };
 
   return (
-    <div 
+    <GlassCard 
+      variant="interactive"
+      padding="md"
+      hover={true}
       onClick={onClick}
-      className="glass-card p-6 rounded-2xl group cursor-pointer hover:border-indigo-500/30 transition-all duration-300 relative overflow-hidden"
+      className="relative overflow-hidden"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
       
@@ -287,7 +281,7 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
           {getExcerpt(material.data)}
         </p>
       </div>
-    </div>
+    </GlassCard>
   );
 }
 
@@ -344,124 +338,111 @@ function MaterialModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
-        onClick={onClose}
-      />
-      
-      <div className="glass-card w-full max-w-2xl p-8 rounded-2xl relative z-10 animate-slide-up max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-gradient">
-            {initialData ? '编辑素材' : '创建素材'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">名称</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="glass-input w-full px-4 py-3 rounded-xl"
-                placeholder="例如：张三、黑暗塔..."
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">类型</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as MaterialType)}
-                className="glass-input w-full px-4 py-3 rounded-xl appearance-none"
-              >
-                {TABS.filter(t => t.id !== 'all').map(t => (
-                  <option key={t.id} value={t.id} className="bg-[#1a1a2e]">{t.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialData ? '编辑素材' : '创建素材'}
+      size="2xl"
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">描述</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl min-h-[150px] resize-none"
-              placeholder="详细描述..."
+            <label className="block text-sm font-medium text-gray-300">名称</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="glass-input w-full px-4 py-3 rounded-xl"
+              placeholder="例如：张三、黑暗塔..."
+              required
             />
           </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-300">属性</label>
-              <button 
-                type="button" 
-                onClick={addAttribute}
-                className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors"
-              >
-                + 添加属性
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(attributes).map(([key, value]) => (
-                <div key={key} className="glass-input p-3 rounded-xl relative group">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-indigo-400 uppercase">{key}</span>
-                    <button 
-                      type="button"
-                      onClick={() => removeAttribute(key)}
-                      className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => handleAttributeChange(key, e.target.value)}
-                    className="bg-transparent w-full text-sm outline-none border-none p-0 focus:ring-0"
-                    placeholder="值..."
-                  />
-                </div>
+          
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">类型</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as MaterialType)}
+              className="glass-input w-full px-4 py-3 rounded-xl appearance-none"
+            >
+              {TABS.filter(t => t.id !== 'all').map(t => (
+                <option key={t.id} value={t.id} className="bg-[#1a1a2e]">{t.label}</option>
               ))}
-              {Object.keys(attributes).length === 0 && (
-                <div className="col-span-full text-center py-4 border border-dashed border-white/10 rounded-xl text-gray-500 text-sm">
-                  暂无属性。点击"+ 添加属性"来定义自定义字段。
-                </div>
-              )}
-            </div>
+            </select>
           </div>
+        </div>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary px-6 py-2.5 rounded-xl text-sm"
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300">描述</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="glass-input w-full px-4 py-3 rounded-xl min-h-[150px] resize-none"
+            placeholder="详细描述..."
+          />
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-300">属性</label>
+            <button 
+              type="button" 
+              onClick={addAttribute}
+              className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors"
             >
-              取消
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="btn-primary px-6 py-2.5 rounded-xl text-sm flex items-center gap-2"
-            >
-              {isSaving ? '保存中...' : initialData ? '更新素材' : '创建素材'}
+              + 添加属性
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(attributes).map(([key, value]) => (
+              <div key={key} className="glass-input p-3 rounded-xl relative group">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs font-semibold text-indigo-400 uppercase">{key}</span>
+                  <button 
+                    type="button"
+                    onClick={() => removeAttribute(key)}
+                    className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={value}
+                  onChange={(e) => handleAttributeChange(key, e.target.value)}
+                  className="bg-transparent w-full text-sm outline-none border-none p-0 focus:ring-0"
+                  placeholder="值..."
+                />
+              </div>
+            ))}
+            {Object.keys(attributes).length === 0 && (
+              <div className="col-span-full text-center py-4 border border-dashed border-white/10 rounded-xl text-gray-500 text-sm">
+                暂无属性。点击"+ 添加属性"来定义自定义字段。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary px-6 py-2.5 rounded-xl text-sm"
+          >
+            取消
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="btn-primary px-6 py-2.5 rounded-xl text-sm flex items-center gap-2"
+          >
+            {isSaving ? '保存中...' : initialData ? '更新素材' : '创建素材'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -37,9 +37,14 @@ export async function POST(request: NextRequest) {
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const body = await request.json();
+  const parsed = createSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
   try {
-    const body = await request.json();
-    const { title, description, type, theme, genre, targetWords, chapterCount, protagonist, worldSetting, keywords, specialRequirements, outlineMode, inspirationData } = createSchema.parse(body);
+    const { title, description, type, theme, genre, targetWords, chapterCount, protagonist, worldSetting, keywords, specialRequirements, outlineMode, inspirationData } = parsed.data;
 
     const novel = await prisma.novel.create({
       data: {
@@ -64,9 +69,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ novel });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
-    }
+    console.error('Failed to create novel:', error);
     return NextResponse.json({ error: 'Failed to create novel' }, { status: 500 });
   }
 }

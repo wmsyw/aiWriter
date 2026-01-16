@@ -1,9 +1,6 @@
-import { PgBoss } from 'pg-boss';
-import { prisma } from '../db';
-
 export const JobType = {
-  OUTLINE_GENERATE: 'OUTLINE_GENERATE',
   NOVEL_SEED: 'NOVEL_SEED',
+  OUTLINE_GENERATE: 'OUTLINE_GENERATE',
   OUTLINE_ROUGH: 'OUTLINE_ROUGH',
   OUTLINE_DETAILED: 'OUTLINE_DETAILED',
   OUTLINE_CHAPTERS: 'OUTLINE_CHAPTERS',
@@ -30,51 +27,19 @@ export const JobType = {
   OUTLINE_ADHERENCE_CHECK: 'OUTLINE_ADHERENCE_CHECK',
   PENDING_ENTITY_EXTRACT: 'PENDING_ENTITY_EXTRACT',
   REVIEW_SCORE_5DIM: 'REVIEW_SCORE_5DIM',
-} as const;
+  // Hierarchical Summarization
+  SCENE_BREAKDOWN: 'SCENE_BREAKDOWN',
+  ACT_SUMMARY_GENERATE: 'ACT_SUMMARY_GENERATE',
+  // MCTS Plot Simulation
+  PLOT_SIMULATE: 'PLOT_SIMULATE',
+  PLOT_BRANCH_GENERATE: 'PLOT_BRANCH_GENERATE',
+};
 
 export const JobStatus = {
   QUEUED: 'queued',
   RUNNING: 'running',
+  RETRYING: 'retrying',
   SUCCEEDED: 'succeeded',
   FAILED: 'failed',
   CANCELED: 'canceled',
-} as const;
-
-let boss: PgBoss | null = null;
-let queuesCreated = false;
-
-export async function getBoss() {
-  if (!boss) {
-    boss = new PgBoss(process.env.DATABASE_URL!);
-    await boss.start();
-  }
-  if (!queuesCreated) {
-    const allQueues = Object.values(JobType);
-    for (const queue of allQueues) {
-      await boss.createQueue(queue);
-    }
-    queuesCreated = true;
-  }
-  return boss;
-}
-
-export async function createJob(userId: string, type: string, input: any) {
-  const job = await prisma.job.create({
-    data: { userId, type, status: JobStatus.QUEUED, input },
-  });
-  const pgBoss = await getBoss();
-  await pgBoss.send(type, { jobId: job.id, userId, input }, { retryLimit: 3, retryDelay: 60, retryBackoff: true });
-  return job;
-}
-
-export async function getJob(id: string) {
-  return prisma.job.findUnique({ where: { id } });
-}
-
-export async function listJobs(userId: string) {
-  return prisma.job.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
-}
-
-export async function cancelJob(id: string) {
-  return prisma.job.update({ where: { id }, data: { status: JobStatus.CANCELED } });
-}
+};

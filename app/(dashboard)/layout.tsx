@@ -12,12 +12,19 @@ interface Notification {
   createdAt: string;
 }
 
+interface UserInfo {
+  id: string;
+  email: string;
+  role: string;
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -51,6 +58,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     };
     fetchNotifications();
+
+    const eventSource = new EventSource('/api/jobs/stream');
+    
+    eventSource.addEventListener('jobs', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.jobs && Array.isArray(data.jobs)) {
+          setNotifications(data.jobs.slice(0, 5));
+        }
+      } catch (error) {
+        console.error('Failed to parse SSE data', error);
+      }
+    });
+
+    eventSource.onerror = () => {
+      console.error('SSE connection error');
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const res = await fetch('/api/user/me');
+        if (res.ok) {
+          const user = await res.json();
+          setUserInfo(user);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user info', error);
+      }
+    };
+    fetchUserInfo();
   }, []);
 
   const handleLogout = async () => {
@@ -171,11 +214,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="absolute bottom-0 left-0 w-full p-4 border-t border-white/5 bg-black/20 backdrop-blur-md">
             <div className="flex items-center gap-3 px-2">
              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs text-white shadow-lg ring-2 ring-white/10">
-               作者
+               {userInfo?.email?.charAt(0).toUpperCase() || '?'}
              </div>
              <div className="flex-1 min-w-0">
-               <div className="text-sm font-medium text-white truncate">写手大大</div>
-               <div className="text-xs text-gray-500 truncate">author@aiwriter.com</div>
+               <div className="text-sm font-medium text-white truncate">{userInfo?.email?.split('@')[0] || '加载中...'}</div>
+               <div className="text-xs text-gray-500 truncate">{userInfo?.email || ''}</div>
              </div>
              <button  
               onClick={handleLogout}

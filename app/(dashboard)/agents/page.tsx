@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import Modal from '@/app/components/ui/Modal';
 import { BUILT_IN_AGENTS, type AgentCategory, type BuiltInAgentDefinition } from '@/src/constants/agents';
 
 interface Agent {
@@ -469,224 +470,211 @@ export default function AgentsPage() {
         <span className="text-gray-400 font-medium group-hover:text-indigo-300">创建新的自定义助手</span>
       </button>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="glass-card w-full max-w-2xl rounded-2xl p-6 md:p-8 animate-slide-up max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">
-                {currentAgent.id ? '编辑助手' : '创建助手'}
-              </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {!currentAgent.id && showTemplateSelector && (
-              <div className="mb-6">
-                <label className="text-sm font-medium text-gray-300 mb-3 block">从内置模板创建</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                  {Object.entries(BUILT_IN_AGENTS).map(([key, template]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => handleSelectBuiltInTemplate(key)}
-                      className="p-3 rounded-lg bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-500/30 transition-all text-left"
-                    >
-                      <div className="text-sm font-medium text-white truncate">{template.name}</div>
-                      <div className="text-xs text-gray-500 truncate">{template.description}</div>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
-                  <div className="flex-1 h-px bg-white/10"></div>
-                  <span>或从空白创建</span>
-                  <div className="flex-1 h-px bg-white/10"></div>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleSave} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">名称</label>
-                  <input
-                    type="text"
-                    required
-                    value={currentAgent.name || ''}
-                    onChange={e => setCurrentAgent({...currentAgent, name: e.target.value})}
-                    className="w-full glass-input px-4 py-2 rounded-lg"
-                    placeholder="例如：故事大纲师"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">描述</label>
-                  <input
-                    type="text"
-                    value={currentAgent.description || ''}
-                    onChange={e => setCurrentAgent({...currentAgent, description: e.target.value})}
-                    className="w-full glass-input px-4 py-2 rounded-lg"
-                    placeholder="这个助手是做什么的？"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">服务商</label>
-                  <select
-                    value={currentAgent.providerConfigId || ''}
-                    onChange={e => setCurrentAgent({...currentAgent, providerConfigId: e.target.value || undefined})}
-                    className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
-                  >
-                    <option value="" className="bg-gray-900">默认服务商</option>
-                    {providers.map(p => (
-                      <option key={p.id} value={p.id} className="bg-gray-900">
-                        {p.name} ({p.providerType})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">模型</label>
-                  {(() => {
-                    const selectedProvider = providers.find(p => p.id === currentAgent.providerConfigId);
-                    const availableModels = selectedProvider?.models || [];
-                    return (
-                      <div className="space-y-2">
-                        {availableModels.length > 0 && (
-                          <select
-                            value={useCustomModel ? '__custom__' : (currentAgent.model || '')}
-                            onChange={e => {
-                              if (e.target.value === '__custom__') {
-                                setUseCustomModel(true);
-                                setCustomModel('');
-                                setCurrentAgent({...currentAgent, model: ''});
-                              } else {
-                                setUseCustomModel(false);
-                                setCustomModel('');
-                                setCurrentAgent({...currentAgent, model: e.target.value});
-                              }
-                            }}
-                            className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
-                          >
-                            <option value="" className="bg-gray-900">选择模型...</option>
-                            {availableModels.map((model: string) => (
-                              <option key={model} value={model} className="bg-gray-900">{model}</option>
-                            ))}
-                            <option value="__custom__" className="bg-gray-900">自定义模型...</option>
-                          </select>
-                        )}
-                        {(availableModels.length === 0 || useCustomModel) && (
-                          <input
-                            type="text"
-                            value={useCustomModel ? customModel : (currentAgent.model || '')}
-                            onChange={e => {
-                              const value = e.target.value;
-                              if (useCustomModel) {
-                                setCustomModel(value);
-                              }
-                              setCurrentAgent({...currentAgent, model: value});
-                            }}
-                            className="w-full glass-input px-4 py-2 rounded-lg"
-                            placeholder="输入模型名称，如 gpt-4o"
-                          />
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">系统提示词模板</label>
-                <select
-                  value={currentAgent.templateId || ''}
-                  onChange={e => setCurrentAgent({...currentAgent, templateId: e.target.value || undefined})}
-                  className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
-                >
-                  <option value="" className="bg-gray-900">选择模板...</option>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id} className="bg-gray-900">
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">提示词内容（可见）</label>
-                <textarea
-                  value={activeTemplate?.content || '请选择模板以查看提示词内容'}
-                  readOnly
-                  className="w-full glass-input px-4 py-3 rounded-lg min-h-[160px] text-xs font-mono text-gray-300"
-                />
-                {activeTemplate && (
-                  <p className="text-xs text-gray-500">模板：{activeTemplate.name}</p>
-                )}
-              </div>
-
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-sm font-medium text-gray-300 mb-4">参数设置</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>温度 (Temperature)</span>
-                      <span>{currentAgent.params?.temperature ?? 0.7}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      value={currentAgent.params?.temperature ?? 0.7}
-                      onChange={e => updateParam('temperature', parseFloat(e.target.value))}
-                      className="w-full accent-indigo-500"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">最大Token数</label>
-                    <input
-                      type="number"
-                      value={currentAgent.params?.maxTokens ?? 1000}
-                      onChange={e => updateParam('maxTokens', parseInt(e.target.value))}
-                      className="w-full glass-input px-4 py-2 rounded-lg"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 mt-8">
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={currentAgent.id ? '编辑助手' : '创建助手'}
+        size="2xl"
+      >
+        {!currentAgent.id && showTemplateSelector && (
+          <div className="mb-6">
+            <label className="text-sm font-medium text-gray-300 mb-3 block">从内置模板创建</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              {Object.entries(BUILT_IN_AGENTS).map(([key, template]) => (
                 <button
+                  key={key}
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="btn-secondary px-6 py-2 rounded-lg"
+                  onClick={() => handleSelectBuiltInTemplate(key)}
+                  className="p-3 rounded-lg bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-500/30 transition-all text-left"
                 >
-                  取消
+                  <div className="text-sm font-medium text-white truncate">{template.name}</div>
+                  <div className="text-xs text-gray-500 truncate">{template.description}</div>
                 </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn-primary px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      保存中...
-                    </>
-                  ) : (
-                    '保存助手'
-                  )}
-                </button>
-              </div>
-            </form>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <div className="flex-1 h-px bg-white/10"></div>
+              <span>或从空白创建</span>
+              <div className="flex-1 h-px bg-white/10"></div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">名称</label>
+              <input
+                type="text"
+                required
+                value={currentAgent.name || ''}
+                onChange={e => setCurrentAgent({...currentAgent, name: e.target.value})}
+                className="w-full glass-input px-4 py-2 rounded-lg"
+                placeholder="例如：故事大纲师"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">描述</label>
+              <input
+                type="text"
+                value={currentAgent.description || ''}
+                onChange={e => setCurrentAgent({...currentAgent, description: e.target.value})}
+                className="w-full glass-input px-4 py-2 rounded-lg"
+                placeholder="这个助手是做什么的？"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">服务商</label>
+              <select
+                value={currentAgent.providerConfigId || ''}
+                onChange={e => setCurrentAgent({...currentAgent, providerConfigId: e.target.value || undefined})}
+                className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
+              >
+                <option value="" className="bg-gray-900">默认服务商</option>
+                {providers.map(p => (
+                  <option key={p.id} value={p.id} className="bg-gray-900">
+                    {p.name} ({p.providerType})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">模型</label>
+              {(() => {
+                const selectedProvider = providers.find(p => p.id === currentAgent.providerConfigId);
+                const availableModels = selectedProvider?.models || [];
+                return (
+                  <div className="space-y-2">
+                    {availableModels.length > 0 && (
+                      <select
+                        value={useCustomModel ? '__custom__' : (currentAgent.model || '')}
+                        onChange={e => {
+                          if (e.target.value === '__custom__') {
+                            setUseCustomModel(true);
+                            setCustomModel('');
+                            setCurrentAgent({...currentAgent, model: ''});
+                          } else {
+                            setUseCustomModel(false);
+                            setCustomModel('');
+                            setCurrentAgent({...currentAgent, model: e.target.value});
+                          }
+                        }}
+                        className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
+                      >
+                        <option value="" className="bg-gray-900">选择模型...</option>
+                        {availableModels.map((model: string) => (
+                          <option key={model} value={model} className="bg-gray-900">{model}</option>
+                        ))}
+                        <option value="__custom__" className="bg-gray-900">自定义模型...</option>
+                      </select>
+                    )}
+                    {(availableModels.length === 0 || useCustomModel) && (
+                      <input
+                        type="text"
+                        value={useCustomModel ? customModel : (currentAgent.model || '')}
+                        onChange={e => {
+                          const value = e.target.value;
+                          if (useCustomModel) {
+                            setCustomModel(value);
+                          }
+                          setCurrentAgent({...currentAgent, model: value});
+                        }}
+                        className="w-full glass-input px-4 py-2 rounded-lg"
+                        placeholder="输入模型名称，如 gpt-4o"
+                      />
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">系统提示词模板</label>
+            <select
+              value={currentAgent.templateId || ''}
+              onChange={e => setCurrentAgent({...currentAgent, templateId: e.target.value || undefined})}
+              className="w-full glass-input px-4 py-2 rounded-lg appearance-none"
+            >
+              <option value="" className="bg-gray-900">选择模板...</option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id} className="bg-gray-900">
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">提示词内容（可见）</label>
+            <textarea
+              value={activeTemplate?.content || '请选择模板以查看提示词内容'}
+              readOnly
+              className="w-full glass-input px-4 py-3 rounded-lg min-h-[160px] text-xs font-mono text-gray-300"
+            />
+            {activeTemplate && (
+              <p className="text-xs text-gray-500">模板：{activeTemplate.name}</p>
+            )}
+          </div>
+
+          <div className="border-t border-white/10 pt-6">
+            <h3 className="text-sm font-medium text-gray-300 mb-4">参数设置</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>温度 (Temperature)</span>
+                  <span>{currentAgent.params?.temperature ?? 0.7}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={currentAgent.params?.temperature ?? 0.7}
+                  onChange={e => updateParam('temperature', parseFloat(e.target.value))}
+                  className="w-full accent-indigo-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">最大Token数</label>
+                <input
+                  type="number"
+                  value={currentAgent.params?.maxTokens ?? 1000}
+                  onChange={e => updateParam('maxTokens', parseInt(e.target.value))}
+                  className="w-full glass-input px-4 py-2 rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 mt-8">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="btn-secondary px-6 py-2 rounded-lg"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  保存中...
+                </>
+              ) : (
+                '保存助手'
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

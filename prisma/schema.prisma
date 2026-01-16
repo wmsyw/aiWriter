@@ -47,7 +47,7 @@ model Novel {
   description     String?         @db.Text
   type            String          @default("short") // "short" or "long"
   goldenFinger    String?         @db.Text
-  generationStage String          @default("seed") // seed, seeded, rough, detailed, chapters, drafting
+  generationStage String          @default("seed") // seed, seeded, rough, detailed, chapters, drafting, completed
   outline         String?         @db.Text
   outlineRough    Json?
   outlineDetailed Json?
@@ -69,11 +69,19 @@ model Novel {
   keywords        String[]        @default([])
   specialRequirements String?     @db.Text
   inspirationData Json?
+  // 工作流配置
+  workflowConfig        Json?               // 工作流配置 (审查阈值等)
+  hookReminderChapters  Int       @default(10)  // 钩子提醒阈值 (N章后提醒)
+  outlineDeviationLimit Float     @default(0.4) // 大纲偏离上限 (40%)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   chapters        Chapter[]
   materials       Material[]
   lorebookEntries LorebookEntry[]
+  narrativeHooks  NarrativeHook[]
+  pendingEntities PendingEntity[]
+  actSummaries    ActSummary[]
+  chapterSummaries ChapterSummary[]
 
   @@index([userId])
 }
@@ -86,14 +94,23 @@ model Chapter {
   order            Int
   content          String           @db.Text
   currentVersionId String?
-  generationStage  String           @default("draft") // draft, generated, reviewed, approved, humanized, completed
+  generationStage  String           @default("draft") // draft, generating, generated, reviewing, reviewed, approved, rejected, humanizing, humanized, completed
   reviewIterations Int              @default(0)
+  // 新增审查相关字段
+  reviewFeedback   Json?            // 结构化审查反馈
+  outlineAdherence Float?           // 大纲符合度分数 (0-1)
+  pendingReview    Boolean          @default(false) // 是否等待批量审查
+  approvedAt       DateTime?        // 审查通过时间
+  lastReviewAt     DateTime?        // 最后审查时间
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   versions         ChapterVersion[]
+  summary          ChapterSummary?
 
   @@unique([novelId, order])
   @@index([novelId])
+  @@index([novelId, generationStage])
+  @@index([novelId, pendingReview])
 }
 
 model ChapterVersion {
@@ -139,6 +156,11 @@ model Material {
   searchGroup String?
   sourceUrl   String?
   data        Json
+  aliases     String[] @default([])
+  lastActiveChapter Int?
+  appearanceCount   Int      @default(0)
+  codexPriority     Int      @default(50)
+  codexMetadata     Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -147,6 +169,7 @@ model Material {
   @@index([type])
   @@index([genre])
   @@index([searchGroup])
+  @@index([novelId, lastActiveChapter])
 }
 
 model PromptTemplate {
@@ -310,4 +333,108 @@ model RateLimit {
   resetTime DateTime
 
   @@index([resetTime])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 叙事钩子追踪 - 管理伏笔、悬念、契诃夫之枪等叙事元素
+// ═══════════════════════════════════════════════════════════════
+model NarrativeHook {
+  id                   String   @id @default(cuid())
+  novelId              String
+  novel                Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  type                 String   // foreshadowing, chekhov_gun, mystery, promise, setup
+  description          String   @db.Text
+  plantedInChapter     Int
+  plantedContext       String?  @db.Text  // 埋设时的具体文本
+  referencedInChapters Int[]    @default([])
+  resolvedInChapter    Int?
+  resolutionContext    String?  @db.Text  // 解决时的具体文本
+  status               String   @default("planted") // planted, referenced, resolved, abandoned
+  importance           String   @default("minor")   // critical, major, minor
+  expectedResolutionBy Int?     // 预期解决章节
+  reminderThreshold    Int      @default(10)        // N章后提醒
+  relatedCharacters    String[] @default([])
+  relatedOrganizations String[] @default([])
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([novelId])
+  @@index([novelId, status])
+  @@index([status, plantedInChapter])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 章节摘要 - 用于长篇小说上下文压缩
+// ═══════════════════════════════════════════════════════════════
+model ChapterSummary {
+  id                    String   @id @default(cuid())
+  chapterId             String   @unique
+  chapter               Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  novelId               String
+  chapterNumber         Int
+  oneLine               String   @db.Text
+  keyEvents             Json     @default("[]")
+  characterDevelopments Json     @default("[]")
+  plotAdvancement       String?  @db.Text
+  emotionalArc          String?
+  newCharacters         Json     @default("[]")
+  newOrganizations      Json     @default("[]")
+  hooksPlanted          Json     @default("[]")
+  hooksReferenced       Json     @default("[]")
+  hooksResolved         Json     @default("[]")
+  sceneBreakdown        Json?
+  actNumber             Int?
+  actSummaryId          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([novelId])
+  @@index([novelId, chapterNumber])
+  @@index([novelId, actNumber])
+}
+
+model ActSummary {
+  id                  String   @id @default(cuid())
+  novelId             String
+  novel               Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  actNumber           Int
+  title               String?
+  chapterRange        Json
+  oneLine             String   @db.Text
+  majorEvents         Json     @default("[]")
+  characterArcs       Json     @default("[]")
+  plotProgression     String?  @db.Text
+  thematicElements    Json     @default("[]")
+  unresolvedHooks     Json     @default("[]")
+  resolvedHooks       Json     @default("[]")
+  tensionLevel        Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([novelId, actNumber])
+  @@index([novelId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 待确认实体队列 - 管理章节中涌现的新角色/组织
+// ═══════════════════════════════════════════════════════════════
+model PendingEntity {
+  id             String    @id @default(cuid())
+  novelId        String
+  novel          Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapterId      String
+  chapterNumber  Int
+  entityType     String    // character, organization
+  name           String
+  extractedData  Json      // 从章节提取的原始数据
+  status         String    @default("pending") // pending, approved, rejected, merged
+  mergedWithId   String?   // 如果与已有实体合并,记录目标Material ID
+  reviewNotes    String?   @db.Text
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([novelId, status])
+  @@index([chapterId])
+  @@index([novelId, entityType, status])
 }
