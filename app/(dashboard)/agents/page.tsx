@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { BUILT_IN_AGENTS, type AgentCategory } from '@/src/constants/agents';
+import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import { BUILT_IN_AGENTS, type AgentCategory, type BuiltInAgentDefinition } from '@/src/constants/agents';
 
 interface Agent {
   id: string;
@@ -33,6 +33,159 @@ interface Provider {
   defaultModel?: string;
   models?: string[];
 }
+
+const CATEGORY_LABELS: Record<AgentCategory | 'all', string> = {
+  all: '全部',
+  writing: '写作生成',
+  review: '评审检查',
+  utility: '辅助工具',
+};
+
+const CATEGORY_COLORS: Record<AgentCategory, { bg: string; border: string; text: string }> = {
+  writing: { bg: 'from-indigo-500/20 to-purple-500/20', border: 'border-indigo-500/30', text: 'text-indigo-400' },
+  review: { bg: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/30', text: 'text-amber-400' },
+  utility: { bg: 'from-emerald-500/20 to-teal-500/20', border: 'border-emerald-500/30', text: 'text-emerald-400' },
+};
+
+const BuiltInAgentCard = memo(({ 
+  agentKey, 
+  agent, 
+  template, 
+  isExpanded, 
+  onToggleExpand, 
+  onCreateInstance 
+}: {
+  agentKey: string;
+  agent: BuiltInAgentDefinition;
+  template?: Template;
+  isExpanded: boolean;
+  onToggleExpand: (key: string) => void;
+  onCreateInstance: (key: string) => void;
+}) => {
+  const colors = CATEGORY_COLORS[agent.category];
+  const categoryLabel = CATEGORY_LABELS[agent.category];
+  
+  return (
+    <div 
+      className={`glass-card rounded-xl overflow-hidden transition-all duration-300 ${
+        isExpanded ? 'col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4' : ''
+      }`}
+    >
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.bg} flex items-center justify-center border ${colors.border}`}>
+            <svg className={`w-5 h-5 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.border} ${colors.text} border`}>
+            {categoryLabel}
+          </span>
+        </div>
+        
+        <h3 className="text-lg font-bold text-white mb-1">{agent.name}</h3>
+        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{agent.description}</p>
+        
+        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+          <span>模板: {agent.templateName}</span>
+          {template && <span className="text-emerald-400">✓</span>}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => onToggleExpand(agentKey)}
+            className="flex-1 btn-secondary py-2 rounded-lg text-xs"
+          >
+            {isExpanded ? '收起' : '查看模板'}
+          </button>
+          <button
+            onClick={() => onCreateInstance(agentKey)}
+            className="flex-1 btn-primary py-2 rounded-lg text-xs"
+          >
+            创建实例
+          </button>
+        </div>
+      </div>
+
+      {isExpanded && template && (
+        <div className="border-t border-white/10 p-4 bg-black/20">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-gray-300">提示词模板内容</h4>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span>温度: {agent.defaultParams.temperature ?? 0.7}</span>
+              <span>最大Token: {agent.defaultParams.maxTokens ?? 2000}</span>
+            </div>
+          </div>
+          <pre className="text-xs text-gray-400 font-mono bg-black/30 rounded-lg p-4 max-h-64 overflow-auto custom-scrollbar whitespace-pre-wrap break-words">
+            {template.content}
+          </pre>
+        </div>
+      )}
+
+      {isExpanded && !template && (
+        <div className="border-t border-white/10 p-4 bg-black/20">
+          <p className="text-sm text-amber-400">
+            ⚠️ 未找到对应模板 "{agent.templateName}"，请先在模板页面创建该模板。
+          </p>
+        </div>
+      )}
+    </div>
+  );
+});
+
+BuiltInAgentCard.displayName = 'BuiltInAgentCard';
+
+const CustomAgentCard = memo(({ 
+  agent, 
+  providerName, 
+  onConfigure 
+}: {
+  agent: Agent;
+  providerName: string;
+  onConfigure: (agent: Agent) => void;
+}) => {
+  return (
+    <div className="glass-card rounded-xl p-6 group hover:border-indigo-500/30 transition-all duration-300">
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:border-indigo-500/30 transition-colors">
+          <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        {agent.isBuiltIn && (
+          <span className="px-2 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium text-indigo-400">
+            内置
+          </span>
+        )}
+      </div>
+
+      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">{agent.name}</h3>
+      <p className="text-gray-400 text-sm mb-4 line-clamp-2 h-10">{agent.description || '暂无描述'}</p>
+
+      <div className="space-y-2 mb-6">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">服务商</span>
+          <span className="text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+            {providerName}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">模型</span>
+          <span className="text-gray-300 font-mono">{agent.model || '默认'}</span>
+        </div>
+      </div>
+
+      <button 
+        onClick={() => onConfigure(agent)}
+        className="w-full btn-secondary py-2 rounded-lg text-sm border border-white/5 hover:border-white/20"
+      >
+        配置助手
+      </button>
+    </div>
+  );
+});
+
+CustomAgentCard.displayName = 'CustomAgentCard';
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -68,19 +221,6 @@ export default function AgentsPage() {
     return builtInAgentsByCategory[activeCategory];
   }, [activeCategory, builtInAgentsByCategory]);
 
-  const categoryLabels: Record<AgentCategory | 'all', string> = {
-    all: '全部',
-    writing: '写作生成',
-    review: '评审检查',
-    utility: '辅助工具',
-  };
-
-  const categoryColors: Record<AgentCategory, { bg: string; border: string; text: string }> = {
-    writing: { bg: 'from-indigo-500/20 to-purple-500/20', border: 'border-indigo-500/30', text: 'text-indigo-400' },
-    review: { bg: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/30', text: 'text-amber-400' },
-    utility: { bg: 'from-emerald-500/20 to-teal-500/20', border: 'border-emerald-500/30', text: 'text-emerald-400' },
-  };
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -107,7 +247,7 @@ export default function AgentsPage() {
     }
   };
 
-  const handleOpenModal = (agent?: Agent) => {
+  const handleOpenModal = useCallback((agent?: Agent) => {
     if (agent) {
       setCurrentAgent(agent);
       const provider = providers.find(p => p.id === agent.providerConfigId);
@@ -130,9 +270,9 @@ export default function AgentsPage() {
       setShowTemplateSelector(true);
     }
     setIsModalOpen(true);
-  };
+  }, [providers]);
 
-  const handleSelectBuiltInTemplate = (key: string) => {
+  const handleSelectBuiltInTemplate = useCallback((key: string) => {
     const template = BUILT_IN_AGENTS[key];
     const matchingTemplate = templates.find(t => t.name === template.templateName);
     setCurrentAgent({
@@ -142,15 +282,20 @@ export default function AgentsPage() {
       params: template.defaultParams,
     });
     setShowTemplateSelector(false);
-  };
+  }, [templates]);
 
-  const handleViewBuiltInAgent = (key: string) => {
-    setSelectedBuiltInAgent(selectedBuiltInAgent === key ? null : key);
-  };
+  const handleViewBuiltInAgent = useCallback((key: string) => {
+    setSelectedBuiltInAgent(prev => prev === key ? null : key);
+  }, []);
 
-  const getBuiltInAgentTemplate = (templateName: string) => {
+  const handleCreateInstance = useCallback((key: string) => {
+    handleSelectBuiltInTemplate(key);
+    setIsModalOpen(true);
+  }, [handleSelectBuiltInTemplate]);
+
+  const getBuiltInAgentTemplate = useCallback((templateName: string) => {
     return templates.find(t => t.name === templateName);
-  };
+  }, [templates]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,89 +377,24 @@ export default function AgentsPage() {
                     : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
                 }`}
               >
-                {categoryLabels[cat]}
+                {CATEGORY_LABELS[cat]}
               </button>
             ))}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredBuiltInAgents.map(([key, agent]) => {
-            const template = getBuiltInAgentTemplate(agent.templateName);
-            const isExpanded = selectedBuiltInAgent === key;
-            const colors = categoryColors[agent.category];
-            
-            return (
-              <div 
-                key={key} 
-                className={`glass-card rounded-xl overflow-hidden transition-all duration-300 ${
-                  isExpanded ? 'col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4' : ''
-                }`}
-              >
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors.bg} flex items-center justify-center border ${colors.border}`}>
-                      <svg className={`w-5 h-5 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.border} ${colors.text} border`}>
-                      {categoryLabels[agent.category]}
-                    </span>
-                  </div>
-                  
-                  <h3 className="text-lg font-bold text-white mb-1">{agent.name}</h3>
-                  <p className="text-gray-400 text-sm mb-3 line-clamp-2">{agent.description}</p>
-                  
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                    <span>模板: {agent.templateName}</span>
-                    {template && <span className="text-emerald-400">✓</span>}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleViewBuiltInAgent(key)}
-                      className="flex-1 btn-secondary py-2 rounded-lg text-xs"
-                    >
-                      {isExpanded ? '收起' : '查看模板'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleSelectBuiltInTemplate(key);
-                        setIsModalOpen(true);
-                      }}
-                      className="flex-1 btn-primary py-2 rounded-lg text-xs"
-                    >
-                      创建实例
-                    </button>
-                  </div>
-                </div>
-
-                {isExpanded && template && (
-                  <div className="border-t border-white/10 p-4 bg-black/20">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-medium text-gray-300">提示词模板内容</h4>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <span>温度: {agent.defaultParams.temperature ?? 0.7}</span>
-                        <span>最大Token: {agent.defaultParams.maxTokens ?? 2000}</span>
-                      </div>
-                    </div>
-                    <pre className="text-xs text-gray-400 font-mono bg-black/30 rounded-lg p-4 max-h-64 overflow-auto custom-scrollbar whitespace-pre-wrap break-words">
-                      {template.content}
-                    </pre>
-                  </div>
-                )}
-
-                {isExpanded && !template && (
-                  <div className="border-t border-white/10 p-4 bg-black/20">
-                    <p className="text-sm text-amber-400">
-                      ⚠️ 未找到对应模板 "{agent.templateName}"，请先在模板页面创建该模板。
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {filteredBuiltInAgents.map(([key, agent]) => (
+            <BuiltInAgentCard
+              key={key}
+              agentKey={key}
+              agent={agent}
+              template={getBuiltInAgentTemplate(agent.templateName)}
+              isExpanded={selectedBuiltInAgent === key}
+              onToggleExpand={handleViewBuiltInAgent}
+              onCreateInstance={handleCreateInstance}
+            />
+          ))}
         </div>
       </div>
 
@@ -328,43 +408,12 @@ export default function AgentsPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {agents.map((agent) => (
-              <div key={agent.id} className="glass-card rounded-xl p-6 group hover:border-indigo-500/30 transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:border-indigo-500/30 transition-colors">
-                    <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  {agent.isBuiltIn && (
-                    <span className="px-2 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium text-indigo-400">
-                      内置
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">{agent.name}</h3>
-                <p className="text-gray-400 text-sm mb-4 line-clamp-2 h-10">{agent.description || '暂无描述'}</p>
-
-                <div className="space-y-2 mb-6">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">服务商</span>
-                    <span className="text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                      {providers.find(p => p.id === agent.providerConfigId)?.name || '默认'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">模型</span>
-                    <span className="text-gray-300 font-mono">{agent.model || '默认'}</span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => handleOpenModal(agent)}
-                  className="w-full btn-secondary py-2 rounded-lg text-sm border border-white/5 hover:border-white/20"
-                >
-                  配置助手
-                </button>
-              </div>
+              <CustomAgentCard
+                key={agent.id}
+                agent={agent}
+                providerName={providers.find(p => p.id === agent.providerConfigId)?.name || '默认'}
+                onConfigure={handleOpenModal}
+              />
             ))}
           </div>
         </div>

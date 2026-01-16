@@ -49,7 +49,8 @@ export async function createJob(userId: string, type: string, input: any) {
     data: { userId, type, status: JobStatus.QUEUED, input },
   });
   const pgBoss = await getBoss();
-  await pgBoss.send(type, { jobId: job.id, userId, input }, { retryLimit: 3, retryDelay: 60, retryBackoff: true });
+  // @ts-ignore - createQueue is a valid option in newer pg-boss versions but might be missing from types
+  await pgBoss.send(type, { jobId: job.id, userId, input }, { retryLimit: 3, retryDelay: 60, retryBackoff: true, createQueue: true });
   return job;
 }
 

@@ -22,13 +22,10 @@ export async function GET(req: NextRequest) {
   const session = await getSessionUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let list = await agents.listAgents(session.userId);
+  // Always sync built-in templates/agents to ensure new ones are available
+  await agents.initializeUserAgents(session.userId);
   
-  if (list.length === 0) {
-    await agents.initializeUserAgents(session.userId);
-    list = await agents.listAgents(session.userId);
-  }
-  
+  const list = await agents.listAgents(session.userId);
   return NextResponse.json(list);
 }
 

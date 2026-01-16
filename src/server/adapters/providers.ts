@@ -10,11 +10,25 @@ const ALLOWED_PROVIDER_HOSTS: Record<string, string[]> = {
   gemini: ['generativelanguage.googleapis.com'],
 };
 
-// Gemini 2.x models use google_search, 1.5 models use googleSearchRetrieval
 const GEMINI_2X_MODELS = ['gemini-2.0', 'gemini-2.5', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+const GEMINI_DEFAULT_SEARCH_MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-3-flash-preview',
+  'gemini-3-pro-preview',
+];
 
 function isGemini2xModel(model: string): boolean {
   return GEMINI_2X_MODELS.some(prefix => model.startsWith(prefix) || model.includes('gemini-2'));
+}
+
+function isGeminiDefaultSearchModel(model: string): boolean {
+  return GEMINI_DEFAULT_SEARCH_MODELS.some(prefix => model.startsWith(prefix));
+}
+
+function usesGeminiGoogleSearchTool(model: string): boolean {
+  return isGemini2xModel(model) || model.startsWith('gemini-3');
 }
 
 export class ProviderError extends Error {
@@ -67,8 +81,34 @@ function validateBaseURL(providerType: string, urlString: string): void {
 export function getProviderBaseURL(providerType: string, customBaseURL?: string): string {
   if (customBaseURL) {
     validateBaseURL(providerType, customBaseURL);
-    return customBaseURL.replace(/\/+$/, '');
+
+    const url = new URL(customBaseURL);
+    const normalizedPathname = url.pathname.replace(/\/+$/, '') || '/';
+
+    switch (providerType) {
+      case 'openai': {
+        if (normalizedPathname === '/') {
+          url.pathname = '/v1';
+        }
+        break;
+      }
+      case 'claude': {
+        if (normalizedPathname === '/v1') {
+          url.pathname = '/';
+        }
+        break;
+      }
+      case 'gemini': {
+        if (normalizedPathname === '/v1beta') {
+          url.pathname = '/';
+        }
+        break;
+      }
+    }
+
+    return url.toString().replace(/\/+$/, '');
   }
+
   const url = PROVIDER_BASE_URLS[providerType];
   if (!url) throw new Error(`Unknown provider type: ${providerType}`);
   return url;
@@ -486,8 +526,10 @@ export async function createAdapter(providerType: string, apiKey: string, custom
             body.systemInstruction = { parts: [{ text: systemMessage.content }] };
           }
           
-          if (req.webSearch) {
-            if (isGemini2xModel(req.model)) {
+          const shouldUseSearch = req.webSearch || isGeminiDefaultSearchModel(req.model);
+
+          if (shouldUseSearch) {
+            if (usesGeminiGoogleSearchTool(req.model)) {
               body.tools = [{ google_search: {} }];
             } else {
               body.tools = [{ googleSearchRetrieval: {} }];
