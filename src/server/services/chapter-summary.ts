@@ -254,9 +254,9 @@ export async function getSummaryStats(novelId: string): Promise<SummaryStats> {
   
   let planted = 0, referenced = 0, resolved = 0;
   for (const s of summaries) {
-    planted += s.hooksPlanted.length;
-    referenced += s.hooksReferenced.length;
-    resolved += s.hooksResolved.length;
+    planted += Array.isArray(s.hooksPlanted) ? s.hooksPlanted.length : 0;
+    referenced += Array.isArray(s.hooksReferenced) ? s.hooksReferenced.length : 0;
+    resolved += Array.isArray(s.hooksResolved) ? s.hooksResolved.length : 0;
   }
   
   return {

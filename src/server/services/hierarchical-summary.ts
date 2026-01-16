@@ -360,7 +360,7 @@ export async function getHierarchicalContext(
   };
 
   if (includeScenes && currentSummary?.sceneBreakdown) {
-    currentChapterContext.scenes = currentSummary.sceneBreakdown as SceneInfo[];
+    currentChapterContext.scenes = currentSummary.sceneBreakdown as unknown as SceneInfo[];
   }
 
   const recentSummaries = await prisma.chapterSummary.findMany({

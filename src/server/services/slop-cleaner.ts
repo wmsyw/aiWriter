@@ -42,7 +42,7 @@ const STRUCTURAL_PATTERNS: SlopPattern[] = [
 
 export function cleanSlop(
   content: string,
-  config: SlopCleanerConfig = {}
+  config: Partial<SlopCleanerConfig> = {}
 ): SlopCleanerResult {
   const {
     enableChineseSlop = true,

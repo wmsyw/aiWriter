@@ -372,6 +372,7 @@ model ChapterSummary {
   chapterId             String   @unique
   chapter               Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   novelId               String
+  novel                 Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
   chapterNumber         Int
   oneLine               String   @db.Text
   keyEvents             Json     @default("[]")

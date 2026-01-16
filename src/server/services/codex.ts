@@ -167,7 +167,7 @@ function formatCodexContext(entries: CodexEntry[]): string {
         lines.push(`特征: ${entry.traits.join('、')}`);
       }
 
-      if (entry.relationships.length > 0) {
+      if (entry.relationships && entry.relationships.length > 0) {
         const relStr = entry.relationships.map(r => `${r.targetName}(${r.type})`).join('、');
         lines.push(`关系: ${relStr}`);
       }
