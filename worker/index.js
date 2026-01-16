@@ -81,10 +81,23 @@ const placeholderTypes = [
 ];
 
 async function handleJob(job) {
-  const { id: pgBossJobId, name: jobType, data: input } = job;
-  const { jobId, userId } = input;
+  const { id: pgBossJobId, name: jobType, data: jobData } = job;
+  
+  log('INFO', '>>> JOB PICKED UP', { pgBossJobId, jobType, jobData: JSON.stringify(jobData || {}).slice(0, 200) });
+  
+  if (!jobData || typeof jobData !== 'object') {
+    log('ERROR', 'Job data is missing or invalid', { pgBossJobId, jobType, jobData });
+    throw new Error('Job data is missing or invalid');
+  }
+  
+  const { jobId, userId, input } = jobData;
+  
+  if (!jobId) {
+    log('ERROR', 'jobId is missing from job data', { pgBossJobId, jobType, jobDataKeys: Object.keys(jobData) });
+    throw new Error('jobId is missing from job data');
+  }
 
-  log('INFO', '>>> JOB PICKED UP', { pgBossJobId, jobType, jobId, userId });
+  log('INFO', 'Processing job', { pgBossJobId, jobType, jobId, userId });
 
   try {
     await prisma.job.update({
