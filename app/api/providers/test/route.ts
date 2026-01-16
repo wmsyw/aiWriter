@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const adapter = await createAdapter(providerType, apiKey, resolvedBaseURL);
 
     const finalModel = testModel || getDefaultTestModel(providerType);
-    
+
     const startTime = Date.now();
     const response = await adapter.generate(
       { providerType, baseURL: resolvedBaseURL, defaultModel: finalModel } as Parameters<typeof adapter.generate>[0],
@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Connection test failed';
-    return NextResponse.json({ 
-      success: false, 
+    return NextResponse.json({
+      success: false,
       error: message,
     }, { status: 400 });
   }
@@ -93,12 +93,12 @@ export async function POST(request: NextRequest) {
 function getDefaultTestModel(providerType: string): string {
   switch (providerType) {
     case 'openai':
-      return 'gpt-5';
+      return 'gpt-5-mini';
     case 'claude':
       return 'claude-sonnet-4-5-20250929';
     case 'gemini':
       return 'gemini-3-flash-preview';
     default:
-      return 'gpt-5';
+      return 'gpt-5-mini';
   }
 }

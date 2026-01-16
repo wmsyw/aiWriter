@@ -47,6 +47,24 @@ const CATEGORY_COLORS: Record<AgentCategory, { bg: string; border: string; text:
   utility: { bg: 'from-emerald-500/20 to-teal-500/20', border: 'border-emerald-500/30', text: 'text-emerald-400' },
 };
 
+const SkeletonCard = () => (
+  <div className="glass-card rounded-xl p-4 h-[220px] animate-pulse">
+    <div className="flex items-center justify-between mb-4">
+      <div className="w-10 h-10 rounded-lg bg-white/5"></div>
+      <div className="w-16 h-5 rounded-full bg-white/5"></div>
+    </div>
+    <div className="h-6 w-3/4 bg-white/5 rounded mb-3"></div>
+    <div className="space-y-2 mb-6">
+      <div className="h-3 w-full bg-white/5 rounded"></div>
+      <div className="h-3 w-5/6 bg-white/5 rounded"></div>
+    </div>
+    <div className="flex gap-2 mt-auto">
+      <div className="h-9 flex-1 bg-white/5 rounded-lg"></div>
+      <div className="h-9 flex-1 bg-white/5 rounded-lg"></div>
+    </div>
+  </div>
+);
+
 const BuiltInAgentCard = memo(({ 
   agentKey, 
   agent, 
@@ -116,9 +134,7 @@ const BuiltInAgentCard = memo(({
               <span>最大Token: {agent.defaultParams.maxTokens ?? 2000}</span>
             </div>
           </div>
-          <pre className="text-xs text-gray-400 font-mono bg-black/30 rounded-lg p-4 max-h-64 overflow-auto custom-scrollbar whitespace-pre-wrap break-words">
-            {template.content}
-          </pre>
+          <pre className="text-xs text-gray-300 font-mono bg-[#0d1117] border border-white/5 rounded-lg p-4 max-h-64 overflow-auto custom-scrollbar whitespace-pre-wrap break-words leading-relaxed">{template.content}</pre>
         </div>
       )}
 
@@ -334,8 +350,30 @@ export default function AgentsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 w-48 bg-white/5 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-64 bg-white/5 rounded animate-pulse"></div>
+          </div>
+          <div className="h-10 w-32 bg-white/5 rounded-lg animate-pulse"></div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-32 bg-white/5 rounded animate-pulse"></div>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-8 w-16 bg-white/5 rounded-lg animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -15,7 +15,7 @@ type ProviderConfig = {
 type Tab = 'providers' | 'account' | 'preferences';
 
 const PROVIDER_TYPES = [
-  { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-5', 'gpt-5.1', 'gpt-5.2', 'gpt-5-mini'] },
+  { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
   { value: 'claude', label: 'Claude', defaultURL: 'https://api.anthropic.com/v1', defaultModels: ['claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101', 'claude-haiku-4-5-20251001'] },
   { value: 'gemini', label: 'Gemini', defaultURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModels: ['gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'] },
   { value: 'custom', label: '自定义', defaultURL: '', defaultModels: [] },
@@ -144,7 +144,7 @@ export default function SettingsPage() {
       providerType: 'openai',
       baseURL: 'https://api.openai.com/v1',
       apiKey: '',
-      defaultModel: 'gpt-5',
+      defaultModel: 'gpt-4o',
       models: defaultProvider.defaultModels,
       newModel: '',
     });
