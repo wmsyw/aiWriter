@@ -6,6 +6,13 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      no_cache:
+        description: 'Build without cache'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -69,8 +76,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.suffix }}
+          cache-from: ${{ inputs.no_cache != 'true' && format('type=gha,scope={0}', matrix.suffix) || '' }}
           cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
+          no-cache: ${{ inputs.no_cache == 'true' }}
 
   manifest:
     needs: build
