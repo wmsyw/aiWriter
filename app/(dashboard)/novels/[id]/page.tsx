@@ -727,7 +727,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </Link>
                 </div>
                 <Card className="p-12 rounded-3xl text-center relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
                   <div className="w-20 h-20 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 shadow-inner shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-300">
                     <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -763,7 +763,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </Link>
                 </div>
                 <Card className="p-12 rounded-3xl text-center relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
                   <div className="w-20 h-20 mx-auto bg-orange-500/10 rounded-2xl flex items-center justify-center mb-6 shadow-inner shadow-orange-500/20 group-hover:scale-110 transition-transform duration-300">
                     <span className="text-4xl">🎣</span>
@@ -818,7 +818,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
                 
                 <Card className={`p-12 rounded-3xl text-center relative overflow-hidden group border ${blockingInfo.hasBlocking ? 'border-red-500/30' : 'border-white/5'}`}>
-                  <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-emerald-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                  <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-emerald-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
                   
                   <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-6 shadow-inner transition-transform duration-300 group-hover:scale-110 ${blockingInfo.hasBlocking ? 'bg-red-500/10 shadow-red-500/20' : 'bg-purple-500/10 shadow-purple-500/20'}`}>
                     <span className="text-4xl">👥</span>

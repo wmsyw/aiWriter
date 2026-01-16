@@ -226,18 +226,18 @@ export default function JobsPage() {
                   >
                     <div className="p-4 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center font-mono text-xs text-gray-400 group-hover:text-emerald-300 transition-colors">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-mono text-xs text-zinc-300 group-hover:text-emerald-300 group-hover:border-emerald-500/30 transition-colors">
                           {job.id.substring(0, 4)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-medium text-white truncate mb-1">
+                          <h3 className="font-medium text-zinc-100 truncate mb-1" style={{ color: '#f4f4f5' }}>
                             {getJobTypeLabel(job.type)}
                           </h3>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-2 text-xs text-zinc-400">
                             <span>{new Date(job.createdAt).toLocaleString('zh-CN')}</span>
                             {job.updatedAt && (
                               <>
-                                <span>•</span>
+                                <span className="text-zinc-600">•</span>
                                 <span>耗时 {((new Date(job.updatedAt).getTime() - new Date(job.createdAt).getTime()) / 1000).toFixed(1)}s</span>
                               </>
                             )}

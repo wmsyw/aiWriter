@@ -8,7 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/app/components/ui/Ca
 import { Input, Textarea } from '@/app/components/ui/Input';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/Tabs';
-import { Select } from '@/app/components/ui/Select';
 import { cn } from '@/app/lib/utils';
 
 type VariableValue = string | number | boolean | string[];
@@ -39,10 +38,17 @@ export default function TemplatesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [charCount, setCharCount] = useState(0);
 
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  useEffect(() => {
+    if (selectedTemplate) {
+      setCharCount(selectedTemplate.content.length);
+    }
+  }, [selectedTemplate?.content]);
 
   const fetchTemplates = async () => {
     try {
@@ -183,7 +189,6 @@ export default function TemplatesPage() {
     if (!selectedTemplate) return;
     const tag = `{{ ${varName} }}`;
     navigator.clipboard.writeText(tag);
-    alert(`已复制 "${tag}" 到剪贴板，请粘贴到编辑器中。`);
   };
 
   const handleDragStart = (index: number) => {
@@ -224,33 +229,44 @@ export default function TemplatesPage() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-4 p-4 md:p-8"
+      className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-6 p-6"
     >
-      <Card className="w-full md:w-64 flex-shrink-0 flex flex-col p-0 overflow-hidden">
-        <CardHeader className="p-4 border-b border-white/10 flex flex-row justify-between items-center space-y-0">
-          <CardTitle className="text-base">模板列表</CardTitle>
+      <Card className="w-full md:w-72 flex-shrink-0 flex flex-col p-0 overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
+        <CardHeader className="p-4 border-b border-white/5 flex flex-row justify-between items-center space-y-0 bg-zinc-900/30">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-emerald-500/10 rounded-lg">
+              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </div>
+            <CardTitle className="text-sm font-semibold tracking-wide text-zinc-100">所有模板</CardTitle>
+          </div>
           <Button 
             variant="ghost" 
             size="sm"
             onClick={handleCreateNew}
-            className="h-8 w-8 p-0"
+            className="h-7 w-7 p-0 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors"
+            aria-label="Create new template"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </Button>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+        <CardContent className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-gradient-to-b from-zinc-900/30 to-zinc-950/30">
           <AnimatePresence mode="popLayout">
             {isLoading ? (
               [1, 2, 3].map(i => (
-                <div key={i} className="space-y-2 p-2">
-                  <Skeleton className="h-10 w-full rounded-xl" />
+                <div key={i} className="p-2">
+                  <Skeleton className="h-12 w-full rounded-xl bg-zinc-800/50" />
                 </div>
               ))
             ) : templates.length === 0 ? (
-               <motion.div variants={fadeIn} className="text-center py-8 text-gray-500 text-sm">
-                暂无模板
+               <motion.div variants={fadeIn} className="flex flex-col items-center justify-center py-12 text-zinc-500">
+                <svg className="w-10 h-10 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-xs">暂无模板</span>
               </motion.div>
             ) : (
               templates.map((template, index) => (
@@ -262,35 +278,48 @@ export default function TemplatesPage() {
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragEnd={handleDragEnd}
-                  className={cn(draggedIndex === index ? 'opacity-50' : '')}
+                  className={cn(draggedIndex === index ? 'opacity-40 scale-95' : '')}
                 >
-                  <Card 
-                    variant="interactive"
+                  <div 
                     onClick={() => handleSelectTemplate(template)}
                     className={cn(
-                      "flex items-center p-3 cursor-pointer group",
+                      "group relative flex items-center p-3 cursor-pointer rounded-xl transition-all duration-200 border",
                       selectedTemplate?.id === template.id
-                        ? "bg-emerald-500/10 border-emerald-500/50"
-                        : "border-transparent"
+                        ? "bg-emerald-500/5 border-emerald-500/30 shadow-[0_0_15px_-3px_rgba(16,185,129,0.1)]"
+                        : "bg-zinc-800/20 border-transparent hover:bg-zinc-800/60 hover:border-zinc-700/50"
                     )}
                   >
-                    <div className="mr-3 text-gray-600 group-hover:text-gray-400 cursor-grab active:cursor-grabbing">
+                    {selectedTemplate?.id === template.id && (
+                      <motion.div 
+                        layoutId="active-pill"
+                        className="absolute left-0 top-3 bottom-3 w-1 bg-emerald-500 rounded-r-full" 
+                      />
+                    )}
+
+                    <div className="mr-3 text-zinc-600 group-hover:text-zinc-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v.01M12 12v.01M12 18v.01M12 6v.01M12 12v.01M12 18v.01" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6v.01M8 12v.01M8 18v.01M8 6v.01M8 12v.01M8 18v.01" />
                       </svg>
                     </div>
-                    <div className="flex-1 overflow-hidden">
+
+                    <div className="flex-1 min-w-0 ml-1">
                       <div className={cn(
                         "font-medium truncate text-sm transition-colors",
-                        selectedTemplate?.id === template.id ? "text-emerald-400" : "text-gray-300"
+                        selectedTemplate?.id === template.id ? "text-emerald-400" : "text-zinc-300 group-hover:text-zinc-100"
                       )}>
                         {template.name}
                       </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">
-                        {new Date(template.updatedAt).toLocaleDateString()}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] uppercase tracking-wider text-zinc-500 bg-zinc-900/50 px-1.5 py-0.5 rounded border border-white/5">
+                          {template.variables?.length || 0} VARS
+                        </span>
+                        <span className="text-[10px] text-zinc-600 truncate">
+                          {new Date(template.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               ))
             )}
@@ -298,111 +327,168 @@ export default function TemplatesPage() {
         </CardContent>
       </Card>
 
-      <Card className="flex-1 flex flex-col p-0 relative overflow-hidden">
+      <Card className="flex-1 flex flex-col p-0 relative overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
         {selectedTemplate ? (
           <>
-            <CardHeader className="p-4 border-b border-white/10 flex flex-row items-center gap-4 space-y-0">
-              <Input
-                type="text"
-                value={selectedTemplate.name}
-                onChange={(e) => {
-                  setSelectedTemplate({ ...selectedTemplate, name: e.target.value });
-                  setHasChanges(true);
-                }}
-                className="text-lg font-bold bg-transparent border-transparent hover:border-white/10 focus:border-emerald-500/50 h-auto py-2 px-3"
-                placeholder="Template Name"
-              />
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasChanges || isSaving}
-                isLoading={isSaving}
-              >
-                {isSaving ? '保存中...' : '保存'}
-              </Button>
+            <CardHeader className="h-14 p-0 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0 bg-zinc-900/30">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-zinc-500 text-xs uppercase tracking-wider font-semibold hidden md:inline-block">Template /</span>
+                <Input
+                  type="text"
+                  value={selectedTemplate.name}
+                  onChange={(e) => {
+                    setSelectedTemplate({ ...selectedTemplate, name: e.target.value });
+                    setHasChanges(true);
+                  }}
+                  className="text-base font-medium bg-transparent border-transparent hover:border-white/10 focus:border-emerald-500/50 h-8 py-0 px-2 w-full max-w-md text-zinc-200 placeholder:text-zinc-600"
+                  placeholder="Template Name"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={cn(
+                  "text-xs transition-opacity duration-300",
+                  hasChanges ? "text-amber-500 opacity-100" : "opacity-0"
+                )}>
+                  ● Unsaved
+                </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!hasChanges || isSaving}
+                  isLoading={isSaving}
+                  className={cn(
+                    "h-8 text-xs font-medium px-4 shadow-lg shadow-emerald-500/10",
+                    hasChanges ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-zinc-800 text-zinc-500"
+                  )}
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
             </CardHeader>
             
-            <CardContent className="flex-1 p-0 relative">
-              <Textarea
-                value={selectedTemplate.content}
-                onChange={(e) => {
-                  setSelectedTemplate({ ...selectedTemplate, content: e.target.value });
-                  setHasChanges(true);
-                }}
-                className="w-full h-full bg-transparent border-none focus-visible:ring-0 p-4 font-mono text-sm resize-none leading-relaxed custom-scrollbar text-gray-300"
-                placeholder="在此编写模板内容... 使用 {{ 变量名 }} 插入动态内容。"
-                spellCheck={false}
-              />
+            <CardContent className="flex-1 p-0 relative flex flex-col min-h-0">
+              <div className="flex-1 relative flex">
+                <div className="w-12 bg-zinc-950/30 border-r border-white/5 hidden sm:flex flex-col items-end py-6 px-3 text-zinc-700 font-mono text-xs select-none">
+                  {[...Array(20)].map((_, i) => <div key={i} className="leading-relaxed">{i + 1}</div>)}
+                  <div className="text-zinc-800">...</div>
+                </div>
+
+                <Textarea
+                  value={selectedTemplate.content}
+                  onChange={(e) => {
+                    setSelectedTemplate({ ...selectedTemplate, content: e.target.value });
+                    setHasChanges(true);
+                  }}
+                  className="flex-1 w-full h-full bg-transparent border-none focus-visible:ring-0 p-6 font-mono text-sm resize-none leading-relaxed custom-scrollbar text-zinc-300 placeholder:text-zinc-700"
+                  placeholder="在此编写模板内容... 使用 {{ 变量名 }} 插入动态内容。"
+                  spellCheck={false}
+                />
+              </div>
+
+              <div className="h-8 border-t border-white/5 bg-zinc-950/30 px-4 flex items-center justify-between text-[10px] text-zinc-500 select-none">
+                <div className="flex items-center gap-4">
+                   <div className="flex items-center gap-1.5 text-amber-500/80">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span className="font-medium">LiquidJS Enabled</span>
+                   </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span>{charCount} chars</span>
+                  <span className="hidden sm:inline">UTF-8</span>
+                </div>
+              </div>
             </CardContent>
-            <div className="absolute bottom-4 right-4 text-xs text-gray-600 pointer-events-none bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
-              支持 LiquidJS 语法
-            </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-            <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p>选择一个模板或创建新模板</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
+            <div className="w-20 h-20 rounded-full bg-zinc-800/50 flex items-center justify-center mb-6 border border-white/5">
+               <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+               </svg>
+            </div>
+            <h3 className="text-lg font-medium text-zinc-300 mb-2">Ready to Write</h3>
+            <p className="max-w-xs text-center text-sm text-zinc-600">
+              Select an existing template from the sidebar or create a new one to get started.
+            </p>
           </div>
         )}
       </Card>
 
-      <Card className="w-full md:w-80 flex-shrink-0 flex flex-col p-0 overflow-hidden">
+      <Card className="w-full md:w-80 flex-shrink-0 flex flex-col p-0 overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
         {selectedTemplate ? (
           <Tabs defaultValue="variables" className="flex-1 flex flex-col h-full">
-            <TabsList variant="boxed" className="w-full justify-start rounded-none p-0 bg-transparent">
-              <TabsTrigger value="variables" variant="boxed" className="flex-1 rounded-none data-[state=active]:bg-transparent">
-                变量
-              </TabsTrigger>
-              <TabsTrigger value="preview" variant="boxed" className="flex-1 rounded-none data-[state=active]:bg-transparent">
-                预览
-              </TabsTrigger>
-            </TabsList>
+            <div className="px-1 pt-1 bg-zinc-900/30 border-b border-white/5">
+              <TabsList variant="boxed" className="w-full bg-transparent p-0 gap-1 h-10">
+                <TabsTrigger 
+                  value="variables" 
+                  variant="boxed" 
+                  className="flex-1 rounded-t-lg border-b-2 border-transparent data-[state=active]:bg-zinc-800/50 data-[state=active]:border-emerald-500 data-[state=active]:text-emerald-400 text-xs font-medium text-zinc-500"
+                >
+                  Variables
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="preview" 
+                  variant="boxed" 
+                  className="flex-1 rounded-t-lg border-b-2 border-transparent data-[state=active]:bg-zinc-800/50 data-[state=active]:border-amber-500 data-[state=active]:text-amber-400 text-xs font-medium text-zinc-500"
+                >
+                  Preview
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="variables" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0 space-y-4">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-medium text-gray-300">已定义变量</h3>
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Parameters</h3>
                 <Button 
                   variant="ghost" 
                   size="sm"
                   onClick={addVariable}
-                  className="text-emerald-400 hover:text-emerald-300 h-6 px-2 text-xs"
+                  className="h-6 px-2 text-xs text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
                 >
-                  + 添加
+                  + Add New
                 </Button>
               </div>
               
               {selectedTemplate.variables?.length === 0 ? (
-                <p className="text-xs text-gray-500 italic text-center py-4">暂无变量</p>
+                <div className="rounded-xl border border-dashed border-zinc-800 p-8 flex flex-col items-center text-center">
+                  <span className="text-xs text-zinc-600 mb-2">No variables defined</span>
+                  <Button variant="ghost" size="sm" onClick={addVariable} className="h-7 text-xs border border-zinc-700 text-zinc-400 hover:text-zinc-200">
+                    Create One
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {selectedTemplate.variables?.map((variable, idx) => (
                     <motion.div 
                       key={idx} 
                       layout
-                      initial={{ opacity: 0, scale: 0.95 }}
+                      initial={{ opacity: 0, scale: 0.98 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="bg-white/5 rounded-xl p-3 space-y-2 border border-white/5"
+                      className="group bg-zinc-950/40 rounded-xl p-3 space-y-3 border border-white/5 hover:border-white/10 transition-colors"
                     >
                       <div className="flex justify-between items-start gap-2">
-                        <Input
-                          type="text"
-                          value={variable.name}
-                          onChange={(e) => updateVariable(idx, 'name', e.target.value)}
-                          className="h-8 text-xs font-mono bg-black/20 border-white/5"
-                          placeholder="var_name"
-                        />
-                        <div className="flex gap-1">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-zinc-600 font-mono mb-1 block uppercase">Name</label>
+                          <Input
+                            type="text"
+                            value={variable.name}
+                            onChange={(e) => updateVariable(idx, 'name', e.target.value)}
+                            className="h-7 text-xs font-mono font-medium bg-zinc-900/50 border-zinc-800 focus:border-emerald-500/30 text-emerald-400"
+                            placeholder="var_name"
+                          />
+                        </div>
+                        <div className="flex gap-1 pt-4">
                           <Button 
                             variant="ghost"
                             size="sm"
                             onClick={() => insertVariableToContent(variable.name)}
-                            title="复制到剪贴板"
-                            className="h-8 w-8 p-0 text-gray-500 hover:text-white"
+                            title="Copy tag"
+                            className="h-7 w-7 p-0 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                             </svg>
                           </Button>
@@ -410,55 +496,72 @@ export default function TemplatesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => removeVariable(idx)}
-                            className="h-8 w-8 p-0 text-gray-500 hover:text-red-400"
+                            className="h-7 w-7 p-0 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </Button>
                         </div>
                       </div>
-                      <select
-                        value={variable.type}
-                        onChange={(e) => updateVariable(idx, 'type', e.target.value)}
-                        className="bg-black/20 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-gray-400 border border-white/5 focus:border-emerald-500/30 transition-colors"
-                      >
-                        <option value="string">字符串</option>
-                        <option value="number">数字</option>
-                        <option value="boolean">布尔值</option>
-                        <option value="array">数组</option>
-                      </select>
+                      
+                      <div>
+                        <label className="text-[10px] text-zinc-600 font-mono mb-1 block uppercase">Type</label>
+                        <div className="relative">
+                          <select
+                            value={variable.type}
+                            onChange={(e) => updateVariable(idx, 'type', e.target.value)}
+                            className="appearance-none bg-zinc-900/50 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-zinc-300 border border-zinc-800 focus:border-emerald-500/30 transition-colors"
+                          >
+                            <option value="string">String</option>
+                            <option value="number">Number</option>
+                            <option value="boolean">Boolean</option>
+                            <option value="array">Array</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-zinc-500">
+                             <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                        </div>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
               )}
               
-              <div className="mt-8 pt-4 border-t border-white/10">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">使用说明</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  使用 <code className="bg-white/10 px-1 rounded text-gray-300">{`{{ 变量名 }}`}</code> 在模板中插入变量。
-                  也可以使用循环和条件语句，如 <code className="bg-white/10 px-1 rounded text-gray-300">{`{% if ... %}`}</code>。
-                </p>
+              <div className="mt-8 pt-4 border-t border-dashed border-zinc-800">
+                <div className="flex items-center gap-2 mb-2">
+                   <div className="w-1 h-1 rounded-full bg-amber-500"></div>
+                   <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Quick Tips</h3>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                   <p className="text-xs text-zinc-500 leading-relaxed">
+                     Insert variables using <code className="bg-amber-500/10 text-amber-500 px-1 rounded mx-0.5">{`{{ name }}`}</code> syntax.
+                     Logic blocks like <code className="bg-amber-500/10 text-amber-500 px-1 rounded mx-0.5">{`{% if %}`}</code> are also supported.
+                   </p>
+                </div>
               </div>
             </TabsContent>
 
             <TabsContent value="preview" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0 space-y-4">
-              <h3 className="text-sm font-medium text-gray-300 mb-2">测试数据</h3>
+              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Test Data</h3>
               <div className="space-y-3">
                 {selectedTemplate.variables?.map((v) => (
                   <div key={v.name} className="space-y-1">
-                    <label className="text-xs text-gray-500 font-mono">{v.name}</label>
+                    <label className="text-xs text-zinc-500 font-mono flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></span>
+                       {v.name}
+                    </label>
                     <Input
                       type="text"
                       value={String(previewData[v.name] ?? '')}
                       onChange={(e) => setPreviewData({ ...previewData, [v.name]: e.target.value })}
-                      className="h-9 text-sm"
-                      placeholder={`${v.name} 的值`}
+                      className="h-9 text-sm bg-zinc-950/50 border-zinc-800 text-zinc-300 focus:border-amber-500/50"
+                      placeholder={`Value for ${v.name}`}
                     />
                   </div>
                 ))}
                 {(!selectedTemplate.variables || selectedTemplate.variables.length === 0) && (
-                  <p className="text-xs text-gray-500 italic text-center py-2">暂无变量可配置</p>
+                  <p className="text-xs text-zinc-600 italic text-center py-2">No variables to configure</p>
                 )}
               </div>
               
@@ -467,7 +570,7 @@ export default function TemplatesPage() {
                 onClick={handleRunPreview}
                 disabled={isPreviewLoading}
                 isLoading={isPreviewLoading}
-                className="w-full mt-4"
+                className="w-full mt-4 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40"
                 rightIcon={
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -475,7 +578,7 @@ export default function TemplatesPage() {
                   </svg>
                 }
               >
-                运行预览
+                Generate Preview
               </Button>
               
               {previewResult && (
@@ -484,8 +587,8 @@ export default function TemplatesPage() {
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-6 space-y-2"
                 >
-                  <h3 className="text-sm font-medium text-gray-300">渲染结果</h3>
-                  <div className="bg-black/30 rounded-xl p-4 text-sm text-gray-300 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto border border-white/10 custom-scrollbar">
+                  <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Output</h3>
+                  <div className="bg-zinc-950 rounded-xl p-4 text-sm text-zinc-300 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto border border-zinc-800 custom-scrollbar shadow-inner">
                     {previewResult}
                   </div>
                 </motion.div>
@@ -493,8 +596,11 @@ export default function TemplatesPage() {
             </TabsContent>
           </Tabs>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-8 text-center opacity-50">
-            <p>选择模板以配置变量和预览</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 p-8 text-center opacity-40">
+             <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 mb-4 transform rotate-12 flex items-center justify-center">
+                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+             </div>
+            <p className="text-sm">Configure variables & preview results here</p>
           </div>
         )}
       </Card>

@@ -24,6 +24,14 @@ export const JOB_STATUS_CONFIG: Record<string, { label: string; className: strin
 };
 
 export const JOB_TYPE_LABELS: Record<string, string> = {
+  // Creation Wizard Jobs
+  WIZARD_WORLD_BUILDING: '世界观构建',
+  WIZARD_CHARACTERS: '角色生成',
+  WIZARD_SEED: '种子生成',
+  WIZARD_ROUGH_OUTLINE: '粗纲生成',
+  WIZARD_DETAILED_OUTLINE: '细纲生成',
+  WIZARD_CHAPTER_OUTLINE: '章节大纲',
+  // Standard Jobs
   OUTLINE_GENERATE: '大纲生成',
   NOVEL_SEED: '小说引导生成',
   OUTLINE_ROUGH: '粗纲生成',

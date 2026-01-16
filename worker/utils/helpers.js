@@ -1,14 +1,37 @@
 import { createAdapter } from '../../src/server/adapters/providers.js';
 import { decryptApiKey } from '../../src/server/crypto.js';
 
+const log = (level, message, data = {}) => {
+  const timestamp = new Date().toISOString();
+  const dataStr = Object.keys(data).length > 0 ? ` | ${JSON.stringify(data)}` : '';
+  console.log(`[${timestamp}] [HELPER] [${level}] ${message}${dataStr}`);
+};
+
 export async function getProviderAndAdapter(prisma, userId, providerConfigId) {
+  log('DEBUG', 'getProviderAndAdapter called', { userId, providerConfigId });
+  
   const config = await prisma.providerConfig.findFirst({
     where: providerConfigId ? { id: providerConfigId, userId } : { userId },
     orderBy: { createdAt: 'desc' },
   });
-  if (!config) throw new Error('No provider configured');
+  
+  if (!config) {
+    log('ERROR', 'No provider configured for user', { userId, providerConfigId });
+    throw new Error('No provider configured');
+  }
+  
+  log('DEBUG', 'Provider config found', { 
+    configId: config.id, 
+    providerType: config.providerType,
+    hasBaseURL: !!config.baseURL 
+  });
+  
   const apiKey = decryptApiKey(config.apiKeyCiphertext);
+  log('DEBUG', 'API key decrypted', { keyLength: apiKey?.length || 0 });
+  
   const adapter = await createAdapter(config.providerType, apiKey, config.baseURL || undefined);
+  log('DEBUG', 'Adapter created successfully', { providerType: config.providerType });
+  
   return { config, adapter };
 }
 
