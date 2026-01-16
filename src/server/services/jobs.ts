@@ -1,6 +1,12 @@
 import { PgBoss } from 'pg-boss';
 import { prisma } from '../db';
 
+const log = (level: string, message: string, data: Record<string, unknown> = {}) => {
+  const timestamp = new Date().toISOString();
+  const dataStr = Object.keys(data).length > 0 ? ` | ${JSON.stringify(data)}` : '';
+  console.log(`[${timestamp}] [JOBS-SVC] [${level}] ${message}${dataStr}`);
+};
+
 export const JobType = {
   OUTLINE_GENERATE: 'OUTLINE_GENERATE',
   NOVEL_SEED: 'NOVEL_SEED',
@@ -49,25 +55,47 @@ let queuesCreated = false;
 
 export async function getBoss() {
   if (!boss) {
+    log('INFO', 'Initializing pg-boss instance', { DATABASE_URL: process.env.DATABASE_URL ? '[SET]' : '[NOT SET]' });
     boss = new PgBoss(process.env.DATABASE_URL!);
-    await boss.start();
+    boss.on('error', (error) => log('ERROR', 'PgBoss error event', { error: error.message }));
+    try {
+      await boss.start();
+      log('INFO', 'PgBoss started successfully');
+    } catch (startErr) {
+      log('ERROR', 'Failed to start PgBoss', { error: (startErr as Error).message });
+      throw startErr;
+    }
   }
   if (!queuesCreated) {
     const allQueues = Object.values(JobType);
+    log('INFO', 'Creating queues', { count: allQueues.length });
     for (const queue of allQueues) {
       await boss.createQueue(queue);
     }
     queuesCreated = true;
+    log('INFO', 'All queues created');
   }
   return boss;
 }
 
 export async function createJob(userId: string, type: string, input: any) {
+  log('INFO', 'createJob called', { userId, type });
+  
   const job = await prisma.job.create({
     data: { userId, type, status: JobStatus.QUEUED, input },
   });
+  log('INFO', 'Job created in DB', { jobId: job.id, type });
+  
   const pgBoss = await getBoss();
-  await pgBoss.send(type, { jobId: job.id, userId, input }, { retryLimit: 3, retryDelay: 60, retryBackoff: true });
+  
+  try {
+    const sendResult = await pgBoss.send(type, { jobId: job.id, userId, input }, { retryLimit: 3, retryDelay: 60, retryBackoff: true });
+    log('INFO', 'Job enqueued to pg-boss', { jobId: job.id, type, pgBossJobId: sendResult });
+  } catch (sendErr) {
+    log('ERROR', 'Failed to enqueue job to pg-boss', { jobId: job.id, type, error: (sendErr as Error).message });
+    throw sendErr;
+  }
+  
   return job;
 }
 
