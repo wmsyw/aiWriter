@@ -81,8 +81,8 @@ function ResetPasswordForm() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] animate-float"></div>
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-violet-600/20 rounded-full blur-[100px] animate-float" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px] animate-float"></div>
+        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-teal-600/20 rounded-full blur-[100px] animate-float" style={{ animationDelay: '2s' }}></div>
       </div>
 
       <div className="w-full max-w-md glass-card p-8 rounded-2xl animate-slide-up">
@@ -148,7 +148,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
       </div>
     }>
       <ResetPasswordForm />

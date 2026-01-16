@@ -14,14 +14,14 @@ export interface BadgeProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
 const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
   ({ className, variant = 'default', size = 'md', animated, children, ...props }, ref) => {
     const variants = {
-      default: 'border-transparent bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border-indigo-500/20',
-      success: 'border-transparent bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20',
-      warning: 'border-transparent bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20',
-      error: 'border-transparent bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border-rose-500/20',
-      info: 'border-transparent bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border-cyan-500/20',
-      queued: 'border-transparent bg-slate-500/10 text-slate-400 hover:bg-slate-500/20 border-slate-500/20',
-      running: 'border-transparent bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse',
-      outline: 'text-gray-300 border-white/20',
+      default: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      success: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      warning: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+      error: 'bg-red-500/15 text-red-400 border-red-500/30',
+      info: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+      queued: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
+      running: 'bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse',
+      outline: 'text-zinc-300 border-zinc-700 bg-transparent',
     };
 
     const sizes = {
@@ -30,13 +30,11 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
       lg: 'text-sm px-3 py-1 h-7',
     };
 
-    const Comp = animated ? motion.div : 'div';
-
     return (
       <motion.div
         ref={ref}
         className={cn(
-          'inline-flex items-center rounded-full border font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+          'inline-flex items-center rounded-full border font-medium transition-colors',
           variants[variant],
           sizes[size],
           className
@@ -50,8 +48,8 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
       >
         {variant === 'running' && (
           <span className="mr-1.5 flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
           </span>
         )}
         {children}

@@ -39,13 +39,13 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[var(--color-dark-bg)]">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] animate-float"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] animate-float-delayed"></div>
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px] animate-float"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-teal-600/10 rounded-full blur-[120px] animate-float-delayed"></div>
       </div>
 
       <div className="w-full max-w-md glass-card p-10 rounded-2xl animate-slide-up border border-white/10 shadow-2xl">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-emerald-500 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
@@ -70,7 +70,7 @@ export default function LoginPage() {
           <div className="space-y-2">
             <div className="flex justify-between items-center ml-1">
               <label className="text-sm font-medium text-gray-300">密码</label>
-              <Link href="/reset-password" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+              <Link href="/reset-password" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
                 忘记密码？
               </Link>
             </div>
@@ -96,7 +96,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl btn-primary font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all"
+            className="w-full py-3.5 rounded-xl btn-primary font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -111,7 +111,7 @@ export default function LoginPage() {
 
         <div className="mt-8 text-center text-sm text-gray-400">
           还没有账号？{' '}
-          <Link href="/setup" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors hover:underline underline-offset-4">
+          <Link href="/setup" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors hover:underline underline-offset-4">
             注册账号
           </Link>
         </div>

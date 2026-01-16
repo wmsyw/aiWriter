@@ -331,7 +331,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
   if (!novel) {
     return (
-      <div className="min-h-screen flex items-center justify-center flex-col gap-4 bg-gradient-to-br from-[#0f172a] to-[#1e1b4b]">
+      <div className="min-h-screen flex items-center justify-center flex-col gap-4 bg-gradient-to-br from-zinc-950 to-zinc-900">
         <h1 className="text-3xl font-bold text-white tracking-tight">未找到小说</h1>
         <p className="text-gray-400">该小说可能已被删除或不存在。</p>
         <Link href="/novels">
@@ -385,7 +385,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         </Link>
 
         <div className="flex items-start justify-between bg-white/5 p-6 rounded-3xl border border-white/5 backdrop-blur-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
           
           <div className="flex-1 mr-8 relative z-10">
             <div className="flex items-center gap-3 mb-2">
@@ -405,13 +405,13 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 onChange={(e) => setEditedTitle(e.target.value)}
                 onBlur={handleUpdateTitle}
                 onKeyDown={(e) => e.key === 'Enter' && handleUpdateTitle()}
-                className="text-4xl md:text-5xl font-bold bg-white/10 border-b-2 border-indigo-500 rounded-lg px-3 py-1 w-full outline-none text-white placeholder-gray-500 focus:bg-white/15 transition-all"
+                className="text-4xl md:text-5xl font-bold bg-white/10 border-b-2 border-emerald-500 rounded-lg px-3 py-1 w-full outline-none text-white placeholder-gray-500 focus:bg-white/15 transition-all"
                 autoFocus
               />
             ) : (
               <h1 
                 onClick={() => setIsEditingTitle(true)}
-                className="text-4xl md:text-5xl font-bold text-white cursor-pointer hover:text-indigo-200 transition-colors group flex items-center gap-3"
+                className="text-4xl md:text-5xl font-bold text-white cursor-pointer hover:text-emerald-200 transition-colors group flex items-center gap-3"
                 title="点击修改标题"
               >
                 {novel.title}
@@ -459,11 +459,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 variants={fadeIn}
                 className="absolute right-0 mt-2 w-48 glass-card rounded-xl overflow-hidden z-20 border border-white/10 shadow-xl shadow-black/50"
               >
-                <button className="w-full text-left px-4 py-3 hover:bg-indigo-500/20 text-sm text-gray-300 hover:text-white transition-colors flex items-center gap-2">
+                <button className="w-full text-left px-4 py-3 hover:bg-emerald-500/20 text-sm text-gray-300 hover:text-white transition-colors flex items-center gap-2">
                   <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded">TXT</span>
                   纯文本格式
                 </button>
-                <button className="w-full text-left px-4 py-3 hover:bg-indigo-500/20 text-sm text-gray-300 hover:text-white transition-colors flex items-center gap-2">
+                <button className="w-full text-left px-4 py-3 hover:bg-emerald-500/20 text-sm text-gray-300 hover:text-white transition-colors flex items-center gap-2">
                   <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded">MD</span>
                   Markdown格式
                 </button>
@@ -509,7 +509,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               {novel?.type === 'long' && (
                 <div className="max-w-5xl mx-auto">
                   <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent" />
+                    <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
                     
                     <div className="flex items-center justify-between">
                       <div>
@@ -532,14 +532,14 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
                           }
-                          className="shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40"
+                          className="shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40"
                         >
                           AI 智能生成
                         </Button>
                       </div>
                     </div>
                     <textarea
-                      className="glass-input w-full px-6 py-5 rounded-2xl h-[500px] resize-none text-gray-200 leading-relaxed font-sans text-lg focus:ring-2 focus:ring-indigo-500/30 transition-all bg-black/20"
+                      className="glass-input w-full px-6 py-5 rounded-2xl h-[500px] resize-none text-gray-200 leading-relaxed font-sans text-lg focus:ring-2 focus:ring-emerald-500/30 transition-all bg-black/20"
                       placeholder="在这里编写你的小说大纲...&#10;&#10;建议包含：&#10;- 故事主线&#10;- 主要角色&#10;- 章节规划&#10;- 关键情节点"
                       value={editedOutline}
                       onChange={(e) => setEditedOutline(e.target.value)}
@@ -572,7 +572,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                     }
-                    className={blockingInfo.hasBlocking ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed border border-white/5' : 'shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40'}
+                    className={blockingInfo.hasBlocking ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed border border-white/5' : 'shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40'}
                   >
                     添加新章节
                   </Button>
@@ -589,7 +589,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       <motion.div variants={staggerItem} key={chapter.id}>
                         <Card 
                           variant="interactive"
-                          className="p-5 flex flex-col md:flex-row md:items-center gap-6 group hover:border-indigo-500/30 transition-all duration-300 hover:bg-white/[0.07]"
+                          className="p-5 flex flex-col md:flex-row md:items-center gap-6 group hover:border-emerald-500/30 transition-all duration-300 hover:bg-white/[0.07]"
                         >
                           <div className="flex items-center gap-4 flex-1 min-w-0">
                             <div className="text-gray-600 cursor-move p-2 hover:bg-white/5 rounded-lg transition-colors hidden md:block">
@@ -601,7 +601,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
                                 <span className="text-xs font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded">#{chapter.order + 1}</span>
-                                <h3 className="text-white font-bold truncate text-lg group-hover:text-indigo-400 transition-colors">
+                                <h3 className="text-white font-bold truncate text-lg group-hover:text-emerald-400 transition-colors">
                                   {chapter.title}
                                 </h3>
                               </div>
@@ -630,7 +630,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                               <span className={`font-medium ${
                                 chapter.generationStage === 'approved' ? 'text-emerald-400' : 
                                 chapter.generationStage === 'humanized' ? 'text-purple-400' :
-                                'text-indigo-400'
+                                'text-emerald-400'
                               }`}>
                                 {WORKFLOW_STEPS.find(s => s.id === chapter.generationStage)?.label || '草稿'}
                               </span>
@@ -649,7 +649,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                       isCompleted 
                                         ? isLastStep
                                           ? 'bg-emerald-500'
-                                          : 'bg-indigo-500'
+                                          : 'bg-emerald-500'
                                         : 'bg-transparent'
                                     } ${isCurrent && !isCompleted ? 'animate-pulse' : ''} border-r border-black/20 last:border-0`}
                                     title={step.label}
@@ -675,6 +675,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                               onClick={() => handleDeleteChapter(chapter.id)}
                               className="p-2 hover:bg-red-500/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
                               title="删除章节"
+                              aria-label="删除章节"
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -686,8 +687,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     ))}
                   </motion.div>
                 ) : (
-                  <Card className="text-center py-20 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center gap-4 group hover:border-indigo-500/20 hover:bg-white/[0.04] transition-all">
-                    <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Card className="text-center py-20 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center gap-4 group hover:border-emerald-500/20 hover:bg-white/[0.04] transition-all">
+                    <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <span className="text-4xl">📝</span>
                     </div>
                     <div>
@@ -702,7 +703,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                       }
-                      className="shadow-lg shadow-indigo-500/20"
+                      className="shadow-lg shadow-emerald-500/20"
                     >
                       创建你的第一章
                     </Button>
@@ -726,10 +727,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </Link>
                 </div>
                 <Card className="p-12 rounded-3xl text-center relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   
-                  <div className="w-20 h-20 mx-auto bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 shadow-inner shadow-indigo-500/20 group-hover:scale-110 transition-transform duration-300">
-                    <svg className="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-20 h-20 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 shadow-inner shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-300">
+                    <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                   </div>
@@ -784,7 +785,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       </div>
                     )}
                     <div className="bg-black/20 rounded-2xl p-4 border border-white/5 md:col-span-1 col-span-2">
-                      <div className="text-3xl font-bold text-indigo-400 mb-1">
+                      <div className="text-3xl font-bold text-emerald-400 mb-1">
                          --%
                       </div>
                       <div className="text-xs text-gray-500 uppercase tracking-wider">解决率</div>
@@ -817,7 +818,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
                 
                 <Card className={`p-12 rounded-3xl text-center relative overflow-hidden group border ${blockingInfo.hasBlocking ? 'border-red-500/30' : 'border-white/5'}`}>
-                  <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-indigo-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                  <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-emerald-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
                   
                   <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-6 shadow-inner transition-transform duration-300 group-hover:scale-110 ${blockingInfo.hasBlocking ? 'bg-red-500/10 shadow-red-500/20' : 'bg-purple-500/10 shadow-purple-500/20'}`}>
                     <span className="text-4xl">👥</span>
@@ -892,7 +893,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   <PlotBranchingView branches={plotBranches} />
                 ) : (
                   <Card className="p-12 rounded-3xl text-center">
-                    <div className="w-20 h-20 mx-auto bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6">
+                    <div className="w-20 h-20 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6">
                       <span className="text-4xl">🔮</span>
                     </div>
                     <h3 className="text-xl font-bold text-white mb-2">暂无推演数据</h3>
@@ -909,7 +910,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 <Card className="p-8 rounded-3xl space-y-8">
                   <div>
                     <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 bg-indigo-500 rounded-full"/>
+                      <span className="w-1 h-6 bg-emerald-500 rounded-full"/>
                       常规设置
                     </h3>
                     <div className="space-y-6">
@@ -919,13 +920,13 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           type="text" 
                           value={editedTitle}
                           onChange={(e) => setEditedTitle(e.target.value)}
-                          className="glass-input w-full px-4 py-3 rounded-xl focus:border-indigo-500/50 transition-colors"
+                          className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
                         />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-400">简介</label>
                         <textarea 
-                          className="glass-input w-full px-4 py-3 rounded-xl h-32 resize-none focus:border-indigo-500/50 transition-colors"
+                          className="glass-input w-full px-4 py-3 rounded-xl h-32 resize-none focus:border-emerald-500/50 transition-colors"
                           placeholder="添加简介..."
                           value={editedDescription}
                           onChange={(e) => setEditedDescription(e.target.value)}

@@ -37,9 +37,9 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'relative inline-flex items-center justify-center whitespace-nowrap px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-      variant === 'pills' && 'rounded-lg text-gray-400 data-[state=active]:bg-indigo-500 data-[state=active]:text-white hover:text-white',
-      variant === 'boxed' && 'border-b-2 border-transparent text-gray-400 data-[state=active]:border-indigo-500 data-[state=active]:text-indigo-400 hover:text-white',
-      variant === 'underline' && 'pb-3 text-gray-400 hover:text-white data-[state=active]:text-indigo-400',
+      variant === 'pills' && 'rounded-lg text-gray-400 data-[state=active]:bg-emerald-500 data-[state=active]:text-white hover:text-white',
+      variant === 'boxed' && 'border-b-2 border-transparent text-gray-400 data-[state=active]:border-emerald-500 data-[state=active]:text-emerald-400 hover:text-white',
+      variant === 'underline' && 'pb-3 text-gray-400 hover:text-white data-[state=active]:text-emerald-400',
       className
     )}
     {...props}
@@ -47,7 +47,7 @@ const TabsTrigger = React.forwardRef<
     {children}
     {variant === 'underline' && (
       <motion.div
-        className="absolute bottom-0 left-0 right-0 h-[2px] bg-indigo-500 scale-x-0 transition-transform origin-left data-[state=active]:scale-x-100"
+        className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-500 scale-x-0 transition-transform origin-left data-[state=active]:scale-x-100"
         layoutId="activeTab"
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       />

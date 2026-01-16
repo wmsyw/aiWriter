@@ -162,7 +162,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
               setEditingHook(null); 
               setIsModalOpen(true); 
             }}
-            className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-0.5"
+            className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all transform hover:-translate-y-0.5"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -201,9 +201,9 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
           <StatCard 
             label="解决率" 
             value={`${(report.resolutionRate * 100).toFixed(0)}%`} 
-            color="text-indigo-400" 
-            bg="bg-indigo-500/10"
-            border="border-indigo-500/20"
+            color="text-emerald-400" 
+            bg="bg-emerald-500/10"
+            border="border-emerald-500/20"
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -251,7 +251,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -261,7 +261,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
         </div>
         
         <div className="relative w-full md:w-72 group">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-emerald-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -269,7 +269,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
             placeholder="搜索钩子描述、类型..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:border-indigo-500/50 transition-colors"
+            className="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:border-emerald-500/50 transition-colors"
           />
         </div>
       </div>
@@ -389,6 +389,7 @@ function HookCard({
               onClick={onDelete}
               className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
               title="删除钩子"
+              aria-label="删除钩子"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -403,7 +404,7 @@ function HookCard({
           
           <div className="flex flex-wrap gap-2">
             {hook.relatedCharacters.map((char, i) => (
-              <span key={i} className="text-xs bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-1 rounded-md flex items-center gap-1">
+              <span key={i} className="text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-1 rounded-md flex items-center gap-1">
                 <span>👤</span> {char}
               </span>
             ))}
@@ -514,7 +515,7 @@ function CreateHookModal({
                   onClick={() => setType(t.id)}
                   className={`p-2 rounded-xl text-xs flex items-center gap-2 border transition-all ${
                     type === t.id 
-                      ? 'bg-indigo-500/20 border-indigo-500 text-white' 
+                      ? 'bg-emerald-500/20 border-emerald-500 text-white' 
                       : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
                   }`}
                 >
@@ -551,7 +552,7 @@ function CreateHookModal({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="glass-input w-full px-4 py-3 rounded-xl min-h-[100px] resize-none focus:border-indigo-500/50 transition-colors"
+            className="glass-input w-full px-4 py-3 rounded-xl min-h-[100px] resize-none focus:border-emerald-500/50 transition-colors"
             placeholder="描述这个钩子的内容..."
             required
           />
@@ -565,7 +566,7 @@ function CreateHookModal({
               min="1"
               value={plantedInChapter}
               onChange={(e) => setPlantedInChapter(parseInt(e.target.value) || 1)}
-              className="glass-input w-full px-4 py-3 rounded-xl focus:border-indigo-500/50 transition-colors"
+              className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
             />
           </div>
           
@@ -575,7 +576,7 @@ function CreateHookModal({
               type="text"
               value={plantedContext}
               onChange={(e) => setPlantedContext(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl focus:border-indigo-500/50 transition-colors"
+              className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
               placeholder="埋设时的场景或对话..."
             />
           </div>
@@ -592,7 +593,7 @@ function CreateHookModal({
           <button
             type="submit"
             disabled={isSaving}
-            className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-indigo-500/20"
+            className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-emerald-500/20"
           >
             {isSaving ? '保存中...' : '创建钩子'}
           </button>

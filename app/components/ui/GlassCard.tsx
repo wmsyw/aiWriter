@@ -27,8 +27,8 @@ const PADDING_CLASSES = {
 
 const VARIANT_CLASSES: Record<GlassCardVariant, string> = {
   default: 'glass-card',
-  interactive: 'glass-card hover:border-indigo-500/30 cursor-pointer',
-  dashed: 'glass-card border-dashed border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5',
+  interactive: 'glass-card hover:border-emerald-500/30 cursor-pointer',
+  dashed: 'glass-card border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5',
 };
 
 const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(

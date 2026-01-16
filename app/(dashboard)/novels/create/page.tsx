@@ -61,6 +61,29 @@ interface OutlineNode {
   isGenerating?: boolean;
 }
 
+interface SeedOutputWorld {
+  world_setting?: string;
+  time_period?: string;
+  location?: string;
+  atmosphere?: string;
+  rules?: string;
+}
+
+interface SeedOutput {
+  synopsis?: string;
+  protagonist?: string;
+  golden_finger?: string;
+  world?: SeedOutputWorld;
+}
+
+interface RoughOutlineOutput {
+  blocks?: OutlineNode[];
+}
+
+interface DetailedOutlineOutput {
+  children?: OutlineNode[];
+}
+
 const OutlineTreeNode = ({ 
   node, 
   onToggle, 
@@ -79,7 +102,7 @@ const OutlineTreeNode = ({
   return (
     <div className="mb-2 transition-all duration-300">
       <div 
-        className={`glass-panel p-4 rounded-xl flex items-start gap-3 hover:bg-white/5 transition-colors ${node.level === 'rough' ? 'border-indigo-500/30' : ''}`}
+        className={`glass-panel p-4 rounded-xl flex items-start gap-3 hover:bg-white/5 transition-colors ${node.level === 'rough' ? 'border-emerald-500/30' : ''}`}
         style={{ marginLeft: padding }}
       >
         <button 
@@ -94,7 +117,7 @@ const OutlineTreeNode = ({
         <div className="flex-1 space-y-2 min-w-0">
           <div className="flex items-center justify-between gap-4">
             <h4 className="font-bold text-gray-200 truncate flex-1">
-              <span className="text-indigo-400 mr-2">{node.id}</span>
+              <span className="text-emerald-400 mr-2">{node.id}</span>
               {node.title}
             </h4>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -103,7 +126,7 @@ const OutlineTreeNode = ({
                 <button
                   onClick={(e) => { e.stopPropagation(); onGenerateNext(node); }}
                   disabled={node.isGenerating}
-                  className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-2 py-1 rounded transition-colors border border-indigo-500/30 disabled:opacity-50"
+                  className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-1 rounded transition-colors border border-emerald-500/30 disabled:opacity-50"
                 >
                   {node.isGenerating ? '生成中...' : `生成${nextLevelName}`}
                 </button>
@@ -149,10 +172,10 @@ function NovelWizardContent() {
   const [novelId, setNovelId] = useState<string | null>(searchParams.get('novelId'));
   const [isSaving, setIsSaving] = useState(false);
   const [jobStatus, setJobStatus] = useState<string>('');
-  const [seedOutput, setSeedOutput] = useState<any>(null);
-  const [roughOutline, setRoughOutline] = useState<any>(null);
-  const [detailedOutline, setDetailedOutline] = useState<any>(null);
-  const [chapterOutline, setChapterOutline] = useState<any>(null);
+  const [seedOutput, setSeedOutput] = useState<SeedOutput | null>(null);
+  const [roughOutline, setRoughOutline] = useState<RoughOutlineOutput | null>(null);
+  const [detailedOutline, setDetailedOutline] = useState<DetailedOutlineOutput | null>(null);
+  const [chapterOutline, setChapterOutline] = useState<DetailedOutlineOutput | null>(null);
   const [generatedOutline, setGeneratedOutline] = useState('');
   const [worldBuildingLoading, setWorldBuildingLoading] = useState(false);
   const [characterLoading, setCharacterLoading] = useState(false);
@@ -260,7 +283,7 @@ function NovelWizardContent() {
 
   const keywordsDisplay = useMemo(() => formData.keywords.join('、'), [formData.keywords]);
 
-  const setField = (key: string, value: any) => {
+  const setField = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
@@ -359,7 +382,7 @@ function NovelWizardContent() {
 
   const handleSaveBasicInfo = () => saveNovel(true);
 
-  const pollJob = async (jobId: string, onSuccess: (output: any) => void) => {
+  const pollJob = async (jobId: string, onSuccess: (output: unknown) => void) => {
     let attempts = 0;
     const poll = async () => {
       attempts += 1;
@@ -689,7 +712,7 @@ function NovelWizardContent() {
       {/* Header */}
       <div className="flex items-end justify-between border-b border-white/5 pb-6">
         <div>
-          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-500">
             {novelId ? '完善你的故事' : '开启新篇章'}
           </h1>
           <p className="text-gray-400 mt-2">AI 辅助创作向导，从灵感到大纲只需几步</p>
@@ -707,7 +730,7 @@ function NovelWizardContent() {
       <div className="relative">
         <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2 rounded-full" />
         <motion.div 
-          className="absolute top-1/2 left-0 h-0.5 bg-indigo-500 -translate-y-1/2 rounded-full"
+          className="absolute top-1/2 left-0 h-0.5 bg-emerald-500 -translate-y-1/2 rounded-full"
           initial={{ width: "0%" }}
           animate={{ width: `${(step / (stepLabels.length - 1)) * 100}%` }}
           transition={{ duration: 0.5, ease: "easeInOut" }}
@@ -721,8 +744,8 @@ function NovelWizardContent() {
                 <motion.div 
                   className={`
                     w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2
-                    ${isActive ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' :
-                      isCompleted ? 'bg-indigo-900/50 border-indigo-500/50 text-indigo-200' :
+                    ${isActive ? 'bg-emerald-600 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]' :
+                      isCompleted ? 'bg-emerald-900/50 border-emerald-500/50 text-emerald-200' :
                       'bg-[#0f1117] border-white/10 text-gray-600'}
                   `}
                   whileHover={{ scale: 1.1 }}
@@ -732,7 +755,7 @@ function NovelWizardContent() {
                 >
                   {isCompleted ? '✓' : index + 1}
                 </motion.div>
-                <span className={`text-xs font-medium transition-colors duration-300 ${isActive ? 'text-white' : isCompleted ? 'text-indigo-200' : 'text-gray-600'}`}>
+                <span className={`text-xs font-medium transition-colors duration-300 ${isActive ? 'text-white' : isCompleted ? 'text-emerald-200' : 'text-gray-600'}`}>
                   {label}
                 </span>
               </div>
@@ -756,7 +779,7 @@ function NovelWizardContent() {
                 <div className="lg:col-span-8 space-y-8">
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
+                      <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
                       基础信息
                     </h3>
                     <div className="space-y-4">
@@ -794,10 +817,7 @@ function NovelWizardContent() {
                         <Select
                           value={formData.genre}
                           onChange={val => setField('genre', val)}
-                          options={[
-                            { value: '', label: '选择频道' },
-                            ...GENRES.map(g => ({ value: g, label: g }))
-                          ]}
+                          options={GENRES.map(g => ({ value: g, label: g }))}
                           placeholder="选择频道"
                         />
                       </div>
@@ -832,7 +852,7 @@ function NovelWizardContent() {
                         {keywordsDisplay && (
                           <div className="flex flex-wrap gap-2 mt-3">
                             {formData.keywords.map(k => (
-                              <span key={k} className="px-2 py-1 rounded-md bg-indigo-500/20 text-indigo-300 text-xs border border-indigo-500/30">
+                              <span key={k} className="px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-300 text-xs border border-emerald-500/30">
                                 #{k}
                               </span>
                             ))}
@@ -887,7 +907,7 @@ function NovelWizardContent() {
                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">篇幅设定</h4>
                     
                     <div className="flex bg-black/20 p-1 rounded-lg gap-1">
-                      {['short', 'long'].map(type => (
+                      {(['short', 'long'] as const).map(type => (
                         <Button
                           key={type}
                           type="button"
@@ -907,7 +927,7 @@ function NovelWizardContent() {
                         <Input
                           type="number"
                           min={1}
-                          className="mt-1 text-right font-mono text-indigo-300"
+                          className="mt-1 text-right font-mono text-emerald-300"
                           value={formData.targetWords}
                           onChange={e => setField('targetWords', Number(e.target.value))}
                         />
@@ -917,7 +937,7 @@ function NovelWizardContent() {
                         <Input
                           type="number"
                           min={1}
-                          className="mt-1 text-right font-mono text-indigo-300"
+                          className="mt-1 text-right font-mono text-emerald-300"
                           value={formData.chapterCount}
                           onChange={e => setField('chapterCount', Number(e.target.value))}
                         />
@@ -942,12 +962,12 @@ function NovelWizardContent() {
                         <button
                           key={preset.name}
                           onClick={() => applyPreset(preset)}
-                          className="group relative overflow-hidden glass-panel p-4 rounded-xl text-left hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1"
+                          className="group relative overflow-hidden glass-panel p-4 rounded-xl text-left hover:border-emerald-500/50 transition-all duration-300 hover:-translate-y-1"
                         >
-                          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 to-purple-500/0 group-hover:from-indigo-500/10 group-hover:to-purple-500/10 transition-all duration-500"/>
+                          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 to-purple-500/0 group-hover:from-emerald-500/10 group-hover:to-purple-500/10 transition-all duration-500"/>
                           <div className="relative z-10">
                             <div className="flex justify-between items-center mb-1">
-                              <span className="text-white font-medium group-hover:text-indigo-300 transition-colors">{preset.name}</span>
+                              <span className="text-white font-medium group-hover:text-emerald-300 transition-colors">{preset.name}</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-gray-400">
                                 {preset.genre}
                               </span>
@@ -964,7 +984,7 @@ function NovelWizardContent() {
               <div className="flex justify-end pt-6 border-t border-white/5">
                 <Button
                   variant="primary"
-                  className="px-8 py-3 text-lg shadow-indigo-500/20"
+                  className="px-8 py-3 text-lg shadow-emerald-500/20"
                   disabled={isSaving}
                   isLoading={isSaving}
                   onClick={handleSaveBasicInfo}
@@ -1010,7 +1030,7 @@ function NovelWizardContent() {
             </div>
 
             {jobStatus && (
-              <div className="flex items-center justify-center p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-300 animate-pulse">
+              <div className="flex items-center justify-center p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-300 animate-pulse">
                 {jobStatus}
               </div>
             )}
@@ -1198,7 +1218,7 @@ function NovelWizardContent() {
               <Button variant="secondary" onClick={() => persistWizardStep(4, 'completed')}>稍后再说</Button>
               <Button
                 variant="primary"
-                className="px-8 py-3 shadow-lg shadow-indigo-500/20"
+                className="px-8 py-3 shadow-lg shadow-emerald-500/20"
                 disabled={isSaving}
                 isLoading={isSaving}
                 onClick={applyOutline}
@@ -1245,7 +1265,7 @@ function NovelWizardContent() {
 
 export default function NovelWizardPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>}>
       <NovelWizardContent />
     </Suspense>
   );

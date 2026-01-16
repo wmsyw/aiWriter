@@ -174,7 +174,7 @@ export default function JobsPage() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50"
+              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
             >
               <option value="all" className="bg-gray-900">全部状态</option>
               <option value="queued" className="bg-gray-900">排队中</option>
@@ -187,7 +187,7 @@ export default function JobsPage() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50"
+              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
             >
               <option value="all" className="bg-gray-900">全部类型</option>
               {uniqueTypes.map(type => (
@@ -222,11 +222,11 @@ export default function JobsPage() {
                   <Card 
                     variant="interactive"
                     onClick={() => openDrawer(job)}
-                    className="cursor-pointer group hover:border-indigo-500/30 transition-colors"
+                    className="cursor-pointer group hover:border-emerald-500/30 transition-colors"
                   >
                     <div className="p-4 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center font-mono text-xs text-gray-400 group-hover:text-indigo-300 transition-colors">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center font-mono text-xs text-gray-400 group-hover:text-emerald-300 transition-colors">
                           {job.id.substring(0, 4)}
                         </div>
                         <div className="min-w-0 flex-1">

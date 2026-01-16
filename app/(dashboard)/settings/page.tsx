@@ -346,7 +346,7 @@ export default function SettingsPage() {
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative w-12 h-6 rounded-full transition-colors ${checked ? 'bg-indigo-500' : 'bg-white/10'}`}
+      className={`relative w-12 h-6 rounded-full transition-colors ${checked ? 'bg-emerald-500' : 'bg-white/10'}`}
       whileTap={{ scale: 0.95 }}
     >
       <motion.span
@@ -411,8 +411,8 @@ export default function SettingsPage() {
             </div>
           ) : providers.length === 0 ? (
             <Card className="p-12 text-center border-dashed border-white/20 bg-white/5">
-              <div className="w-16 h-16 mx-auto bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6">
-                <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-16 h-16 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
@@ -708,7 +708,7 @@ export default function SettingsPage() {
                         />
                         
                         {preferences.webSearchProvider === 'model' ? (
-                          <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm">
+                          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
                             使用 AI 模型自带的联网搜索功能，无需额外配置 API 密钥
                           </div>
                         ) : (
@@ -780,7 +780,7 @@ export default function SettingsPage() {
                     onClick={() => handleProviderTypeChange(type.value)}
                     className={`px-4 py-3 rounded-xl border transition-all text-sm font-medium ${
                       formData.providerType === type.value
-                        ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400'
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
                         : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
                     }`}
                   >

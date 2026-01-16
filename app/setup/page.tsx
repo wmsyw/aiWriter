@@ -52,7 +52,7 @@ export default function SetupPage() {
   if (needsSetup === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-dark-bg)]">
-        <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -60,8 +60,8 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[var(--color-dark-bg)]">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] animate-float"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] animate-float-delayed"></div>
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px] animate-float"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-teal-600/10 rounded-full blur-[120px] animate-float-delayed"></div>
       </div>
 
       <div className="w-full max-w-md glass-card p-10 rounded-2xl animate-slide-up border border-white/10 shadow-2xl">
@@ -126,7 +126,7 @@ export default function SetupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl btn-primary font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all bg-gradient-to-r from-cyan-500 to-blue-500"
+            className="w-full py-3.5 rounded-xl btn-primary font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all bg-gradient-to-r from-emerald-500 to-emerald-600"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">

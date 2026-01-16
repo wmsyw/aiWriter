@@ -185,9 +185,9 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
           <StatCard 
             label="新角色" 
             value={summary.byType.character} 
-            color="text-indigo-400" 
-            bg="bg-indigo-500/10"
-            border="border-indigo-500/20"
+            color="text-emerald-400" 
+            bg="bg-emerald-500/10"
+            border="border-emerald-500/20"
           />
           <StatCard 
             label="新组织" 
@@ -214,7 +214,7 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -224,7 +224,7 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
         </div>
         
         <div className="relative w-full md:w-72 group">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-emerald-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -232,7 +232,7 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
             placeholder="搜索实体名称..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:border-indigo-500/50 transition-colors"
+            className="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:border-emerald-500/50 transition-colors"
           />
         </div>
       </div>
@@ -321,7 +321,7 @@ function EntityCard({ entity, onClick }: { entity: PendingEntity; onClick: () =>
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className={`p-2 rounded-lg transition-colors ${entity.entityType === 'character' ? 'bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20' : 'bg-purple-500/10 text-purple-400 group-hover:bg-purple-500/20'}`}>
+          <span className={`p-2 rounded-lg transition-colors ${entity.entityType === 'character' ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20' : 'bg-purple-500/10 text-purple-400 group-hover:bg-purple-500/20'}`}>
             {entity.entityType === 'character' ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -339,7 +339,7 @@ function EntityCard({ entity, onClick }: { entity: PendingEntity; onClick: () =>
         </span>
       </div>
 
-      <h3 className="text-lg font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors line-clamp-1">
+      <h3 className="text-lg font-bold text-white mb-2 group-hover:text-emerald-300 transition-colors line-clamp-1">
         {entity.name}
       </h3>
       
@@ -386,13 +386,13 @@ function EntityDetailModal({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-3">
             <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"/>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>
               提取信息
             </h4>
             <div className="glass-input p-5 rounded-2xl space-y-4">
               {Object.entries(extractedData).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-xs text-indigo-400 uppercase font-medium mb-1 block">{key}</span>
+                  <span className="text-xs text-emerald-400 uppercase font-medium mb-1 block">{key}</span>
                   <p className="text-sm text-white leading-relaxed">{String(value) || '-'}</p>
                 </div>
               ))}
@@ -435,7 +435,7 @@ function EntityDetailModal({
           <div className="pt-4 border-t border-white/10">
             {isLoadingSuggestions ? (
               <div className="text-center py-8 text-gray-400 flex flex-col items-center">
-                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
                 正在查找现有素材匹配...
               </div>
             ) : suggestions.length > 0 ? (
@@ -447,12 +447,12 @@ function EntityDetailModal({
                   {suggestions.map((suggestion) => (
                     <div 
                       key={suggestion.matchedMaterialId}
-                      className="glass-input p-4 rounded-xl flex items-center justify-between group hover:bg-white/10 transition-colors border border-white/5 hover:border-indigo-500/30"
+                      className="glass-input p-4 rounded-xl flex items-center justify-between group hover:bg-white/10 transition-colors border border-white/5 hover:border-emerald-500/30"
                     >
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-white font-bold">{suggestion.matchedMaterialName}</p>
-                          <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">匹配度 {Math.round(suggestion.matchScore * 100)}%</span>
+                          <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">匹配度 {Math.round(suggestion.matchScore * 100)}%</span>
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{suggestion.matchReason}</p>
                       </div>
@@ -514,7 +514,7 @@ function EntityDetailModal({
                 </button>
                 <button
                   onClick={() => onApprove(true)}
-                  className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transform hover:-translate-y-0.5 transition-all"
+                  className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5 transition-all"
                 >
                   批准并创建素材
                 </button>

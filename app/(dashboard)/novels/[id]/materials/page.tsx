@@ -122,7 +122,7 @@ export default function MaterialsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -261,11 +261,11 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
       onClick={onClick}
       className="relative overflow-hidden"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
       
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-4">
-          <div className="p-2.5 rounded-xl bg-white/5 text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500/10 transition-all duration-300">
+          <div className="p-2.5 rounded-xl bg-white/5 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/10 transition-all duration-300">
             {getIcon(material.type)}
           </div>
           <span className="text-xs font-medium text-gray-500 bg-white/5 px-2 py-1 rounded-lg">
@@ -273,7 +273,7 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
           </span>
         </div>
         
-        <h3 className="text-lg font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">
+        <h3 className="text-lg font-bold text-white mb-2 group-hover:text-emerald-400 transition-colors">
           {material.name}
         </h3>
         
@@ -398,7 +398,7 @@ function MaterialModal({
             {Object.entries(attributes).map(([key, value]) => (
               <div key={key} className="glass-input p-3 rounded-xl relative group">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-indigo-400 uppercase">{key}</span>
+                  <span className="text-xs font-semibold text-emerald-400 uppercase">{key}</span>
                   <button 
                     type="button"
                     onClick={() => removeAttribute(key)}

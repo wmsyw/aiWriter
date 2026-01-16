@@ -51,7 +51,7 @@ export default function CharacterGraphPage() {
             {
               selector: 'node',
               style: {
-                'background-color': '#6366f1',
+                'background-color': '#10b981',
                 'label': 'data(label)',
                 'color': '#fff',
                 'text-valign': 'center',
@@ -154,7 +154,7 @@ export default function CharacterGraphPage() {
                 <h3 className="text-sm font-medium mb-1">性格特征</h3>
                 <div className="flex flex-wrap gap-1">
                   {selectedNode.traits.map((trait, i) => (
-                    <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded">
+                    <span key={i} className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded">
                       {trait}
                     </span>
                   ))}

@@ -69,17 +69,17 @@ export default function NovelsPage() {
               >
                 <Card
                   variant="interactive"
-                  className="h-full relative overflow-hidden hover:border-indigo-500/50 group"
+                  className="h-full relative overflow-hidden hover:border-emerald-500/50 group"
                 >
                   <CardContent className="h-full p-6 flex flex-col justify-between">
                     <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>
                     </div>
                     
                     <div>
-                      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors line-clamp-1">
+                      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-emerald-400 transition-colors line-clamp-1">
                         {novel.title}
                       </h3>
                       <div className="flex items-center gap-4 text-sm text-gray-400">
@@ -96,8 +96,8 @@ export default function NovelsPage() {
                       <span className="text-xs text-gray-500">
                         更新于 {new Date(novel.updatedAt).toLocaleDateString()}
                       </span>
-                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
-                        <svg className="w-4 h-4 text-gray-400 group-hover:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                        <svg className="w-4 h-4 text-gray-400 group-hover:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
                       </div>

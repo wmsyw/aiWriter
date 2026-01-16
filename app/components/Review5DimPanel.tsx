@@ -176,8 +176,8 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
     return (
       <div className="glass-card p-12 rounded-3xl text-center flex flex-col items-center justify-center min-h-[400px]">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mb-6" />
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-indigo-400">AI</div>
+          <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6" />
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-emerald-400">AI</div>
         </div>
         <p className="text-gray-300 font-medium text-lg">正在深度审查章节...</p>
         <p className="text-gray-500 mt-2 text-sm">检查连贯性、人物逻辑与大纲偏离度</p>
@@ -187,8 +187,8 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
 
   if (!feedback) {
     return (
-      <div className="glass-card p-12 rounded-3xl text-center flex flex-col items-center justify-center min-h-[400px] border border-white/10 group hover:border-indigo-500/30 transition-all">
-        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-3xl flex items-center justify-center mb-6 shadow-inner shadow-indigo-500/20 group-hover:scale-110 transition-transform duration-500">
+      <div className="glass-card p-12 rounded-3xl text-center flex flex-col items-center justify-center min-h-[400px] border border-white/10 group hover:border-emerald-500/30 transition-all">
+        <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-3xl flex items-center justify-center mb-6 shadow-inner shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-500">
           <span className="text-4xl">📊</span>
         </div>
         <h3 className="text-2xl font-bold text-white mb-2">5维度智能审查</h3>
@@ -204,7 +204,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
         <button
           onClick={triggerReview}
           disabled={isTriggering}
-          className="btn-primary px-8 py-3 rounded-xl flex items-center gap-3 text-lg font-medium shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 transition-all"
+          className="btn-primary px-8 py-3 rounded-xl flex items-center gap-3 text-lg font-medium shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 transition-all"
         >
           {isTriggering ? (
             <>
@@ -232,7 +232,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <span className="text-indigo-400">📊</span>
+                <span className="text-emerald-400">📊</span>
                 审查报告
               </h2>
               <span className="text-xs font-mono bg-white/10 text-gray-400 px-2 py-0.5 rounded-lg border border-white/5">
@@ -241,7 +241,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
             </div>
             
             {feedback.summary && (
-              <p className="text-gray-300 leading-relaxed text-sm md:text-base border-l-2 border-indigo-500/50 pl-4 py-1">
+              <p className="text-gray-300 leading-relaxed text-sm md:text-base border-l-2 border-emerald-500/50 pl-4 py-1">
                 {feedback.summary}
               </p>
             )}
@@ -303,7 +303,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
                     </div>
                     <div className={`font-mono font-bold ${getScoreColor(score)}`}>{score.toFixed(1)}</div>
                   </div>
-                  {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500" />}
+                  {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />}
                 </button>
               );
             })}
@@ -474,7 +474,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
               </h3>
               
               {dims.characterConsistency.inconsistencies.length === 0 ? (
-                <div className="glass-card p-8 rounded-2xl text-center bg-gradient-to-br from-indigo-500/5 to-purple-500/5">
+                <div className="glass-card p-8 rounded-2xl text-center bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
                   <div className="flex justify-center mb-4">
                     <div className="flex -space-x-4">
                       {[1,2,3].map(i => (
@@ -484,7 +484,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
                       ))}
                     </div>
                   </div>
-                  <p className="text-indigo-300 font-medium">全员人设在线</p>
+                  <p className="text-emerald-300 font-medium">全员人设在线</p>
                   <p className="text-gray-500 text-sm mt-1">没有发现OOC（角色崩坏）现象。</p>
                 </div>
               ) : (
@@ -566,7 +566,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
       <div className="p-6 bg-black/20 border-t border-white/5 flex items-center justify-between">
         {feedback.regenerationInstructions ? (
           <div className="flex-1 mr-6">
-            <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">修改建议</h4>
+            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">修改建议</h4>
             <p className="text-sm text-gray-400 line-clamp-1">{feedback.regenerationInstructions}</p>
           </div>
         ) : (

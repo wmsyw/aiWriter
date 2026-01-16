@@ -27,10 +27,10 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'glass-input w-full px-4 py-2 flex justify-between items-center cursor-pointer',
-      'hover:border-white/30 transition-colors text-left',
-      'focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50',
+      'hover:border-zinc-600 transition-colors text-left',
+      'focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50',
       'disabled:cursor-not-allowed disabled:opacity-50',
-      'data-[state=open]:border-indigo-500/50 data-[state=open]:ring-1 data-[state=open]:ring-indigo-500/50 data-[state=open]:bg-black/30',
+      'data-[state=open]:border-emerald-500/50 data-[state=open]:ring-1 data-[state=open]:ring-emerald-500/30 data-[state=open]:bg-zinc-900',
       className
     )}
     {...props}
@@ -38,7 +38,7 @@ const SelectTrigger = React.forwardRef<
     {children}
     <SelectPrimitive.Icon asChild>
       <svg
-        className="w-4 h-4 text-gray-400 transition-transform duration-200 ml-2 flex-shrink-0 data-[state=open]:rotate-180"
+        className="w-4 h-4 text-zinc-500 transition-transform duration-200 ml-2 flex-shrink-0 data-[state=open]:rotate-180"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -59,7 +59,7 @@ const SelectContent = React.forwardRef<
       ref={ref}
       className={cn(
         'relative z-50 max-h-60 min-w-[8rem] overflow-hidden',
-        'glass-panel rounded-xl shadow-2xl border border-white/10',
+        'bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -91,11 +91,11 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg',
+      'relative flex w-full cursor-pointer select-none items-center rounded-md',
       'px-4 py-2.5 text-sm outline-none transition-all duration-150',
-      'text-gray-300 hover:bg-white/10 hover:text-white hover:pl-5',
-      'focus:bg-white/10 focus:text-white focus:pl-5',
-      'data-[state=checked]:bg-indigo-500/20 data-[state=checked]:text-indigo-300 data-[state=checked]:font-medium',
+      'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100',
+      'focus:bg-zinc-800 focus:text-zinc-100',
+      'data-[state=checked]:bg-emerald-500/15 data-[state=checked]:text-emerald-400 data-[state=checked]:font-medium',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
@@ -103,7 +103,7 @@ const SelectItem = React.forwardRef<
   >
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     <SelectPrimitive.ItemIndicator className="absolute right-2 flex items-center justify-center">
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
       </svg>
     </SelectPrimitive.ItemIndicator>
@@ -120,7 +120,8 @@ export function Select({
   className = '',
   disabled = false 
 }: SelectProps) {
-  const selectedOption = options.find(opt => opt.value === value);
+  const validOptions = options.filter(opt => opt.value !== '');
+  const selectedOption = validOptions.find(opt => opt.value === value);
 
   return (
     <div className={cn('relative', className)}>
@@ -129,7 +130,7 @@ export function Select({
           {label}
         </label>
       )}
-      <SelectPrimitive.Root value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectPrimitive.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger aria-label={label || placeholder}>
           <SelectPrimitive.Value placeholder={placeholder}>
             <span className={selectedOption ? 'text-white' : 'text-gray-500'}>
@@ -138,10 +139,10 @@ export function Select({
           </SelectPrimitive.Value>
         </SelectTrigger>
         <SelectContent>
-          {options.length === 0 ? (
+          {validOptions.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500 text-center">无选项</div>
           ) : (
-            options.map((option) => (
+            validOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

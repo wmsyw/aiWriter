@@ -130,10 +130,10 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         onClick={onClose} 
       />
       
-      <div className="glass-card w-full max-w-5xl h-[85vh] flex flex-col rounded-2xl relative z-10 animate-slide-up overflow-hidden shadow-2xl shadow-indigo-500/10 border-white/10 bg-gray-900/95">
+      <div className="glass-card w-full max-w-5xl h-[85vh] flex flex-col rounded-2xl relative z-10 animate-slide-up overflow-hidden shadow-2xl shadow-emerald-500/10 border-white/10 bg-gray-900/95">
         <div className="flex items-center justify-between px-8 py-5 border-b border-white/5 bg-white/5 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
+            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
               </svg>
@@ -157,7 +157,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
           <div className="lg:col-span-5 min-w-0 lg:h-full lg:overflow-y-auto p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-white/5 custom-scrollbar bg-black/10">
             <div className="space-y-6">
               <div className="space-y-3">
-                <label className="flex items-center gap-2 text-sm font-medium text-indigo-300">
+                <label className="flex items-center gap-2 text-sm font-medium text-emerald-300">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                   </svg>
@@ -171,7 +171,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                       onClick={() => setFormData(prev => ({ ...prev, genre: g }))}
                       className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 border ${
                         formData.genre === g
-                          ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.3)]'
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                           : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10'
                       }`}
                     >
@@ -192,7 +192,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   type="text"
                   value={formData.theme}
                   onChange={e => setFormData(prev => ({ ...prev, theme: e.target.value }))}
-                  className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-indigo-500/30"
+                  className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
                   placeholder="例如：废柴逆袭、穿越重生、系统流..."
                 />
               </div>
@@ -207,7 +207,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 <textarea
                   value={formData.protagonist}
                   onChange={e => setFormData(prev => ({ ...prev, protagonist: e.target.value }))}
-                  className="glass-input w-full px-4 py-3 rounded-xl h-24 resize-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="glass-input w-full px-4 py-3 rounded-xl h-24 resize-none focus:ring-2 focus:ring-emerald-500/30"
                   placeholder="主角的背景、性格、金手指..."
                 />
               </div>
@@ -222,7 +222,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 <textarea
                   value={formData.worldSetting}
                   onChange={e => setFormData(prev => ({ ...prev, worldSetting: e.target.value }))}
-                  className="glass-input w-full px-4 py-3 rounded-xl h-24 resize-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="glass-input w-full px-4 py-3 rounded-xl h-24 resize-none focus:ring-2 focus:ring-emerald-500/30"
                   placeholder="修炼体系、势力分布、时代背景..."
                 />
               </div>
@@ -239,7 +239,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                     type="number"
                     value={formData.chapterCount}
                     onChange={e => setFormData(prev => ({ ...prev, chapterCount: parseInt(e.target.value) || 100 }))}
-                    className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-indigo-500/30"
+                    className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
                     min={10}
                     max={2000}
                   />
@@ -255,7 +255,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                     type="number"
                     value={formData.targetWords}
                     onChange={e => setFormData(prev => ({ ...prev, targetWords: parseInt(e.target.value) || 200 }))}
-                    className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-indigo-500/30"
+                    className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
                     min={1}
                     max={1000}
                   />
@@ -273,7 +273,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   type="text"
                   value={formData.keywords}
                   onChange={e => setFormData(prev => ({ ...prev, keywords: e.target.value }))}
-                  className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-indigo-500/30"
+                  className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
                   placeholder="用逗号分隔多个关键词..."
                 />
               </div>
@@ -288,7 +288,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 <textarea
                   value={formData.specialRequirements}
                   onChange={e => setFormData(prev => ({ ...prev, specialRequirements: e.target.value }))}
-                  className="glass-input w-full px-4 py-3 rounded-xl h-20 resize-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="glass-input w-full px-4 py-3 rounded-xl h-20 resize-none focus:ring-2 focus:ring-emerald-500/30"
                   placeholder="其他要求或注意事项..."
                 />
               </div>
@@ -297,7 +297,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !formData.genre}
-                  className="btn-primary w-full py-4 rounded-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group transition-all duration-300 shadow-lg shadow-indigo-500/20"
+                  className="btn-primary w-full py-4 rounded-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group transition-all duration-300 shadow-lg shadow-emerald-500/20"
                 >
                   {isGenerating ? (
                     <>
@@ -315,7 +315,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 </button>
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>粗纲 → 细纲 → 章节纲</span>
-                  {isGenerating && stageLabel && <span className="text-indigo-300">当前阶段：{stageLabel}</span>}
+                  {isGenerating && stageLabel && <span className="text-emerald-300">当前阶段：{stageLabel}</span>}
                 </div>
                 <div className="flex gap-2">
                   {['rough', 'detailed', 'chapters'].map((value, index) => (
@@ -323,9 +323,9 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                       key={value}
                       className={`flex-1 h-1 rounded-full ${
                         (value === 'rough' && roughOutline) || (value === 'detailed' && detailedOutline) || (value === 'chapters' && chapterOutline)
-                          ? 'bg-indigo-500'
+                          ? 'bg-emerald-500'
                           : stage === value
-                            ? 'bg-indigo-500/40 animate-pulse'
+                            ? 'bg-emerald-500/40 animate-pulse'
                             : 'bg-white/10'
                       }`}
                     />
@@ -338,7 +338,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
           <div className="lg:col-span-7 min-w-0 bg-black/20 flex flex-col lg:h-full lg:overflow-hidden min-h-[500px] lg:min-h-0">
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5">
               <span className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 生成结果
@@ -346,7 +346,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
               {generatedOutline && (
                 <button
                   onClick={handleApply}
-                  className="btn-primary px-4 py-1.5 rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                  className="btn-primary px-4 py-1.5 rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -360,9 +360,9 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
               {isGenerating ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-6">
                   <div className="relative">
-                    <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-8 h-8 bg-indigo-500 rounded-full animate-pulse opacity-20" />
+                      <div className="w-8 h-8 bg-emerald-500 rounded-full animate-pulse opacity-20" />
                     </div>
                   </div>
                   <div className="text-center space-y-2">
@@ -374,7 +374,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 <div className="prose prose-invert max-w-none space-y-4">
                   {roughOutline && (
                     <details className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <summary className="cursor-pointer text-sm text-indigo-300">粗略大纲</summary>
+                      <summary className="cursor-pointer text-sm text-emerald-300">粗略大纲</summary>
                       <pre className="text-gray-200 whitespace-pre-wrap text-xs mt-3">
                         {JSON.stringify(roughOutline, null, 2)}
                       </pre>
@@ -382,7 +382,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   )}
                   {detailedOutline && (
                     <details className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <summary className="cursor-pointer text-sm text-indigo-300">细纲扩展</summary>
+                      <summary className="cursor-pointer text-sm text-emerald-300">细纲扩展</summary>
                       <pre className="text-gray-200 whitespace-pre-wrap text-xs mt-3">
                         {JSON.stringify(detailedOutline, null, 2)}
                       </pre>

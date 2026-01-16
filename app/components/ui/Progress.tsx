@@ -32,7 +32,7 @@ const Progress = React.forwardRef<
       <ProgressPrimitive.Indicator
         asChild
         className={cn(
-          'h-full w-full flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 transition-all',
+          'h-full w-full flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all',
           indicatorClassName
         )}
       >

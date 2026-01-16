@@ -270,7 +270,7 @@ export default function TemplatesPage() {
                     className={cn(
                       "flex items-center p-3 cursor-pointer group",
                       selectedTemplate?.id === template.id
-                        ? "bg-indigo-500/10 border-indigo-500/50"
+                        ? "bg-emerald-500/10 border-emerald-500/50"
                         : "border-transparent"
                     )}
                   >
@@ -282,7 +282,7 @@ export default function TemplatesPage() {
                     <div className="flex-1 overflow-hidden">
                       <div className={cn(
                         "font-medium truncate text-sm transition-colors",
-                        selectedTemplate?.id === template.id ? "text-indigo-400" : "text-gray-300"
+                        selectedTemplate?.id === template.id ? "text-emerald-400" : "text-gray-300"
                       )}>
                         {template.name}
                       </div>
@@ -309,7 +309,7 @@ export default function TemplatesPage() {
                   setSelectedTemplate({ ...selectedTemplate, name: e.target.value });
                   setHasChanges(true);
                 }}
-                className="text-lg font-bold bg-transparent border-transparent hover:border-white/10 focus:border-indigo-500/50 h-auto py-2 px-3"
+                className="text-lg font-bold bg-transparent border-transparent hover:border-white/10 focus:border-emerald-500/50 h-auto py-2 px-3"
                 placeholder="Template Name"
               />
               <Button
@@ -368,7 +368,7 @@ export default function TemplatesPage() {
                   variant="ghost" 
                   size="sm"
                   onClick={addVariable}
-                  className="text-indigo-400 hover:text-indigo-300 h-6 px-2 text-xs"
+                  className="text-emerald-400 hover:text-emerald-300 h-6 px-2 text-xs"
                 >
                   + 添加
                 </Button>
@@ -421,7 +421,7 @@ export default function TemplatesPage() {
                       <select
                         value={variable.type}
                         onChange={(e) => updateVariable(idx, 'type', e.target.value)}
-                        className="bg-black/20 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-gray-400 border border-white/5 focus:border-indigo-500/30 transition-colors"
+                        className="bg-black/20 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-gray-400 border border-white/5 focus:border-emerald-500/30 transition-colors"
                       >
                         <option value="string">字符串</option>
                         <option value="number">数字</option>

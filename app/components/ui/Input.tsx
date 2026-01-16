@@ -21,14 +21,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-300"
           >
             {label}
           </label>
         )}
         <div className="relative group">
           {leftIcon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-400 transition-colors">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
               {leftIcon}
             </div>
           )}
@@ -36,7 +36,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             type={type}
             className={cn(
-              'flex h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:border-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200',
+              'flex h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100',
+              'placeholder:text-zinc-500',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 focus-visible:border-emerald-500/50',
+              'hover:border-zinc-700 transition-all duration-200',
+              'disabled:cursor-not-allowed disabled:opacity-50',
               !!leftIcon && 'pl-10',
               !!rightIcon && 'pr-10',
               error && 'border-red-500/50 focus-visible:ring-red-500/30',
@@ -46,7 +50,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
               {rightIcon}
             </div>
           )}
@@ -54,7 +58,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {error ? (
           <p className="text-xs text-red-400 animate-slide-up">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-gray-500">{helperText}</p>
+          <p className="text-xs text-zinc-500">{helperText}</p>
         ) : null}
       </div>
     );
@@ -78,7 +82,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-300"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-300"
           >
             {label}
           </label>
@@ -86,7 +90,11 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           id={inputId}
           className={cn(
-            'flex min-h-[80px] w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:border-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200',
+            'flex min-h-[80px] w-full rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100',
+            'placeholder:text-zinc-500',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 focus-visible:border-emerald-500/50',
+            'hover:border-zinc-700 transition-all duration-200',
+            'disabled:cursor-not-allowed disabled:opacity-50',
             error && 'border-red-500/50 focus-visible:ring-red-500/30',
             className
           )}
@@ -96,7 +104,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         {error ? (
           <p className="text-xs text-red-400 animate-slide-up">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-gray-500">{helperText}</p>
+          <p className="text-xs text-zinc-500">{helperText}</p>
         ) : null}
       </div>
     );
