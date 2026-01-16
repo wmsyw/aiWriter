@@ -81,13 +81,13 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
   const [editingHook, setEditingHook] = useState<NarrativeHook | null>(null);
   const [actionModal, setActionModal] = useState<{ hook: NarrativeHook; action: 'resolve' | 'abandon' | 'reference' } | null>(null);
 
-  const hooksList = hooks || [];
+  const hooksList = Array.isArray(hooks) ? hooks : [];
   const report = reportData?.report;
 
   const filteredHooks = useMemo(() => {
     return hooksList.filter(hook => {
       const matchesTab = activeTab === 'all' || hook.status === activeTab;
-      const matchesSearch = hook.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (hook.description || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesTab && matchesSearch;
     });
   }, [hooksList, activeTab, searchQuery]);
@@ -157,7 +157,11 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
             <p className="text-gray-400 max-w-xl">追踪故事中的伏笔、悬念和承诺，确保每一个埋设的钩子都能得到完美的回收。</p>
           </div>
           <button 
-            onClick={() => { setEditingHook(null); setIsModalOpen(true); }}
+            onClick={(e) => { 
+              e.preventDefault();
+              setEditingHook(null); 
+              setIsModalOpen(true); 
+            }}
             className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-0.5"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

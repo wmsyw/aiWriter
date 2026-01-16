@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:all": "node --run dev & node --run worker & wait",
-    "worker": "node worker/index.js",
+    "worker": "APP_MODE=worker node worker/index.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

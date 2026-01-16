@@ -399,10 +399,10 @@ function NovelWizardContent() {
         reject(error);
         return;
       }
-      if (attempts < 60) {
+      if (attempts < 300) {
         pollTimerRef.current = setTimeout(poll, 2000);
       } else {
-        reject(new Error('生成超时'));
+        reject(new Error('生成超时 (超过10分钟)'));
       }
     };
     poll();

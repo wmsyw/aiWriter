@@ -317,7 +317,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/> 严重问题
                 </span>
                 <span className="font-mono text-white bg-white/10 px-2 rounded">
-                  {feedback.issues.filter(i => i.severity === 'critical').length}
+                  {feedback?.issues ? feedback.issues.filter(i => i.severity === 'critical').length : 0}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
@@ -325,7 +325,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
                   <span className="w-2 h-2 rounded-full bg-orange-500"/> 重要问题
                 </span>
                 <span className="font-mono text-white bg-white/10 px-2 rounded">
-                  {feedback.issues.filter(i => i.severity === 'major').length}
+                  {feedback?.issues ? feedback.issues.filter(i => i.severity === 'major').length : 0}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
@@ -333,7 +333,7 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
                   <span className="w-2 h-2 rounded-full bg-yellow-500"/> 轻微建议
                 </span>
                 <span className="font-mono text-white bg-white/10 px-2 rounded">
-                  {feedback.issues.filter(i => i.severity === 'minor').length}
+                  {feedback?.issues ? feedback.issues.filter(i => i.severity === 'minor').length : 0}
                 </span>
               </div>
             </div>

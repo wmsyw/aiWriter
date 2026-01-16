@@ -198,7 +198,9 @@ export default function ChapterEditorPage() {
         const updatedJobs = data.jobs || [];
         
         // Filter jobs relevant to this chapter
-        const chapterJobs = updatedJobs.filter((job: any) => job.input?.chapterId === chapterId);
+        const chapterJobs = Array.isArray(updatedJobs) 
+          ? updatedJobs.filter((job: any) => job?.input?.chapterId === chapterId)
+          : [];
         
         if (chapterJobs.length === 0) return;
 
@@ -857,8 +859,10 @@ export default function ChapterEditorPage() {
       return 'bg-red-500';
     };
 
-    const dimensionScores = canonCheckResult.dimension_scores || {};
-    const scores = Object.values(dimensionScores).map((v: any) => v?.score || 0).filter((s: any) => typeof s === 'number');
+    const dimensionScores = canonCheckResult?.dimension_scores || {};
+    const scores = Object.values(dimensionScores)
+      .map((v: any) => v?.score || 0)
+      .filter((s: any) => typeof s === 'number');
     const avgScore = scores.length > 0 
       ? Math.round((scores.reduce((a: number, b: number) => a + b, 0) / scores.length) * 10) / 10 
       : 0;

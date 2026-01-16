@@ -62,13 +62,13 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
   const [suggestions, setSuggestions] = useState<MatchSuggestion[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 
-  const entities = data?.entities || [];
+  const entities = Array.isArray(data?.entities) ? data.entities : [];
   const summary = data?.summary;
 
   const filteredEntities = useMemo(() => {
     return entities.filter(entity => {
       const matchesTab = activeTab === 'all' || entity.status === activeTab;
-      const matchesSearch = entity.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (entity.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesTab && matchesSearch;
     });
   }, [entities, activeTab, searchQuery]);
@@ -108,7 +108,7 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
     }
   };
 
-  const pendingCount = summary?.pendingCount || entities.filter(e => e.status === 'pending').length;
+  const pendingCount = summary?.pendingCount || (Array.isArray(entities) ? entities.filter(e => e.status === 'pending').length : 0);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in min-h-screen">

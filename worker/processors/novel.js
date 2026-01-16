@@ -37,7 +37,7 @@ export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
     maxTokens: params.maxTokens || 3000,
   }));
 
-  const seedResult = parseJsonOutput(response.content);
+  const seedResult = parseModelJson(response.content);
   const world = seedResult.world || {};
 
   await prisma.novel.update({

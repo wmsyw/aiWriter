@@ -1,6 +1,6 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { FALLBACK_PROMPTS } from '../../src/constants/prompts.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson } from '../utils/helpers.js';
 
 export async function generateCharacterBios(prisma, { userId, novelId, characters, outlineContext, agentId, jobId }) {
   if (!characters || characters.length === 0) return { characters: [], materialIds: [] };
@@ -30,7 +30,7 @@ export async function generateCharacterBios(prisma, { userId, novelId, character
     maxTokens: params.maxTokens || 6000,
   }));
 
-  const parsed = parseJsonOutput(response.content);
+  const parsed = parseModelJson(response.content);
   const bioCharacters = Array.isArray(parsed.characters) ? parsed.characters : [];
 
   const existingNames = await prisma.material.findMany({
@@ -165,7 +165,7 @@ export async function handleWizardCharacters(prisma, job, { jobId, userId, input
   }));
 
   let parsedCharacters = [];
-  const parsed = parseJsonOutput(response.content);
+  const parsed = parseModelJson(response.content);
   if (Array.isArray(parsed)) {
     parsedCharacters = parsed;
   } else if (parsed && Array.isArray(parsed.characters)) {

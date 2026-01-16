@@ -42,12 +42,12 @@ export default function MaterialsPage() {
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
-  const materialsList = materials || [];
+  const materialsList = Array.isArray(materials) ? materials : [];
 
   const filteredMaterials = useMemo(() => {
     return materialsList.filter(material => {
       const matchesTab = activeTab === 'all' || material.type === activeTab;
-      const matchesSearch = material.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (material.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesTab && matchesSearch;
     });
   }, [materialsList, activeTab, searchQuery]);
@@ -94,7 +94,7 @@ export default function MaterialsPage() {
         </div>
         <div className="flex gap-3">
           <button 
-            onClick={() => setIsSearchModalOpen(true)}
+            onClick={(e) => { e.preventDefault(); setIsSearchModalOpen(true); }}
             className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,7 +103,7 @@ export default function MaterialsPage() {
             AI 联网搜索
           </button>
           <button 
-            onClick={handleOpenCreate}
+            onClick={(e) => { e.preventDefault(); handleOpenCreate(); }}
             className="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -37,15 +37,27 @@ const MAX_CONCURRENT_AI_CALLS = 4;
 let activeAICalls = 0;
 const aiCallQueue = [];
 
-export async function withConcurrencyLimit(fn) {
+export async function withConcurrencyLimit(fn, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
     const execute = async () => {
       activeAICalls++;
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        reject(new Error(`AI request timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
       try {
         const result = await fn();
-        resolve(result);
+        if (!timedOut) {
+          clearTimeout(timeoutId);
+          resolve(result);
+        }
       } catch (err) {
-        reject(err);
+        if (!timedOut) {
+          clearTimeout(timeoutId);
+          reject(err);
+        }
       } finally {
         activeAICalls--;
         if (aiCallQueue.length > 0) {

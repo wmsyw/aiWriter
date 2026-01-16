@@ -6,7 +6,7 @@ import { processExtractedHooks, formatHooksForContext } from '../../src/server/s
 import { batchProcessExtractedEntities } from '../../src/server/services/pending-entities.js';
 import { upsertChapterSummary } from '../../src/server/services/chapter-summary.js';
 import { cleanSlop, detectSlopLevel } from '../../src/server/services/slop-cleaner.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput, normalizeString } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, normalizeString } from '../utils/helpers.js';
 
 function mergeRelationshipEntries(existing = [], incoming = []) {
   const merged = Array.isArray(existing) ? [...existing] : [];
@@ -356,7 +356,7 @@ ${existingHooksContext || '（暂无）'}
     maxTokens: params.maxTokens || 6000,
   }));
 
-  const analysis = parseJsonOutput(response.content);
+  const analysis = parseModelJson(response.content);
   const invalidAnalysis = !analysis || typeof analysis !== 'object' || Array.isArray(analysis) || analysis?.raw || analysis?.parseError;
   if (invalidAnalysis) {
     const message = analysis?.parseError

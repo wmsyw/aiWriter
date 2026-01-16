@@ -1,5 +1,5 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson } from '../utils/helpers.js';
 import { generateCharacterBios } from './character.js';
 
 function extractCharactersFromMarkdown(content) {
@@ -57,7 +57,7 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     maxTokens: params.maxTokens || 4000,
   }));
 
-  let roughOutline = parseJsonOutput(response.content);
+  let roughOutline = parseModelJson(response.content);
   // Support both JSON and raw string (Markdown)
   if (roughOutline.raw) {
     roughOutline = response.content;
@@ -113,7 +113,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     maxTokens: params.maxTokens || 6000,
   }));
 
-  let detailedOutline = parseJsonOutput(response.content);
+  let detailedOutline = parseModelJson(response.content);
   // Support Markdown raw output
   if (detailedOutline.raw) {
     detailedOutline = response.content;
@@ -206,7 +206,7 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     maxTokens: params.maxTokens || 8000,
   }));
 
-  let chapterOutlines = parseJsonOutput(response.content);
+  let chapterOutlines = parseModelJson(response.content);
   // Support Markdown raw output
   if (chapterOutlines.raw) {
     chapterOutlines = response.content;
@@ -267,7 +267,7 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
     maxTokens: params.maxTokens || 8000,
   }));
   
-  const output = parseJsonOutput(response.content);
+  const output = parseModelJson(response.content);
   // Support raw output
   const result = output.raw ? response.content : output;
   

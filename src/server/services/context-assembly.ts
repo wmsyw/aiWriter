@@ -9,6 +9,10 @@ import {
   formatMultipleSummariesForContext,
   type ChapterSummary 
 } from './chapter-summary';
+import {
+  getHierarchicalContext,
+  formatHierarchicalContextForPrompt
+} from './hierarchical-summary';
 
 export interface ContextConfig {
   recentChaptersCount: number;
@@ -19,6 +23,7 @@ export interface ContextConfig {
   includePendingEntities: boolean;
   includeOutline: boolean;
   useMentionBasedContext: boolean;
+  useHierarchicalContext: boolean;
 }
 
 export interface AssembledContext {
@@ -29,7 +34,7 @@ export interface AssembledContext {
 }
 
 export interface ContextSection {
-  type: 'recent_chapters' | 'summaries' | 'materials' | 'hooks' | 'pending_entities' | 'outline' | 'mentions' | 'custom';
+  type: 'recent_chapters' | 'summaries' | 'materials' | 'hooks' | 'pending_entities' | 'outline' | 'mentions' | 'hierarchical_summary' | 'custom';
   title: string;
   content: string;
   estimatedTokens: number;
@@ -88,6 +93,7 @@ export async function assembleContext(
     includePendingEntities: customConfig?.includePendingEntities ?? true,
     includeOutline: customConfig?.includeOutline ?? true,
     useMentionBasedContext: customConfig?.useMentionBasedContext ?? true,
+    useHierarchicalContext: customConfig?.useHierarchicalContext ?? true,
   };
   
   const sections: ContextSection[] = [];
@@ -178,7 +184,23 @@ export async function assembleContext(
   }
   
   const summaryStartChapter = currentChapterOrder - config.recentChaptersCount;
-  if (summaryStartChapter > 1) {
+  if (config.useHierarchicalContext) {
+    const hierarchicalCtx = await getHierarchicalContext(novelId, currentChapterOrder, {
+      recentChapterCount: config.summaryChaptersCount,
+      includeScenes: true
+    });
+    
+    const hierarchicalContent = formatHierarchicalContextForPrompt(hierarchicalCtx);
+    if (hierarchicalContent.trim()) {
+      sections.push({
+        type: 'hierarchical_summary',
+        title: '',
+        content: hierarchicalContent,
+        estimatedTokens: estimateTokens(hierarchicalContent),
+        priority: 6,
+      });
+    }
+  } else if (summaryStartChapter > 1) {
     const summaries = await getSummariesForContextWindow(
       novelId, 
       summaryStartChapter,

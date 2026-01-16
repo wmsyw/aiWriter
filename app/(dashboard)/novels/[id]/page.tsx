@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import OutlineGeneratorModal from './OutlineGeneratorModal';
+import PlotBranchingView, { type PlotBranch } from '@/app/components/PlotBranchingView';
 
 interface ReviewFeedback {
   verdict?: 'approve' | 'minor_revision' | 'major_revision' | 'reject';
@@ -57,7 +58,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'chapters' | 'outline' | 'materials' | 'hooks' | 'entities' | 'settings'>('chapters');
+  const [activeTab, setActiveTab] = useState<'chapters' | 'outline' | 'materials' | 'hooks' | 'entities' | 'settings' | 'plot'>('chapters');
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
@@ -68,6 +69,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [showOutlineGenerator, setShowOutlineGenerator] = useState(false);
   const [blockingInfo, setBlockingInfo] = useState<BlockingInfo>({ hasBlocking: false, count: 0 });
   const [workflowStats, setWorkflowStats] = useState<WorkflowStats>({ unresolvedHooks: 0, overdueHooks: 0, pendingEntities: 0 });
+  
+  const [plotBranches, setPlotBranches] = useState<PlotBranch[]>([]);
+  const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -195,6 +199,26 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       }
     } catch {
       setError('删除章节失败，请重试');
+    }
+  };
+
+  const handleGeneratePlot = async () => {
+    setIsGeneratingPlot(true);
+    try {
+      const currentChapter = chapters.length > 0 ? chapters[chapters.length - 1].order + 1 : 1;
+      
+      const res = await fetch(`/api/novels/${id}/plot-simulation?currentChapter=${currentChapter}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPlotBranches(data.branches || []);
+      } else {
+        setError('生成剧情推演失败');
+      }
+    } catch (e) {
+      console.error(e);
+      setError('生成剧情推演失败，请重试');
+    } finally {
+      setIsGeneratingPlot(false);
     }
   };
 
@@ -390,8 +414,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       <div className="space-y-8">
         <div className="flex items-center gap-2 border-b border-white/5 pb-0 overflow-x-auto no-scrollbar mask-linear-fade">
           {(novel?.type === 'long' 
-            ? ['chapters', 'outline', 'materials', 'hooks', 'entities', 'settings'] as const
-            : ['chapters', 'materials', 'hooks', 'entities', 'settings'] as const
+            ? ['chapters', 'outline', 'materials', 'hooks', 'entities', 'plot', 'settings'] as const
+            : ['chapters', 'materials', 'hooks', 'entities', 'plot', 'settings'] as const
           ).map((tab) => {
             const isActive = activeTab === tab;
             return (
@@ -412,10 +436,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   {tab === 'materials' && '📦'}
                   {tab === 'hooks' && '🎣'}
                   {tab === 'entities' && '👥'}
+                  {tab === 'plot' && '🔮'}
                   {tab === 'settings' && '⚙️'}
                 </span>
                 
-                {tab === 'chapters' ? '章节列表' : tab === 'outline' ? '大纲规划' : tab === 'materials' ? '素材管理' : tab === 'hooks' ? '钩子管理' : tab === 'entities' ? '待确认实体' : '高级设置'}
+                {tab === 'chapters' ? '章节列表' : tab === 'outline' ? '大纲规划' : tab === 'materials' ? '素材管理' : tab === 'hooks' ? '钩子管理' : tab === 'entities' ? '待确认实体' : tab === 'plot' ? '剧情推演' : '高级设置'}
                 
                 {tab === 'hooks' && workflowStats.overdueHooks > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-orange-500 text-white rounded-full shadow-sm shadow-orange-500/20 animate-pulse">
@@ -775,6 +800,52 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
               </Link>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'plot' && (
+          <div className="animate-slide-up">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-white">剧情推演 (Beta)</h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  基于蒙特卡洛树搜索 (MCTS) 预测未来剧情走向，评估潜在风险与机会。
+                </p>
+              </div>
+              <button
+                onClick={handleGeneratePlot}
+                disabled={isGeneratingPlot}
+                className="btn-primary px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {isGeneratingPlot ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    推演中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    开始推演
+                  </>
+                )}
+              </button>
+            </div>
+
+            {plotBranches.length > 0 ? (
+              <PlotBranchingView branches={plotBranches} />
+            ) : (
+              <div className="glass-card p-12 rounded-3xl text-center">
+                <div className="w-20 h-20 mx-auto bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6">
+                  <span className="text-4xl">🔮</span>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">暂无推演数据</h3>
+                <p className="text-gray-400 mb-6 max-w-md mx-auto">
+                  点击上方按钮开始推演，系统将为您分析当前剧情，并预测未来可能的 3 条发展路线。
+                </p>
+              </div>
+            )}
           </div>
         )}
 
