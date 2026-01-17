@@ -188,7 +188,7 @@ export default function InspirationModal({
     if (isOpen) {
       const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
       const cached = inspirationCache.get(cacheKey);
-      
+
       if (cached && cached.length > 0) {
         setInspirations(cached);
         setStep('results');
@@ -208,7 +208,8 @@ export default function InspirationModal({
       stopPolling();
       clearProgressInterval();
     };
-  }, [isOpen, genre, targetWords, audience, keywords, style, tone, perspective, stopPolling, clearProgressInterval]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleGenerate = async () => {
     setStep('generating');
@@ -428,7 +429,6 @@ export default function InspirationModal({
                     <motion.div
                       key={idx}
                       variants={itemVariants}
-                      layout
                       onClick={() => handleCardClick(idx)}
                       className={`group relative p-4 rounded-xl border transition-all duration-300 cursor-pointer overflow-hidden ${
                         isExpanded 

@@ -1378,26 +1378,13 @@ function NovelWizardContent() {
                         options={GENRES.map(g => ({ value: g, label: g }))}
                         placeholder="选择频道"
                       />
-                      <div className="md:col-span-2">
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="block text-sm font-medium text-gray-300">世界观一句话</label>
-                          <Button
-                            type="button"
-                            variant="ai"
-                            size="sm"
-                            onClick={handleGenerateWorldSetting}
-                            disabled={worldBuildingLoading || isSaving}
-                            isLoading={worldBuildingLoading}
-                          >
-                            {worldBuildingLoading ? '生成中' : '✨ AI 生成'}
-                          </Button>
-                        </div>
-                        <Input
-                          value={formData.worldSetting}
-                          onChange={e => setField('worldSetting', e.target.value)}
-                          placeholder="例如：赛博朋克风格的修仙世界"
-                        />
-                      </div>
+                      <Input
+                        label="世界观一句话"
+                        className="md:col-span-2"
+                        value={formData.worldSetting}
+                        onChange={e => setField('worldSetting', e.target.value)}
+                        placeholder="例如：赛博朋克风格的修仙世界"
+                      />
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-300 mb-2">关键词 (Tags)</label>
                         <Input
@@ -1425,26 +1412,12 @@ function NovelWizardContent() {
                       主角与要求
                     </h3>
                     <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="block text-sm font-medium text-gray-300">主角人设</label>
-                          <Button
-                            type="button"
-                            variant="ai"
-                            size="sm"
-                            onClick={handleGenerateCharacter}
-                            disabled={characterLoading || isSaving}
-                            isLoading={characterLoading}
-                          >
-                            {characterLoading ? '生成中' : '✨ AI 生成'}
-                          </Button>
-                        </div>
-                        <Input
-                          value={formData.protagonist}
-                          onChange={e => setField('protagonist', e.target.value)}
-                          placeholder="姓名，性格，金手指..."
-                        />
-                      </div>
+                      <Input
+                        label="主角人设"
+                        value={formData.protagonist}
+                        onChange={e => setField('protagonist', e.target.value)}
+                        placeholder="姓名，性格，金手指..."
+                      />
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">特殊要求/禁忌</label>
                         <Textarea
