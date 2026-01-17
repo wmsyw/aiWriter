@@ -18,6 +18,7 @@ import {
   Badge, 
   Skeleton 
 } from '@/app/components/ui';
+import { ConfirmModal } from '@/app/components/ui/Modal';
 import { 
   staggerContainer, 
   staggerItem, 
@@ -103,6 +104,19 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [showOutlineGenerator, setShowOutlineGenerator] = useState(false);
   const [blockingInfo, setBlockingInfo] = useState<BlockingInfo>({ hasBlocking: false, count: 0 });
   const [workflowStats, setWorkflowStats] = useState<WorkflowStats>({ unresolvedHooks: 0, overdueHooks: 0, pendingEntities: 0 });
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   
   const [plotBranches, setPlotBranches] = useState<PlotBranch[]>([]);
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
@@ -200,11 +214,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       } else {
         setError('更新标题失败');
       }
-    } catch {
-      setError('更新标题失败，请重试');
-    } finally {
-      setIsEditingTitle(false);
-    }
+        } catch {
+          setError('删除章节失败，请重试');
+        }
+      }
+    });
   };
 
   const handleUpdateDescription = async () => {
@@ -241,17 +255,25 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   const handleDeleteChapter = async (chapterId: string) => {
-    if (!confirm('确定要删除此章节吗？此操作不可撤销。')) return;
-    try {
-      const res = await fetch(`/api/novels/${id}/chapters/${chapterId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setChapters(chapters.filter(c => c.id !== chapterId));
-      } else {
-        setError('删除章节失败');
+    setConfirmState({
+      isOpen: true,
+      title: '删除章节',
+      message: '确定要删除此章节吗？此操作不可撤销。',
+      confirmText: '删除',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/novels/${id}/chapters/${chapterId}`, { method: 'DELETE' });
+          if (res.ok) {
+            setChapters(chapters.filter(c => c.id !== chapterId));
+          } else {
+            setError('删除章节失败');
+          }
+        } catch {
+          setError('删除章节失败，请重试');
+        }
       }
-    } catch {
-      setError('删除章节失败，请重试');
-    }
+    });
   };
 
   const handleGeneratePlot = async () => {
@@ -626,8 +648,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const tabs = novel?.type === 'long' 
-    ? ['chapters', 'outline', 'materials', 'hooks', 'entities', 'plot', 'settings'] as const
-    : ['chapters', 'materials', 'hooks', 'entities', 'plot', 'settings'] as const;
+    ? ['chapters', 'outline', 'workbench', 'settings'] as const
+    : ['chapters', 'workbench', 'settings'] as const;
 
   return (
     <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -763,23 +785,15 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 <span className="text-lg">
                   {tab === 'chapters' && '📚'}
                   {tab === 'outline' && '🗺️'}
-                  {tab === 'materials' && '📦'}
-                  {tab === 'hooks' && '🎣'}
-                  {tab === 'entities' && '👥'}
-                  {tab === 'plot' && '🔮'}
+                  {tab === 'workbench' && '🛠️'}
                   {tab === 'settings' && '⚙️'}
                 </span>
                 
-                {tab === 'chapters' ? '章节列表' : tab === 'outline' ? '大纲规划' : tab === 'materials' ? '素材管理' : tab === 'hooks' ? '钩子管理' : tab === 'entities' ? '待确认实体' : tab === 'plot' ? '剧情推演' : '高级设置'}
+                {tab === 'chapters' ? '章节列表' : tab === 'outline' ? '大纲规划' : tab === 'workbench' ? '创作工坊' : '高级设置'}
                 
-                {tab === 'hooks' && workflowStats.overdueHooks > 0 && (
+                {tab === 'workbench' && (workflowStats.overdueHooks > 0 || blockingInfo.hasBlocking) && (
                   <Badge variant="error" size="sm" className="ml-1 animate-pulse">
-                    {workflowStats.overdueHooks}
-                  </Badge>
-                )}
-                {tab === 'entities' && blockingInfo.hasBlocking && (
-                  <Badge variant="error" size="sm" className="ml-1 animate-pulse">
-                    {blockingInfo.count}
+                    {(workflowStats.overdueHooks || 0) + (blockingInfo.hasBlocking ? blockingInfo.count : 0)}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -1064,196 +1078,154 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             </TabsContent>
 
-            <TabsContent value="materials" key="materials">
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-white">素材库</h2>
-                  <Link href={`/novels/${id}/materials`}>
-                    <Button variant="primary" size="sm" leftIcon={
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    }>
-                      进入素材库
-                    </Button>
-                  </Link>
-                </div>
-                <Card className="p-12 rounded-3xl text-center relative overflow-hidden group">
+            <TabsContent value="workbench" key="workbench">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-emerald-500/30 transition-all bg-white/[0.02]">
                   <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
-                  <div className="w-20 h-20 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 shadow-inner shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-300">
-                    <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
+                  <div className="flex items-start justify-between mb-6 relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center shadow-inner shadow-emerald-500/20">
+                        <span className="text-2xl">📦</span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">素材库</h3>
+                        <p className="text-sm text-gray-400">管理角色、设定与物品</p>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-3">管理你的创作素材</h3>
-                  <p className="text-gray-400 mb-8 max-w-lg mx-auto">
+                  
+                  <p className="text-gray-400 mb-6 text-sm h-10 line-clamp-2">
                     结构化整理角色、地点、情节要点和世界观设定，让 AI 更好地理解你的故事世界。
                   </p>
-                  <Link href={`/novels/${id}/materials`} className="inline-block">
-                    <Button variant="secondary" className="gap-2 group/btn">
-                      立即管理
+                  
+                  <Link href={`/novels/${id}/materials`} className="block">
+                    <Button variant="secondary" className="w-full gap-2 group/btn justify-between">
+                      进入素材库
                       <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
                     </Button>
                   </Link>
                 </Card>
-              </div>
-            </TabsContent>
 
-            <TabsContent value="hooks" key="hooks">
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-white">钩子管理</h2>
-                  <Link href={`/novels/${id}/hooks`}>
-                    <Button variant="primary" size="sm" leftIcon={
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    }>
-                      打开钩子面板
-                    </Button>
-                  </Link>
-                </div>
-                <Card className="p-12 rounded-3xl text-center relative overflow-hidden group">
+                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-orange-500/30 transition-all bg-white/[0.02]">
                   <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
-                  <div className="w-20 h-20 mx-auto bg-orange-500/10 rounded-2xl flex items-center justify-center mb-6 shadow-inner shadow-orange-500/20 group-hover:scale-110 transition-transform duration-300">
-                    <span className="text-4xl">🎣</span>
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-3">叙事钩子追踪</h3>
-                  <p className="text-gray-400 mb-8 max-w-lg mx-auto">
-                    管理伏笔、悬念、契诃夫之枪等叙事钩子，确保长篇连贯性与回收率。
-                  </p>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-2xl mx-auto mb-8">
-                    <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
-                      <div className="text-3xl font-bold text-white mb-1">{workflowStats.unresolvedHooks}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider">未解决</div>
+                  <div className="flex items-start justify-between mb-6 relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shadow-inner shadow-orange-500/20">
+                        <span className="text-2xl">🎣</span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">钩子管理</h3>
+                        <p className="text-sm text-gray-400">伏笔、悬念与剧情回收</p>
+                      </div>
                     </div>
                     {workflowStats.overdueHooks > 0 && (
-                      <div className="bg-orange-900/20 rounded-2xl p-4 border border-orange-500/20 animate-pulse">
-                        <div className="text-3xl font-bold text-orange-400 mb-1">{workflowStats.overdueHooks}</div>
-                        <div className="text-xs text-orange-400 uppercase tracking-wider">逾期警告</div>
-                      </div>
+                      <Badge variant="error" className="animate-pulse">
+                        {workflowStats.overdueHooks} 个逾期
+                      </Badge>
                     )}
-                    <div className="bg-black/20 rounded-2xl p-4 border border-white/5 md:col-span-1 col-span-2">
-                      <div className="text-3xl font-bold text-emerald-400 mb-1">
-                         --%
-                      </div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider">解决率</div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-black/20 rounded-xl p-3 border border-white/5">
+                      <div className="text-xl font-bold text-white">{workflowStats.unresolvedHooks}</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wider">未解决</div>
+                    </div>
+                    <div className="bg-black/20 rounded-xl p-3 border border-white/5">
+                      <div className="text-xl font-bold text-emerald-400">--%</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wider">解决率</div>
                     </div>
                   </div>
-
-                  <Link href={`/novels/${id}/hooks`} className="inline-block">
-                    <Button variant="secondary" className="gap-2 group/btn">
+                  
+                  <Link href={`/novels/${id}/hooks`} className="block">
+                    <Button variant="secondary" className="w-full gap-2 group/btn justify-between">
                       管理钩子
                       <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
                     </Button>
                   </Link>
                 </Card>
-              </div>
-            </TabsContent>
 
-            <TabsContent value="entities" key="entities">
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-white">待确认实体</h2>
-                  <Link href={`/novels/${id}/pending-entities`}>
-                    <Button variant="primary" size="sm" leftIcon={
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    }>
-                      处理队列
-                    </Button>
-                  </Link>
-                </div>
-                
-                <Card className={`p-12 rounded-3xl text-center relative overflow-hidden group border ${blockingInfo.hasBlocking ? 'border-red-500/30' : 'border-white/5'}`}>
+                <Card className={`p-8 rounded-3xl relative overflow-hidden group border transition-all bg-white/[0.02] ${blockingInfo.hasBlocking ? 'border-red-500/30 hover:border-red-500/50' : 'border-white/5 hover:border-purple-500/30'}`}>
                   <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-emerald-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
                   
-                  <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-6 shadow-inner transition-transform duration-300 group-hover:scale-110 ${blockingInfo.hasBlocking ? 'bg-red-500/10 shadow-red-500/20' : 'bg-purple-500/10 shadow-purple-500/20'}`}>
-                    <span className="text-4xl">👥</span>
-                  </div>
-                  
-                  <h3 className="text-2xl font-bold text-white mb-3">新角色与组织确认</h3>
-                  <p className="text-gray-400 mb-8 max-w-lg mx-auto">
-                    AI 从最新章节中提取的新角色和组织，需要人工确认后才能作为后续章节的上下文。
-                  </p>
-                  
-                  {blockingInfo.hasBlocking ? (
-                    <div className="mb-8 max-w-xl mx-auto">
-                      <div className="flex items-start gap-4 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-left">
-                        <div className="p-2 bg-red-500/20 rounded-lg shrink-0">
-                          <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-red-400 font-bold mb-1">章节生成已阻塞</h4>
-                          <p className="text-red-300/70 text-sm">
-                            有 <span className="font-bold text-white">{blockingInfo.count}</span> 个待确认实体。如果不处理，AI 将无法在生成下一章时正确引用这些新角色。
-                          </p>
-                        </div>
+                  <div className="flex items-start justify-between mb-6 relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner ${blockingInfo.hasBlocking ? 'bg-red-500/10 shadow-red-500/20' : 'bg-purple-500/10 shadow-purple-500/20'}`}>
+                        <span className="text-2xl">👥</span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">待确认实体</h3>
+                        <p className="text-sm text-gray-400">AI 提取的新角色与组织</p>
                       </div>
                     </div>
+                    {blockingInfo.hasBlocking && (
+                      <Badge variant="error" className="animate-pulse">
+                        阻塞生成
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {blockingInfo.hasBlocking ? (
+                    <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                      <p className="text-red-300/90 text-sm">
+                        有 <span className="font-bold text-white">{blockingInfo.count}</span> 个待确认实体阻碍生成。
+                      </p>
+                    </div>
                   ) : (
-                    <div className="mb-8">
-                      <div className="text-4xl font-bold text-white mb-1">{workflowStats.pendingEntities}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider">待确认实体</div>
+                    <div className="mb-6 flex items-center gap-3">
+                      <div className="text-3xl font-bold text-white">{workflowStats.pendingEntities}</div>
+                      <div className="text-sm text-gray-500">个待处理项目</div>
                     </div>
                   )}
                   
-                  <Link href={`/novels/${id}/pending-entities`} className="inline-block">
+                  <Link href={`/novels/${id}/pending-entities`} className="block">
                     <Button 
                       variant={blockingInfo.hasBlocking ? 'danger' : 'secondary'}
-                      className="gap-2 group/btn"
+                      className="w-full gap-2 group/btn justify-between"
                     >
-                      {blockingInfo.hasBlocking ? '立即解决阻塞' : '进入确认队列'}
+                      {blockingInfo.hasBlocking ? '解决阻塞' : '进入队列'}
                       <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
                     </Button>
                   </Link>
                 </Card>
-              </div>
-            </TabsContent>
 
-            <TabsContent value="plot" key="plot">
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-white">剧情推演 (Beta)</h2>
-                    <p className="text-sm text-gray-400 mt-1">
-                      基于蒙特卡洛树搜索 (MCTS) 预测未来剧情走向，评估潜在风险与机会。
-                    </p>
+                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-blue-500/30 transition-all bg-white/[0.02]">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  
+                  <div className="flex items-start justify-between mb-6 relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center shadow-inner shadow-blue-500/20">
+                        <span className="text-2xl">🔮</span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">剧情推演</h3>
+                        <p className="text-sm text-gray-400">预测未来剧情走向 (Beta)</p>
+                      </div>
+                    </div>
                   </div>
+
+                  {plotBranches.length > 0 ? (
+                     <div className="mb-6">
+                        <PlotBranchingView branches={plotBranches} />
+                     </div>
+                  ) : (
+                    <div className="mb-6 text-sm text-gray-400 h-10 flex items-center">
+                      点击推演，系统将分析当前剧情并预测 3 条发展路线。
+                    </div>
+                  )}
+
                   <Button
-                    variant="primary"
+                    variant="secondary"
                     onClick={handleGeneratePlot}
                     disabled={isGeneratingPlot}
                     isLoading={isGeneratingPlot}
-                    leftIcon={!isGeneratingPlot && (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    )}
+                    className="w-full gap-2 group/btn justify-between"
                   >
                     开始推演
+                    <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
                   </Button>
-                </div>
-
-                {plotBranches.length > 0 ? (
-                  <PlotBranchingView branches={plotBranches} />
-                ) : (
-                  <Card className="p-12 rounded-3xl text-center">
-                    <div className="w-20 h-20 mx-auto bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6">
-                      <span className="text-4xl">🔮</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2">暂无推演数据</h3>
-                    <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                      点击上方按钮开始推演，系统将为您分析当前剧情，并预测未来可能的 3 条发展路线。
-                    </p>
-                  </Card>
-                )}
+                </Card>
               </div>
             </TabsContent>
 
@@ -1352,13 +1324,23 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       <OutlineGeneratorModal
         isOpen={showOutlineGenerator}
         onClose={() => setShowOutlineGenerator(false)}
-        novelId={id}
-        onGenerated={(outline) => {
+        novelId={novel?.id || ''}
+        onGenerate={(outline) => {
+          setNovel(prev => prev ? { ...prev, outline } : null);
           setEditedOutline(outline);
-          handleUpdateOutline();
+          setShowOutlineGenerator(false);
         }}
       />
 
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        variant={confirmState.variant}
+      />
     </div>
   );
 }

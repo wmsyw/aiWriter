@@ -193,7 +193,7 @@ const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
 function isRetryableStatus(status: number): boolean {
-  return status === 429 || status === 408 || status === 503 || status === 502 || status === 500;
+  return status === 429 || status === 408 || status === 503 || status === 502 || status === 500 || status === 504;
 }
 
 function parseRetryAfter(res: Response): number | undefined {

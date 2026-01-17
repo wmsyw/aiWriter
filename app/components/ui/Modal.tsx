@@ -19,7 +19,7 @@ interface ModalProps {
 interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title: string;
   message: string;
   confirmText?: string;
@@ -133,13 +133,30 @@ export function ConfirmModal({
   requireConfirmation,
 }: ConfirmModalProps) {
   const [confirmInput, setConfirmInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const isConfirmDisabled = requireConfirmation ? confirmInput !== requireConfirmation : false;
 
   useEffect(() => {
     if (!isOpen) {
       setConfirmInput('');
+      setIsLoading(false);
     }
   }, [isOpen]);
+
+  const handleConfirm = async () => {
+    setIsLoading(true);
+    try {
+      await onConfirm();
+      onClose();
+    } catch (error) {
+      console.error('Confirm action failed:', error);
+      // We still close on error because the parent usually handles error notification (toast)
+      // and we don't want to leave the modal in a stuck state or retry loop without explicit user action
+      onClose();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const variantStyles = {
     danger: {
@@ -179,19 +196,23 @@ export function ConfirmModal({
               onChange={(e) => setConfirmInput(e.target.value)}
               className={`w-full px-3 py-2 bg-black/30 border rounded-lg text-center text-white focus:outline-none focus:ring-2 ${styles.borderClass}`}
               placeholder={requireConfirmation}
+              disabled={isLoading}
             />
           </div>
         )}
         
         <div className="flex gap-3 justify-center pt-2">
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} disabled={isLoading}>
             {cancelText}
           </Button>
           <button
-            onClick={() => { onConfirm(); onClose(); }}
-            disabled={isConfirmDisabled}
-            className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${styles.buttonClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+            onClick={handleConfirm}
+            disabled={isConfirmDisabled || isLoading}
+            className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${styles.buttonClass} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[80px]`}
           >
+            {isLoading && (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
             {confirmText}
           </button>
         </div>

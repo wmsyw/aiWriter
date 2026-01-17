@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import MaterialSearchModal from './MaterialSearchModal';
-import Modal from '@/app/components/ui/Modal';
+import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
 import GlassCard from '@/app/components/ui/GlassCard';
 import { useFetch } from '@/src/hooks/useFetch';
 
@@ -51,6 +51,19 @@ export default function MaterialsPage() {
   const [activeSearch, setActiveSearch] = useState<{ jobId: string; keyword: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
   const [isDeduplicating, setIsDeduplicating] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
@@ -83,57 +96,76 @@ export default function MaterialsPage() {
       return;
     }
 
-    if (!confirm(`确定要使用AI自动分析并合并这 ${count} 个素材吗？\n这将保留信息最全的版本并删除重复项。`)) return;
-    
-    setIsDeduplicating(true);
-    try {
-      const res = await fetch(`/api/novels/${novelId}/materials/deduplicate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-      
-      if (res.ok) {
-        const { job } = await res.json();
-        setActiveSearch({ jobId: job.id, keyword: '智能去重' });
-        setToast({ message: 'AI去重任务已开始...', type: 'info' });
-        clearSelection();
-      } else {
-        throw new Error('Failed to start deduplication');
-      }
-    } catch (error) {
-      console.error('Deduplicate failed:', error);
-      setToast({ message: '启动去重失败', type: 'error' });
-    } finally {
-      setIsDeduplicating(false);
+    if (count < 2) {
+      setToast({ message: '当前列表素材不足2个，无需去重', type: 'info' });
+      setTimeout(() => setToast(null), 3000);
+      return;
     }
+
+    setConfirmState({
+      isOpen: true,
+      title: '确认智能去重',
+      message: `确定要使用AI自动分析并合并这 ${count} 个素材吗？\n这将保留信息最全的版本并删除重复项。`,
+      confirmText: '开始去重',
+      variant: 'info',
+      onConfirm: async () => {
+        setIsDeduplicating(true);
+        try {
+          const res = await fetch(`/api/novels/${novelId}/materials/deduplicate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+          });
+          
+          if (res.ok) {
+            const { job } = await res.json();
+            setActiveSearch({ jobId: job.id, keyword: '智能去重' });
+            setToast({ message: 'AI去重任务已开始...', type: 'info' });
+            clearSelection();
+          } else {
+            throw new Error('Failed to start deduplication');
+          }
+        } catch (error) {
+          console.error('Deduplicate failed:', error);
+          setToast({ message: '启动去重失败', type: 'error' });
+        }
+      }
+    });
   };
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`确定要删除 ${selectedIds.size} 个素材吗？`)) return;
-    
-    const deleteCount = selectedIds.size;
-    try {
-      const res = await fetch(`/api/novels/${novelId}/materials/batch`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
-      });
-      
-      if (!res.ok) {
-        throw new Error(`Error: ${res.status}`);
+
+    setConfirmState({
+      isOpen: true,
+      title: '确认批量删除',
+      message: `确定要删除 ${selectedIds.size} 个素材吗？此操作不可撤销。`,
+      confirmText: '确认删除',
+      variant: 'danger',
+      onConfirm: async () => {
+        const deleteCount = selectedIds.size;
+        try {
+          const res = await fetch(`/api/novels/${novelId}/materials/batch`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: Array.from(selectedIds) }),
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Error: ${res.status}`);
+          }
+          
+          clearSelection();
+          refetch();
+          setToast({ message: `已删除 ${deleteCount} 个素材`, type: 'success' });
+          setTimeout(() => setToast(null), 3000);
+        } catch (error) {
+          console.error('Batch delete failed:', error);
+          setToast({ message: '批量删除失败', type: 'error' });
+          setTimeout(() => setToast(null), 3000);
+        }
       }
-      
-      clearSelection();
-      refetch();
-      setToast({ message: `已删除 ${deleteCount} 个素材`, type: 'success' });
-      setTimeout(() => setToast(null), 3000);
-    } catch (error) {
-      console.error('Batch delete failed:', error);
-      setToast({ message: '批量删除失败', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-    }
+    });
   };
 
   useEffect(() => {
@@ -207,8 +239,8 @@ export default function MaterialsPage() {
         setTimeout(() => setToast(null), 3000);
       }
     } catch (error) {
-      console.error('Failed to save material:', error);
-      setToast({ message: '保存失败，请检查网络连接', type: 'error' });
+      console.error('Save failed:', error);
+      setToast({ message: '保存失败', type: 'error' });
       setTimeout(() => setToast(null), 3000);
     }
   };
@@ -349,6 +381,16 @@ export default function MaterialsPage() {
           }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        variant={confirmState.variant}
+      />
 
       <MaterialSearchModal
         isOpen={isSearchModalOpen}
@@ -554,6 +596,8 @@ function MaterialModal({
   const [attributes, setAttributes] = useState<Record<string, string>>(initialData?.data?.attributes || {});
   const [isSaving, setIsSaving] = useState(false);
   const [enhancingJobId, setEnhancingJobId] = useState<string | null>(null);
+  const [newAttrKey, setNewAttrKey] = useState('');
+  const [isAddingAttr, setIsAddingAttr] = useState(false);
 
   useEffect(() => {
     if (!enhancingJobId) return;
@@ -642,11 +686,23 @@ function MaterialModal({
     setAttributes(prev => ({ ...prev, [key]: value }));
   };
 
-  const addAttribute = () => {
-    const key = prompt('输入属性名称（例如：年龄、职业、气候）：');
-    if (key) {
-      setAttributes(prev => ({ ...prev, [key]: '' }));
+  const confirmAddAttribute = () => {
+    if (newAttrKey.trim()) {
+      if (attributes[newAttrKey.trim()] !== undefined) {
+        onToast('该属性已存在', 'error');
+        return;
+      }
+      setAttributes(prev => ({ ...prev, [newAttrKey.trim()]: '' }));
+      setNewAttrKey('');
+      setIsAddingAttr(false);
+    } else {
+      setIsAddingAttr(false);
     }
+  };
+
+  const cancelAddAttribute = () => {
+    setNewAttrKey('');
+    setIsAddingAttr(false);
   };
 
   const removeAttribute = (key: string) => {
@@ -703,13 +759,18 @@ function MaterialModal({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-gray-300">属性</label>
-            <button 
-              type="button" 
-              onClick={addAttribute}
-              className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors"
-            >
-              + 添加属性
-            </button>
+            {!isAddingAttr && (
+              <button 
+                type="button" 
+                onClick={() => setIsAddingAttr(true)}
+                className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                添加属性
+              </button>
+            )}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -731,14 +792,67 @@ function MaterialModal({
                   type="text"
                   value={value}
                   onChange={(e) => handleAttributeChange(key, e.target.value)}
-                  className="bg-transparent w-full text-sm outline-none border-none p-0 focus:ring-0"
-                  placeholder="值..."
+                  className="bg-transparent w-full text-sm outline-none border-none p-0 focus:ring-0 text-white placeholder-gray-600"
+                  placeholder="输入值..."
                 />
               </div>
             ))}
-            {Object.keys(attributes).length === 0 && (
-              <div className="col-span-full text-center py-4 border border-dashed border-white/10 rounded-xl text-gray-500 text-sm">
-                暂无属性。点击"+ 添加属性"来定义自定义字段。
+            
+            {isAddingAttr && (
+              <div className="glass-input p-3 rounded-xl border border-emerald-500/50 ring-1 ring-emerald-500/20 animate-pulse-once">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-semibold text-emerald-400">新属性名称</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newAttrKey}
+                    onChange={(e) => setNewAttrKey(e.target.value)}
+                    className="bg-transparent w-full text-sm outline-none border-none p-0 focus:ring-0 text-white placeholder-gray-500"
+                    placeholder="例如：年龄、等级..."
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        confirmAddAttribute();
+                      } else if (e.key === 'Escape') {
+                        cancelAddAttribute();
+                      }
+                    }}
+                  />
+                  <button 
+                    type="button"
+                    onClick={confirmAddAttribute}
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={cancelAddAttribute}
+                    className="text-gray-500 hover:text-gray-300"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!isAddingAttr && Object.keys(attributes).length === 0 && (
+              <div 
+                onClick={() => setIsAddingAttr(true)}
+                className="col-span-full text-center py-6 border border-dashed border-white/10 rounded-xl text-gray-500 text-sm cursor-pointer hover:border-emerald-500/30 hover:bg-white/5 transition-all group"
+              >
+                <div className="mb-2 group-hover:text-emerald-400 transition-colors">
+                  <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                暂无属性。点击添加自定义字段。
               </div>
             )}
           </div>

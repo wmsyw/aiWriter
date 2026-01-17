@@ -30,6 +30,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
   const [detailedOutline, setDetailedOutline] = useState<any>(null);
   const [chapterOutline, setChapterOutline] = useState<any>(null);
   const [stage, setStage] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
   const stageLabel = useMemo(() => {
     if (stage === 'rough') return '粗略大纲';
     if (stage === 'detailed') return '细纲扩展';
@@ -111,7 +112,11 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
       setGeneratedOutline(outlineText);
     } catch (error) {
       console.error('Failed to start outline generation', error);
-      alert(error instanceof Error ? error.message : '大纲生成失败，请重试');
+      setToast({ 
+        message: error instanceof Error ? error.message : '大纲生成失败，请重试', 
+        type: 'error' 
+      });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setIsGenerating(false);
       setStage(null);
@@ -409,6 +414,23 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
           </div>
         </div>
       </div>
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[60] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${
+          toast.type === 'success' ? 'bg-emerald-600' : 
+          toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+        }`}>
+          {toast.type === 'success' && (
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {toast.type === 'info' && (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          )}
+          <span className="text-white font-medium">{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 }
