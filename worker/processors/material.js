@@ -192,6 +192,8 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
     const searchResponse = await withConcurrencyLimit(() => adapter.generate(config, searchOptions));
     const rawSearchContent = searchResponse.content;
     
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, searchResponse.usage);
+    
     // Step 2: 格式化模式 - 禁用搜索，强制 JSON 输出
     const formatPrompt = renderTemplateString(FORMAT_EXTRACTION_PROMPT, {
       raw_content: rawSearchContent,
@@ -209,6 +211,8 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
     const formatResponse = await withConcurrencyLimit(() => adapter.generate(config, formatOptions));
     parsed = parseModelJson(formatResponse.content);
     
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, formatResponse.usage);
+    
     if (parsed?.parseError) {
       // 格式化失败，使用新请求重试
       const retryOptions = {
@@ -225,6 +229,7 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
       try {
         const retryResponse = await withConcurrencyLimit(() => adapter.generate(config, retryOptions));
         parsed = parseModelJson(retryResponse.content);
+        await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, retryResponse.usage);
       } catch (retryErr) {
         console.error(`[MATERIAL_SEARCH] Format retry failed:`, retryErr.message);
       }
@@ -259,8 +264,6 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
         };
       }
     }
-    
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, searchResponse.usage);
   } else {
     // 使用外部搜索结果（Tavily/Exa）
     const context = {
@@ -283,6 +286,8 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
     const response = await withConcurrencyLimit(() => adapter.generate(config, generateOptions));
     parsed = parseModelJson(response.content);
     
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+    
     if (parsed?.parseError) {
       // 使用新请求重试，不包含历史
       const retryOptions = {
@@ -299,6 +304,7 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
       try {
         const retryResponse = await withConcurrencyLimit(() => adapter.generate(config, retryOptions));
         parsed = parseModelJson(retryResponse.content);
+        await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, retryResponse.usage);
       } catch (retryErr) {
         console.error(`[MATERIAL_SEARCH] Retry failed:`, retryErr.message);
       }
@@ -312,8 +318,6 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
         };
       }
     }
-    
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   }
   
   const materials = Array.isArray(parsed?.materials) ? parsed.materials : [];
@@ -356,8 +360,6 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
   }));
 
   const createdMaterials = results.filter(id => id !== null);
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     materials: createdMaterials,
