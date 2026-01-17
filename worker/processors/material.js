@@ -46,7 +46,7 @@ const MATERIAL_SEARCH_PROMPT = `你是一位专业的小说创作素材收集助
 {
   "materials": [
     {
-      "type": "character|location|plotPoint|worldbuilding|custom",
+      "type": "character|location|plotPoint|worldbuilding|organization|item|custom",
       "name": "素材名称",
       "description": "详细描述",
       "source": "信息来源URL",
@@ -96,7 +96,7 @@ const FORMAT_EXTRACTION_PROMPT = `请将以下搜索结果整理为结构化的�
 {
   "materials": [
     {
-      "type": "character|location|plotPoint|worldbuilding|custom",
+      "type": "character|location|plotPoint|worldbuilding|organization|item|custom",
       "name": "素材名称",
       "description": "详细描述",
       "source": "信息来源（如有）",
@@ -325,7 +325,7 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
   const genre = novel.genre || '通用';
   const searchGroup = `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-  const validTypes = ['character', 'location', 'plotPoint', 'worldbuilding', 'custom'];
+  const validTypes = ['character', 'location', 'plotPoint', 'worldbuilding', 'organization', 'item', 'custom'];
   
   const results = await Promise.all(materials.map(async (mat) => {
     if (!mat.name || !mat.type) return null;
@@ -488,5 +488,136 @@ export async function handleMaterialEnhance(prisma, job, { jobId, userId, input 
     description: parsed.description || currentDescription,
     attributes: parsed.attributes || currentAttributes,
     enhanced: true,
+  };
+}
+
+const MATERIAL_DEDUPLICATE_PROMPT = `你是一位专业的小说资料整理专家。请分析以下素材列表，找出重复的实体（如同一个人物的不同名称、同一个地点的不同叫法），并将它们合并。
+
+## 待分析素材
+{{materials_json}}
+
+## 任务要求
+1. 识别重复项：找出指代同一个实体的素材。
+2. 合并内容：将重复素材的信息合并到一个主条目中。描述要综合，属性要合并（冲突时保留更详细的）。
+3. 保持独立：完全不同的素材应保持原样。
+4. 返回操作指令：说明哪些需要更新（合并后的内容），哪些需要删除（被合并的副本）。
+
+返回格式（JSON）：
+{
+  "updates": [
+    {
+      "id": "主素材ID",
+      "name": "标准名称",
+      "data": {
+        "description": "合并后的描述",
+        "attributes": { "key": "value" }
+      }
+    }
+  ],
+  "deletes": ["被合并的素材ID1", "被合并的素材ID2"]
+}
+
+只返回JSON，不要有其他文字。`;
+
+export async function handleMaterialDeduplicate(prisma, job, { jobId, userId, input }) {
+  const { novelId, targetIds } = input;
+
+  const where = {
+    novelId,
+    userId,
+    ...(targetIds ? { id: { in: targetIds } } : {}),
+  };
+
+  const materials = await prisma.material.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      data: true,
+    },
+  });
+
+  if (materials.length < 2) {
+    return { summary: '素材数量不足，无需去重' };
+  }
+
+  const processMaterials = materials.slice(0, 50);
+
+  const materialsContext = processMaterials.map(m => ({
+    id: m.id,
+    type: m.type,
+    name: m.name,
+    description: m.data?.description,
+    attributes: m.data?.attributes,
+  }));
+
+  const { agent } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId: null,
+    agentName: '素材整理助手',
+    fallbackAgentName: '章节写手',
+    templateName: null,
+  });
+
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
+
+  const prompt = renderTemplateString(MATERIAL_DEDUPLICATE_PROMPT, {
+    materials_json: JSON.stringify(materialsContext, null, 2),
+  });
+
+  const options = {
+    messages: [{ role: 'user', content: prompt }],
+    model: effectiveModel,
+    temperature: 0.1,
+    maxTokens: 8000,
+    responseFormat: 'json',
+  };
+
+  const response = await withConcurrencyLimit(() => adapter.generate(config, options));
+  const parsed = parseModelJson(response.content);
+
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+
+  if (parsed?.parseError) {
+    throw new Error('AI返回格式错误，无法处理去重');
+  }
+
+  const { updates = [], deletes = [] } = parsed;
+
+  if (updates.length === 0 && deletes.length === 0) {
+    return { summary: '未发现重复素材' };
+  }
+
+  for (const update of updates) {
+    const original = materials.find(m => m.id === update.id);
+    if (!original) continue;
+
+    const mergedData = {
+      ...original.data,
+      description: update.data.description,
+      attributes: update.data.attributes,
+    };
+
+    await prisma.material.update({
+      where: { id: update.id },
+      data: {
+        name: update.name,
+        data: mergedData,
+      },
+    });
+  }
+
+  if (deletes.length > 0) {
+    await prisma.material.deleteMany({
+      where: { id: { in: deletes } },
+    });
+  }
+
+  return {
+    summary: `去重完成：合并更新了 ${updates.length} 个素材，删除了 ${deletes.length} 个重复项`,
+    updatedIds: updates.map(u => u.id),
+    deletedIds: deletes,
   };
 }

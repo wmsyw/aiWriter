@@ -24,7 +24,7 @@ import { handleReviewScore, handleConsistencyCheck, handleCanonCheck } from './p
 import { handleCharacterBios, handleCharacterChat, handleWizardCharacters } from './processors/character.js';
 import { handleNovelSeed, handleWizardWorldBuilding, handleWizardInspiration, handleWizardSynopsis, handleWizardGoldenFinger } from './processors/novel.js';
 import { handleMemoryExtract, handleDeaiRewrite, handleGitBackup } from './processors/utility.js';
-import { handleMaterialSearch, handleMaterialEnhance } from './processors/material.js';
+import { handleMaterialSearch, handleMaterialEnhance, handleMaterialDeduplicate } from './processors/material.js';
 import { 
   handleContextAssemble, 
   handleChapterSummaryGenerate, 
@@ -65,6 +65,7 @@ const handlers = {
   [JobType.GIT_BACKUP]: handleGitBackup,
   [JobType.MATERIAL_SEARCH]: handleMaterialSearch,
   [JobType.MATERIAL_ENHANCE]: handleMaterialEnhance,
+  [JobType.MATERIAL_DEDUPLICATE]: handleMaterialDeduplicate,
   [JobType.CONTEXT_ASSEMBLE]: handleContextAssemble,
   [JobType.CHAPTER_SUMMARY_GENERATE]: handleChapterSummaryGenerate,
   [JobType.HOOKS_EXTRACT]: handleHooksExtract,

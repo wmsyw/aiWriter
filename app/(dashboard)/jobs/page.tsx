@@ -280,7 +280,7 @@ export default function JobsPage() {
       </motion.div>
 
       <div 
-        className={`fixed top-0 right-0 bottom-0 w-full md:w-[600px] glass-card border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${
+        className={`fixed top-0 right-0 bottom-0 w-full md:w-[600px] border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out z-[100] bg-[#0f1115] ${
           isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         role="dialog"
@@ -288,7 +288,7 @@ export default function JobsPage() {
         aria-labelledby="job-drawer-title"
         aria-hidden={!isDrawerOpen}
       >
-        <div className="h-full flex flex-col bg-[#0f1115]">
+        <div className="h-full flex flex-col">
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-md">
             <h2 id="job-drawer-title" className="text-xl font-bold text-white">任务详情</h2>
             <button 
@@ -370,7 +370,7 @@ export default function JobsPage() {
       
       {isDrawerOpen && (
         <motion.div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

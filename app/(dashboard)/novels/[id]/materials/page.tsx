@@ -7,7 +7,7 @@ import Modal from '@/app/components/ui/Modal';
 import GlassCard from '@/app/components/ui/GlassCard';
 import { useFetch } from '@/src/hooks/useFetch';
 
-type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'custom';
+type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'organization' | 'item' | 'custom';
 
 interface Material {
   id: string;
@@ -22,6 +22,8 @@ const TABS: { id: MaterialType | 'all'; label: string }[] = [
   { id: 'all', label: '全部素材' },
   { id: 'character', label: '角色' },
   { id: 'location', label: '地点' },
+  { id: 'organization', label: '组织' },
+  { id: 'item', label: '道具' },
   { id: 'plotPoint', label: '情节点' },
   { id: 'worldbuilding', label: '世界观' },
   { id: 'custom', label: '自定义' },
@@ -47,6 +49,7 @@ export default function MaterialsPage() {
 
   const [activeSearch, setActiveSearch] = useState<{ jobId: string; keyword: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
@@ -64,6 +67,45 @@ export default function MaterialsPage() {
   const clearSelection = () => {
     setSelectedIds(new Set());
     setIsSelectionMode(false);
+  };
+
+  const handleDeduplicate = async () => {
+    const ids = selectedIds.size > 0 
+      ? Array.from(selectedIds) 
+      : filteredMaterials.map(m => m.id);
+      
+    const count = ids.length;
+    
+    if (count < 2) {
+      setToast({ message: '当前列表素材不足2个，无需去重', type: 'info' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (!confirm(`确定要使用AI自动分析并合并这 ${count} 个素材吗？\n这将保留信息最全的版本并删除重复项。`)) return;
+    
+    setIsDeduplicating(true);
+    try {
+      const res = await fetch(`/api/novels/${novelId}/materials/deduplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      
+      if (res.ok) {
+        const { job } = await res.json();
+        setActiveSearch({ jobId: job.id, keyword: '智能去重' });
+        setToast({ message: 'AI去重任务已开始...', type: 'info' });
+        clearSelection();
+      } else {
+        throw new Error('Failed to start deduplication');
+      }
+    } catch (error) {
+      console.error('Deduplicate failed:', error);
+      setToast({ message: '启动去重失败', type: 'error' });
+    } finally {
+      setIsDeduplicating(false);
+    }
   };
 
   const handleBatchDelete = async () => {
@@ -104,13 +146,13 @@ export default function MaterialsPage() {
           if (job.status === 'succeeded') {
             clearInterval(pollInterval);
             setActiveSearch(null);
-            setToast({ message: `"${activeSearch.keyword}" 搜索完成，素材已保存`, type: 'success' });
+            setToast({ message: `"${activeSearch.keyword}" 任务完成`, type: 'success' });
             refetch();
             setTimeout(() => setToast(null), 4000);
           } else if (job.status === 'failed') {
             clearInterval(pollInterval);
             setActiveSearch(null);
-            setToast({ message: `"${activeSearch.keyword}" 搜索失败`, type: 'error' });
+            setToast({ message: `"${activeSearch.keyword}" 任务失败`, type: 'error' });
             setTimeout(() => setToast(null), 4000);
           }
         }
@@ -183,6 +225,20 @@ export default function MaterialsPage() {
             className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
           >
             {isSelectionMode ? '取消选择' : '批量管理'}
+          </button>
+          <button 
+            onClick={handleDeduplicate}
+            disabled={isDeduplicating}
+            className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
+          >
+            {isDeduplicating ? (
+              <div className="w-4 h-4 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            )}
+            AI 汇总去重
           </button>
           <button 
             onClick={(e) => { e.preventDefault(); setIsSearchModalOpen(true); }}
@@ -364,6 +420,16 @@ function MaterialCard({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       );
+      case 'organization': return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      );
+      case 'item': return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      );
       case 'plotPoint': return (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -376,7 +442,7 @@ function MaterialCard({
       );
       default: return (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
         </svg>
       );
     }
@@ -400,6 +466,8 @@ function MaterialCard({
     const labels: Record<MaterialType, string> = {
       character: '角色',
       location: '地点',
+      organization: '组织',
+      item: '道具',
       plotPoint: '情节点',
       worldbuilding: '世界观',
       custom: '自定义',
@@ -416,9 +484,9 @@ function MaterialCard({
       className={`relative overflow-hidden ${isSelected ? 'ring-2 ring-emerald-500' : ''}`}
     >
       {isSelectionMode && (
-        <div className="absolute top-3 right-3 z-20">
+        <div className="absolute top-3 left-3 z-20">
           <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-            isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-500 bg-transparent'
+            isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-500 bg-black/40'
           }`}>
             {isSelected && (
               <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -432,7 +500,7 @@ function MaterialCard({
       
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-4">
-          <div className="p-2.5 rounded-xl bg-white/5 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/10 transition-all duration-300">
+          <div className={`p-2.5 rounded-xl bg-white/5 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/10 transition-all duration-300 ${isSelectionMode ? 'ml-8' : ''}`}>
             {getIcon(material.type)}
           </div>
           <span className="text-xs font-medium text-gray-500 bg-white/5 px-2 py-1 rounded-lg">

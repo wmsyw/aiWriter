@@ -15,6 +15,8 @@ const SEARCH_CATEGORIES = [
   { id: '人物', label: '人物设定', icon: '👤' },
   { id: '情节', label: '情节梗概', icon: '📖' },
   { id: '世界观', label: '世界观设定', icon: '🌍' },
+  { id: '组织', label: '组织势力', icon: '🏛️' },
+  { id: '道具', label: '物品道具', icon: '🗡️' },
   { id: '设定', label: '其他设定', icon: '⚙️' },
 ];
 
