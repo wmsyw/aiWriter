@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BUILT_IN_AGENTS, type AgentCategory, type BuiltInAgentDefinition } from '@/src/constants/agents';
 import { 
@@ -230,13 +230,51 @@ export default function AgentsPage() {
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [viewingAgentKey, setViewingAgentKey] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
+  const [builtInTemplateCache, setBuiltInTemplateCache] = useState<Record<string, { name: string; content: string } | null>>({});
   const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
   
   const viewingAgent = viewingAgentKey ? BUILT_IN_AGENTS[viewingAgentKey] : null;
   const viewingTemplate = useMemo(() => {
     if (!viewingAgent) return null;
-    return templates.find(t => t.name === viewingAgent.templateName);
-  }, [viewingAgent, templates]);
+    const dbTemplate = templates.find(t => t.name === viewingAgent.templateName);
+    if (dbTemplate) return dbTemplate;
+    return builtInTemplateCache[viewingAgent.templateName] ?? null;
+  }, [viewingAgent, templates, builtInTemplateCache]);
+
+  const fetchingTemplates = useRef<Set<string>>(new Set());
+  
+  useEffect(() => {
+    if (!viewingAgent) return;
+    const templateName = viewingAgent.templateName;
+    const hasInDb = templates.some(t => t.name === templateName);
+    const hasInCache = templateName in builtInTemplateCache;
+    const isFetching = fetchingTemplates.current.has(templateName);
+    
+    let isMounted = true;
+    
+    if (!hasInDb && !hasInCache && !isFetching) {
+      fetchingTemplates.current.add(templateName);
+      fetch(`/api/templates/builtin?name=${encodeURIComponent(templateName)}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (isMounted) {
+            setBuiltInTemplateCache(prev => ({ ...prev, [templateName]: data }));
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setBuiltInTemplateCache(prev => ({ ...prev, [templateName]: null }));
+          }
+        })
+        .finally(() => {
+          fetchingTemplates.current.delete(templateName);
+        });
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [viewingAgent, templates, builtInTemplateCache]);
 
   const builtInAgentsByCategory = useMemo(() => {
     const groups: Record<AgentCategory, Array<[string, typeof BUILT_IN_AGENTS[string]]>> = {

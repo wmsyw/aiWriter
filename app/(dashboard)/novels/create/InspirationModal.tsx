@@ -31,7 +31,7 @@ const containerVariants: Variants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1
+      staggerChildren: 0.08
     }
   }
 };
@@ -55,6 +55,56 @@ const PROGRESS_MESSAGES = [
   '即将完成...',
 ];
 
+const AUDIENCE_OPTIONS = [
+  { value: '全年龄', label: '全年龄' },
+  { value: '男性读者', label: '男性读者' },
+  { value: '女性读者', label: '女性读者' },
+  { value: '青少年', label: '青少年' },
+  { value: '成年读者', label: '成年读者' },
+];
+
+const STYLE_OPTIONS = [
+  { value: '', label: '不限风格' },
+  { value: '轻松幽默', label: '轻松幽默' },
+  { value: '热血燃向', label: '热血燃向' },
+  { value: '暗黑压抑', label: '暗黑压抑' },
+  { value: '温馨治愈', label: '温馨治愈' },
+  { value: '悬疑烧脑', label: '悬疑烧脑' },
+  { value: '史诗宏大', label: '史诗宏大' },
+  { value: '诙谐讽刺', label: '诙谐讽刺' },
+  { value: '细腻文艺', label: '细腻文艺' },
+  { value: '硬核写实', label: '硬核写实' },
+  { value: '荒诞离奇', label: '荒诞离奇' },
+  { value: '浪漫唯美', label: '浪漫唯美' },
+  { value: '冷峻凌厉', label: '冷峻凌厉' },
+];
+
+const TONE_OPTIONS = [
+  { value: '', label: '不限基调' },
+  { value: '爽文节奏', label: '爽文节奏' },
+  { value: '慢热养成', label: '慢热养成' },
+  { value: '虐心虐身', label: '虐心虐身' },
+  { value: '甜宠日常', label: '甜宠日常' },
+  { value: '权谋争斗', label: '权谋争斗' },
+  { value: '热血励志', label: '热血励志' },
+  { value: '沉郁悲壮', label: '沉郁悲壮' },
+  { value: '轻快欢脱', label: '轻快欢脱' },
+  { value: '紧张刺激', label: '紧张刺激' },
+  { value: '压抑窒息', label: '压抑窒息' },
+  { value: '豁达释然', label: '豁达释然' },
+  { value: '苦尽甘来', label: '苦尽甘来' },
+  { value: '黑色幽默', label: '黑色幽默' },
+];
+
+const PERSPECTIVE_OPTIONS = [
+  { value: '', label: '不限视角' },
+  { value: '第一人称', label: '第一人称' },
+  { value: '第三人称限制', label: '第三人称限制' },
+  { value: '第三人称全知', label: '第三人称全知' },
+  { value: '多视角切换', label: '多视角切换' },
+  { value: '群像文', label: '群像文' },
+];
+
 const CACHE_MAX_SIZE = 50;
 const inspirationCache = new Map<string, Inspiration[]>();
 
@@ -66,8 +116,8 @@ function setCacheWithLimit(key: string, value: Inspiration[]): void {
   inspirationCache.set(key, value);
 }
 
-function getCacheKey(genre: string, targetWords: number, audience: string, keywords: string): string {
-  return `${genre}:${targetWords}:${audience}:${keywords}`;
+function getCacheKey(genre: string, targetWords: number, audience: string, keywords: string, style: string, tone: string, perspective: string): string {
+  return `${genre}:${targetWords}:${audience}:${keywords}:${style}:${tone}:${perspective}`;
 }
 
 export default function InspirationModal({
@@ -80,8 +130,12 @@ export default function InspirationModal({
   const [step, setStep] = useState<'settings' | 'generating' | 'results'>('settings');
   const [count, setCount] = useState(5);
   const [audience, setAudience] = useState('全年龄');
+  const [style, setStyle] = useState('');
+  const [tone, setTone] = useState('');
+  const [perspective, setPerspective] = useState('');
   const [keywords, setKeywords] = useState('');
   const [inspirations, setInspirations] = useState<Inspiration[]>([]);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [progressMessage, setProgressMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   
@@ -116,7 +170,7 @@ export default function InspirationModal({
       const result = Array.isArray(data) ? data : [];
       setInspirations(result);
       
-      const cacheKey = getCacheKey(genre, targetWords, audience, keywords);
+      const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
       setCacheWithLimit(cacheKey, result);
       
       setStep('results');
@@ -128,11 +182,11 @@ export default function InspirationModal({
         setErrorMessage('');
       }, 3000);
     }
-  }, [status, data, error, clearProgressInterval, genre, targetWords, audience, keywords]);
+  }, [status, data, error, clearProgressInterval, genre, targetWords, audience, keywords, style, tone, perspective]);
 
   useEffect(() => {
     if (isOpen) {
-      const cacheKey = getCacheKey(genre, targetWords, audience, keywords);
+      const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
       const cached = inspirationCache.get(cacheKey);
       
       if (cached && cached.length > 0) {
@@ -142,6 +196,7 @@ export default function InspirationModal({
         setStep('settings');
         setInspirations([]);
       }
+      setExpandedIndex(null);
       setErrorMessage('');
       setProgressMessage('');
     } else {
@@ -153,12 +208,21 @@ export default function InspirationModal({
       stopPolling();
       clearProgressInterval();
     };
-  }, [isOpen, genre, targetWords, audience, keywords, stopPolling, clearProgressInterval]);
+  }, [isOpen, genre, targetWords, audience, keywords, style, tone, perspective, stopPolling, clearProgressInterval]);
 
   const handleGenerate = async () => {
     setStep('generating');
     setErrorMessage('');
+    setExpandedIndex(null);
     startProgressMessages();
+
+    const extraRequirements = [
+      style && `写作风格：${style}`,
+      tone && `情感基调：${tone}`,
+      perspective && `叙事视角：${perspective}`,
+    ].filter(Boolean).join('；');
+
+    const fullKeywords = [keywords, extraRequirements].filter(Boolean).join('。');
 
     try {
       const res = await fetch('/api/jobs', {
@@ -170,7 +234,7 @@ export default function InspirationModal({
             genre,
             targetWords,
             targetAudience: audience,
-            keywords,
+            keywords: fullKeywords,
             count
           }
         }),
@@ -197,10 +261,19 @@ export default function InspirationModal({
   };
 
   const handleRetry = () => {
-    const cacheKey = getCacheKey(genre, targetWords, audience, keywords);
+    const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
     inspirationCache.delete(cacheKey);
     setStep('settings');
     setInspirations([]);
+    setExpandedIndex(null);
+  };
+
+  const handleCardClick = (idx: number) => {
+    if (expandedIndex === idx) {
+      onSelect(inspirations[idx]);
+    } else {
+      setExpandedIndex(idx);
+    }
   };
 
   return (
@@ -219,7 +292,7 @@ export default function InspirationModal({
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="space-y-6"
+              className="space-y-5"
             >
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -237,11 +310,34 @@ export default function InspirationModal({
                   <Select
                     value={audience}
                     onChange={setAudience}
-                    options={[
-                      { value: '全年龄', label: '全年龄' },
-                      { value: '男性读者', label: '男性读者' },
-                      { value: '女性读者', label: '女性读者' }
-                    ]}
+                    options={AUDIENCE_OPTIONS}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-400">写作风格</label>
+                  <Select
+                    value={style}
+                    onChange={setStyle}
+                    options={STYLE_OPTIONS}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-400">情感基调</label>
+                  <Select
+                    value={tone}
+                    onChange={setTone}
+                    options={TONE_OPTIONS}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-400">叙事视角</label>
+                  <Select
+                    value={perspective}
+                    onChange={setPerspective}
+                    options={PERSPECTIVE_OPTIONS}
                   />
                 </div>
               </div>
@@ -252,11 +348,11 @@ export default function InspirationModal({
                   value={keywords}
                   onChange={(e) => setKeywords(e.target.value)}
                   placeholder="例如：赛博朋克、复仇、克苏鲁... (留空则由 AI 自由发挥)"
-                  className="min-h-[120px] bg-black/20"
+                  className="min-h-[100px] bg-black/20"
                 />
               </div>
 
-              <div className="pt-4">
+              <div className="pt-3">
                 <Button
                   onClick={handleGenerate}
                   className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 hover:scale-[1.02]"
@@ -308,10 +404,13 @@ export default function InspirationModal({
               variants={containerVariants}
               initial="hidden"
               animate="visible"
-              className="space-y-6"
+              className="space-y-4"
             >
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-white">为你找到 {inspirations.length} 个灵感</h3>
+                <div>
+                  <h3 className="text-lg font-bold text-white">为你找到 {inspirations.length} 个灵感</h3>
+                  <p className="text-xs text-zinc-500 mt-1">点击卡片查看详情，再次点击应用灵感</p>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -322,50 +421,106 @@ export default function InspirationModal({
                 </Button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar p-1">
-                {inspirations.map((item, idx) => (
-                  <motion.div
-                    key={idx}
-                    variants={itemVariants}
-                    onClick={() => onSelect(item)}
-                    className="group relative p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all duration-300 cursor-pointer overflow-hidden"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:to-emerald-500/10 transition-all duration-500" />
-                    
-                    <div className="relative space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-bold text-emerald-400 text-lg group-hover:text-emerald-300 transition-colors">
-                            {item.name}
-                          </h4>
-                          <p className="text-xs text-zinc-400 mt-1 font-medium">{item.theme}</p>
+              <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
+                {inspirations.map((item, idx) => {
+                  const isExpanded = expandedIndex === idx;
+                  return (
+                    <motion.div
+                      key={idx}
+                      variants={itemVariants}
+                      layout
+                      onClick={() => handleCardClick(idx)}
+                      className={`group relative p-4 rounded-xl border transition-all duration-300 cursor-pointer overflow-hidden ${
+                        isExpanded 
+                          ? 'border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]' 
+                          : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10'
+                      }`}
+                    >
+                      <div className="relative space-y-3">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className={`font-bold text-lg transition-colors truncate ${
+                                isExpanded ? 'text-emerald-300' : 'text-emerald-400 group-hover:text-emerald-300'
+                              }`}>
+                                {item.name}
+                              </h4>
+                              {isExpanded && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 whitespace-nowrap">
+                                  再次点击应用
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-zinc-400 mt-1 font-medium">{item.theme}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1 justify-end flex-shrink-0">
+                            {item.keywords.slice(0, isExpanded ? 6 : 3).map((k, kIdx) => (
+                              <span key={kIdx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/40 text-zinc-300 border border-white/5 whitespace-nowrap">
+                                {k}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-1 justify-end max-w-[40%]">
-                          {item.keywords.slice(0, 3).map((k, kIdx) => (
-                            <span key={kIdx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/40 text-zinc-300 border border-white/5">
-                              {k}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
 
-                      <div className="space-y-2 text-sm text-zinc-300 bg-black/20 p-3 rounded-lg">
-                        <p className="line-clamp-2"><span className="text-zinc-500">主角：</span>{item.protagonist}</p>
-                        <p className="line-clamp-2"><span className="text-zinc-500">世界：</span>{item.worldSetting}</p>
-                      </div>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="space-y-3 overflow-hidden"
+                            >
+                              <div className="grid grid-cols-1 gap-3 text-sm text-zinc-300 bg-black/30 p-4 rounded-lg">
+                                <div>
+                                  <span className="text-zinc-500 font-medium">主角设定：</span>
+                                  <p className="mt-1 text-zinc-200">{item.protagonist}</p>
+                                </div>
+                                <div>
+                                  <span className="text-zinc-500 font-medium">世界观：</span>
+                                  <p className="mt-1 text-zinc-200">{item.worldSetting}</p>
+                                </div>
+                                {item.hook && (
+                                  <div>
+                                    <span className="text-zinc-500 font-medium">核心卖点：</span>
+                                    <p className="mt-1 text-emerald-300">{item.hook}</p>
+                                  </div>
+                                )}
+                                {item.potential && (
+                                  <div>
+                                    <span className="text-zinc-500 font-medium">商业潜力：</span>
+                                    <p className="mt-1 text-amber-300">{item.potential}</p>
+                                  </div>
+                                )}
+                              </div>
 
-                      {(item.hook || item.potential) && (
-                        <div className="pt-2 border-t border-white/5">
-                          <p className="text-xs text-emerald-400/80 italic">
-                            {item.hook || item.potential}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelect(item);
+                                  }}
+                                >
+                                  ✓ 应用此灵感
+                                </Button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {!isExpanded && (
+                          <div className="space-y-2 text-sm text-zinc-300 bg-black/20 p-3 rounded-lg">
+                            <p className="line-clamp-1"><span className="text-zinc-500">主角：</span>{item.protagonist}</p>
+                            <p className="line-clamp-1"><span className="text-zinc-500">世界：</span>{item.worldSetting}</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </motion.div>
           )}
