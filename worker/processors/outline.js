@@ -127,7 +127,10 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
-  const roughOutlinePayload = roughOutline
+  const isEmptyObject = (obj) => obj && typeof obj === 'object' && Object.keys(obj).length === 0;
+  const hasValidRoughOutline = roughOutline && !isEmptyObject(roughOutline);
+  
+  const roughOutlinePayload = hasValidRoughOutline
     ? (typeof roughOutline === 'string' ? roughOutline : JSON.stringify(roughOutline, null, 2))
     : '';
 
@@ -286,7 +289,10 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     parent_rough_content,
   } = input;
 
-  const detailedPayload = detailedOutline
+  const isEmptyObject = (obj) => obj && typeof obj === 'object' && Object.keys(obj).length === 0;
+  const hasValidDetailedOutline = detailedOutline && !isEmptyObject(detailedOutline);
+
+  const detailedPayload = hasValidDetailedOutline
     ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
     : '';
 
