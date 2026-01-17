@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import * as Diff from 'diff';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -116,6 +117,7 @@ export default function ChapterEditorPage() {
   const [iterationRound, setIterationRound] = useState(1);
   const [feedback, setFeedback] = useState('');
   const [reviewFeedback, setReviewFeedback] = useState('');
+  const [mounted, setMounted] = useState(false);
   
   // Review panel state (moved from renderReviewPanel to fix React Hooks rule violation)
   const [reviewPanelActiveTab, setReviewPanelActiveTab] = useState<'review' | 'consistency'>('review');
@@ -164,6 +166,7 @@ export default function ChapterEditorPage() {
   }, [novelId, chapterId]);
 
   useEffect(() => {
+    setMounted(true);
     refreshChapter();
 
     // SSE Connection for Real-time Updates
@@ -413,9 +416,10 @@ export default function ChapterEditorPage() {
   const canComplete = stage === 'humanized';
 
   const renderBranchPanel = () => {
+    if (!mounted) return null;
     const isLoading = activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES');
 
-    return (
+    return createPortal(
       <AnimatePresence>
         {showBranchPanel && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-8">
@@ -490,8 +494,14 @@ export default function ChapterEditorPage() {
                       className="w-2/3 border-l border-white/10 flex flex-col bg-[#0f1117]/50"
                     >
                       <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                        <div className="prose prose-invert max-w-none font-serif leading-loose text-lg text-gray-200">
-                          {selectedBranch.content}
+                        <div className="prose prose-invert max-w-none font-serif text-lg text-gray-200">
+                           {selectedBranch.content.split('\n').map((paragraph, i) => (
+                             paragraph.trim() && (
+                               <p key={i} className="indent-[2em] mb-2 text-justify leading-loose">
+                                 {paragraph}
+                               </p>
+                             )
+                           ))}
                         </div>
                       </div>
                       
@@ -531,7 +541,8 @@ export default function ChapterEditorPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
     );
   };
 
@@ -576,12 +587,13 @@ export default function ChapterEditorPage() {
   };
 
   const renderReviewPanel = () => {
+    if (!mounted) return null;
     const hasReview = !!reviewResult;
     const hasConsistency = !!consistencyResult;
 
     const isMulti = reviewResult?.isMultiReview;
 
-    return (
+    return createPortal(
       <AnimatePresence>
         {showReviewPanel && (hasReview || hasConsistency) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
@@ -813,11 +825,13 @@ export default function ChapterEditorPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
     );
   };
 
   const renderCanonCheckPanel = () => {
+    if (!mounted) return null;
     const getScoreColor = (score: any) => {
       if (typeof score !== 'number') return 'text-gray-400';
       if (score >= 8) return 'text-emerald-400';
@@ -845,7 +859,7 @@ export default function ChapterEditorPage() {
     const summaryText = typeof rawSummary === 'string' ? rawSummary : (typeof canonCheckResult?.summary === 'string' ? canonCheckResult.summary : '');
     const summaryObj = typeof rawSummary === 'object' ? rawSummary : (typeof canonCheckResult?.summary === 'object' ? canonCheckResult.summary : null);
 
-    return (
+    return createPortal(
       <AnimatePresence>
         {showCanonCheckPanel && (canonCheckResult || canonCheckError) && (
           canonCheckError ? (
@@ -993,45 +1007,31 @@ export default function ChapterEditorPage() {
                                     <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
                                       issue.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
                                       issue.severity === 'major' ? 'bg-orange-500' : 
-                                      issue.severity === 'creative_liberty' ? 'bg-blue-400' : 'bg-yellow-500'
+                                      'bg-yellow-500'
                                     }`} />
                                     <div className="flex-1">
-                                      <div className="flex flex-col gap-1">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="text-gray-200 font-medium text-sm">{issue.title || issue.description}</span>
-                                          {issue.severity && (
-                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                              issue.severity === 'critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
-                                              issue.severity === 'major' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 
-                                              'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                            }`}>
-                                              {issue.severity === 'critical' ? '严重冲突' : issue.severity === 'major' ? '主要问题' : issue.severity === 'creative_liberty' ? '二创自由' : '一般瑕疵'}
-                                            </span>
-                                          )}
-                                        </div>
-                                        {issue.location && <div className="text-xs text-gray-500">位置: {issue.location}</div>}
+                                      <div className="flex justify-between items-start mb-1">
+                                        <h4 className="font-bold text-gray-200 text-sm">{issue.type || '检测项'}</h4>
+                                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                                          issue.severity === 'critical' ? 'text-red-400 border-red-500/20 bg-red-500/10' : 
+                                          issue.severity === 'major' ? 'text-orange-400 border-orange-500/20 bg-orange-500/10' : 
+                                          'text-yellow-400 border-yellow-500/20 bg-yellow-500/10'
+                                        }`}>{issue.severity || 'normal'}</span>
                                       </div>
+                                      <p className="text-xs text-gray-400 line-clamp-2 group-open:line-clamp-none transition-all">{issue.description}</p>
                                     </div>
-                                    <div className="text-gray-500 group-open:rotate-180 transition-transform">
-                                      <Icons.ChevronLeft className="w-4 h-4 -rotate-90" />
-                                    </div>
+                                    <Icons.ChevronLeft className="w-4 h-4 text-gray-500 transition-transform -rotate-90 group-open:rotate-90" />
                                   </summary>
-                                  <div className="px-4 pb-4 pt-0 pl-9 space-y-3">
-                                    {issue.contradiction && (
-                                      <div className="text-sm text-gray-400 leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
-                                        <span className="text-red-400/80 font-bold text-xs block mb-1">矛盾点</span>
-                                        {issue.contradiction}
-                                      </div>
-                                    )}
-                                     {issue.canon_reference && (
-                                      <div className="text-xs text-gray-500 bg-white/5 p-2 rounded">
-                                        <span className="font-bold">原作参考:</span> {issue.canon_reference}
+                                  <div className="px-4 pb-4 pl-9 space-y-2">
+                                    {issue.reference && (
+                                      <div className="text-xs bg-black/30 p-2 rounded border border-white/5 text-gray-500 font-mono">
+                                        {issue.reference}
                                       </div>
                                     )}
                                     {issue.suggestion && (
-                                      <div className="flex gap-2 text-xs text-emerald-400/80">
-                                        <Icons.Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                                        <span>建议：{issue.suggestion}</span>
+                                      <div className="text-xs text-emerald-400/80 flex gap-2">
+                                        <Icons.Sparkles className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                        {issue.suggestion}
                                       </div>
                                     )}
                                   </div>
@@ -1039,128 +1039,49 @@ export default function ChapterEditorPage() {
                               ))}
                             </div>
                           ) : (
-                             <div className="text-center py-12 text-gray-500">
-                               <Icons.CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                               <p>未发现明显的设定冲突</p>
-                             </div>
+                            <div className="text-center py-10 text-gray-500">
+                              <Icons.CheckCircle className="w-12 h-12 text-emerald-500/20 mx-auto mb-3" />
+                              <p>未发现严重冲突，继续保持！</p>
+                            </div>
                           )}
                         </Card>
-
-                        {canonCheckResult.improvement_suggestions && canonCheckResult.improvement_suggestions.length > 0 && (
-                          <Card className="p-6 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-900/10 to-orange-900/10">
-                            <h3 className="text-lg font-bold text-amber-200 mb-4 flex items-center gap-2">
-                              <Icons.Sparkles className="w-5 h-5" />
-                              改进建议
-                            </h3>
-                            <ul className="space-y-3">
-                              {canonCheckResult.improvement_suggestions.map((s: any, i: number) => (
-                                <li key={i} className="flex gap-3 text-sm text-amber-100/80 leading-relaxed">
-                                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs border border-amber-500/30">{i+1}</span>
-                                  <div className="flex-1">
-                                     {typeof s === 'string' ? (
-                                       <span>{s}</span>
-                                      ) : (
-                                       <>
-                                         <div className="font-bold text-amber-200/90 mb-0.5 flex items-center gap-2">
-                                            {s.suggestion}
-                                            {s.category && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70 bg-amber-500/10">{s.category}</span>}
-                                            {s.priority && <span className="text-[10px] border border-amber-500/30 px-1 rounded opacity-70">{s.priority}</span>}
-                                         </div>
-                                         {s.example && <div className="text-xs opacity-70 italic mt-1">"{s.example}"</div>}
-                                       </>
-                                     )}
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          </Card>
-                        )}
                       </div>
 
-                      <div className="lg:col-span-1 space-y-6">
-                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">角色深度扫描</h3>
-                         {canonCheckResult.character_analysis?.map((char: any, i: number) => (
-                           <Card key={i} className="p-4 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
-                             <div className="flex justify-between items-center mb-3">
-                                <div className="font-bold text-white">{char.character_name || char.name}</div>
-                                {(char.canon_alignment || char.score) && (
-                                  <div className={`text-xs font-mono font-bold px-2 py-1 rounded bg-black/20 ${getScoreColor(char.canon_alignment || char.score)}`}>
-                                    {char.canon_alignment || char.score}/10
-                                  </div>
-                                )}
-                             </div>
-                             
-                             <div className="space-y-2 mb-3">
-
-                                <div className="grid grid-cols-3 gap-1 text-[10px] text-gray-400">
-                                   <div className="bg-white/5 p-1 rounded text-center">
-                                     <div className="opacity-50 mb-0.5">性格</div>
-                                     <div className={typeof char.personality_match === 'number' ? getScoreColor(char.personality_match) : 'text-gray-300 leading-tight'}>
-                                       {char.personality_match || '-'}
-                                     </div>
-                                   </div>
-                                   <div className="bg-white/5 p-1 rounded text-center">
-                                     <div className="opacity-50 mb-0.5">语气</div>
-                                     <div className={typeof char.speech_pattern_match === 'number' ? getScoreColor(char.speech_pattern_match) : 'text-gray-300 leading-tight'}>
-                                       {char.speech_pattern_match || '-'}
-                                     </div>
-                                   </div>
-                                   <div className="bg-white/5 p-1 rounded text-center">
-                                     <div className="opacity-50 mb-0.5">行为</div>
-                                     <div className={typeof char.behavior_match === 'number' ? getScoreColor(char.behavior_match) : 'text-gray-300 leading-tight'}>
-                                       {char.behavior_match || '-'}
-                                     </div>
-                                   </div>
-                                </div>
-                             </div>
-
-                             {char.well_done && char.well_done.length > 0 && (
-                                <div className="mb-2 space-y-1">
-                                  <div className="text-[10px] text-emerald-400 font-bold uppercase">亮点</div>
-                                  {char.well_done.slice(0, 2).map((m: string, idx: number) => (
-                                    <div key={idx} className="text-xs text-emerald-300/70 bg-emerald-500/5 p-1.5 rounded border border-emerald-500/10 truncate">
-                                      {m}
-                                    </div>
-                                  ))}
-                                </div>
-                             )}
-
-                             {char.ooc_moments?.length > 0 && (
-                               <div className="space-y-1">
-                                 <div className="text-[10px] text-red-400 font-bold uppercase">OOC 风险</div>
-                                 {char.ooc_moments.slice(0, 2).map((m: string, idx: number) => (
-                                   <div key={idx} className="text-xs text-red-300/70 bg-red-500/5 p-1.5 rounded border border-red-500/10 truncate">
-                                     {m}
-                                   </div>
-                                 ))}
+                      <div className="space-y-6">
+                        <Card className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">AI 分析</h3>
+                           <div className="space-y-4">
+                             <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                               <div className="text-xs text-gray-500 mb-1">叙事节奏</div>
+                               <div className="text-sm text-gray-300">
+                                 {canonCheckResult?.pacing_analysis || '暂无分析'}
                                </div>
-                             )}
-                           </Card>
-                         ))}
+                             </div>
+                             <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                               <div className="text-xs text-gray-500 mb-1">情感张力</div>
+                               <div className="text-sm text-gray-300">
+                                 {canonCheckResult?.emotional_resonance || '暂无分析'}
+                               </div>
+                             </div>
+                           </div>
+                        </Card>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-                    <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
-                    <Button variant="primary" onClick={() => {
-                      setShowCanonCheckPanel(false);
-                    }}>
-                      <Icons.CheckCircle className="w-4 h-4" /> 确认
-                    </Button>
                   </div>
                 </Card>
               </motion.div>
             </div>
           )
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
     );
   };
 
   const renderDiffModal = () => {
+    if (!mounted) return null;
     
-    return (
+    return createPortal(
       <AnimatePresence>
         {showDiff && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8">
@@ -1204,7 +1125,8 @@ export default function ChapterEditorPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
     );
   };
 
