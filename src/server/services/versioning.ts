@@ -15,8 +15,10 @@ export interface VersionInfo {
 }
 
 export interface BranchInfo {
+  id: string;
   branchNumber: number;
   versionId: string;
+  content: string;
   preview: string;
   createdAt: Date;
 }
@@ -85,8 +87,10 @@ export async function getBranches(chapterId: string): Promise<BranchInfo[]> {
   });
   
   return branches.map(b => ({
+    id: b.id,
     branchNumber: b.branchNumber || 0,
     versionId: b.id,
+    content: b.content,
     preview: b.content.slice(0, 500),
     createdAt: b.createdAt,
   }));

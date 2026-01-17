@@ -113,31 +113,36 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         ...formData,
         novelId,
       });
-      setRoughOutline(roughOutput);
+      // 适配单卷输出：如果是单对象，包装成 blocks 数组
+      const normalizedRough = roughOutput.blocks || Array.isArray(roughOutput) ? roughOutput : { blocks: [roughOutput] };
+      setRoughOutline(normalizedRough);
 
       setStage('detailed');
       const detailedOutput = await runJob('OUTLINE_DETAILED', {
         novelId,
-        roughOutline: roughOutput,
+        roughOutline: normalizedRough,
         targetWords: formData.targetWords,
         chapterCount: formData.chapterCount,
         detailedNodeCount: effectiveDetailedNodeCount,
       });
-      setDetailedOutline(detailedOutput);
+      // 适配细纲输出
+      const normalizedDetailed = detailedOutput.blocks || detailedOutput.children ? detailedOutput : { blocks: [detailedOutput] };
+      setDetailedOutline(normalizedDetailed);
 
       setStage('chapters');
       const chaptersOutput = await runJob('OUTLINE_CHAPTERS', {
         novelId,
-        detailedOutline: detailedOutput,
+        detailedOutline: normalizedDetailed,
         targetWords: formData.targetWords,
         chapterCount: formData.chapterCount,
         chaptersPerNode: effectiveChaptersPerNode,
       });
-      setChapterOutline(chaptersOutput);
+      const normalizedChapters = chaptersOutput.blocks || chaptersOutput.events ? chaptersOutput : { blocks: [chaptersOutput] };
+      setChapterOutline(normalizedChapters);
 
-      const outlineText = typeof chaptersOutput === 'string'
-        ? chaptersOutput
-        : JSON.stringify(chaptersOutput, null, 2);
+      const outlineText = typeof normalizedChapters === 'string'
+        ? normalizedChapters
+        : JSON.stringify(normalizedChapters, null, 2);
       setGeneratedOutline(outlineText);
     } catch (error) {
       console.error('Failed to start outline generation', error);

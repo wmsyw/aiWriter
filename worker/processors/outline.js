@@ -22,9 +22,23 @@ function extractCharactersFromMarkdown(content) {
 }
 
 export async function handleOutlineRough(prisma, job, { jobId, userId, input }) {
-  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId, volumeCount: userVolumeCount } = input;
+  const { 
+    novelId, 
+    keywords, 
+    theme, 
+    genre, 
+    targetWords, 
+    chapterCount, 
+    protagonist, 
+    worldSetting, 
+    specialRequirements, 
+    agentId, 
+    prev_volume_summary,
+    user_guidance 
+  } = input;
 
-  const selectedTemplateName = getOutlineRoughTemplateName(targetWords);
+  // 使用单卷模板
+  const selectedTemplateName = 'OUTLINE_ROUGH_SINGLE';
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
@@ -37,8 +51,6 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const calculatedParams = calculateOutlineParams(targetWords || 100, chapterCount);
-  
-  const effectiveVolumeCount = userVolumeCount || calculatedParams.volumeCount;
   const effectiveNodesPerVolume = calculatedParams.nodesPerVolume;
   const effectiveChaptersPerNode = calculatedParams.chaptersPerNode;
   
@@ -51,13 +63,13 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     protagonist: protagonist || '',
     world_setting: worldSetting || '',
     special_requirements: specialRequirements || '',
-    volume_count: effectiveVolumeCount,
-    expected_volume_words: Math.floor((targetWords || 100) * 10000 / effectiveVolumeCount),
+    prev_volume_summary: prev_volume_summary || '无（这是第一卷）',
+    user_guidance: user_guidance || '无',
     nodes_per_volume: effectiveNodesPerVolume,
     chapters_per_node: effectiveChaptersPerNode,
   };
 
-  const fallbackPrompt = `请生成粗略大纲，分段描述故事主线（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}\n目标字数：${targetWords || '未知'}万字`;
+  const fallbackPrompt = `请生成小说的一卷粗略大纲（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n前卷概要：${prev_volume_summary || '无'}\n用户指引：${user_guidance || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
@@ -74,24 +86,9 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     roughOutline = response.content;
   }
 
-  if (typeof roughOutline === 'object' && roughOutline !== null) {
-    const blocks = roughOutline.blocks || roughOutline.volumes || roughOutline.arcs || [];
-    if (Array.isArray(blocks) && blocks.length !== effectiveVolumeCount) {
-      console.warn(`[Outline] AI generated ${blocks.length} volumes, expected ${effectiveVolumeCount}. Output may not match target word count.`);
-    }
-  }
-
-  if (novelId) {
-    await prisma.novel.updateMany({
-      where: { id: novelId, userId },
-      data: {
-        outlineRough: roughOutline,
-        outlineStage: 'rough',
-        generationStage: 'rough',
-      },
-    });
-  }
-
+  // 单卷模式下，我们不再全量更新 outlineRough，而是返回生成的单卷数据
+  // 前端负责将其追加到现有的 outline tree 中
+  
   await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return roughOutline;
@@ -115,6 +112,9 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     target_content,
     rough_outline_context,
     original_node_title,
+    parent_rough_node, // 新增：父粗纲节点对象
+    prev_detailed_node, // 新增：前一个细纲节点对象
+    user_guidance, // 新增：用户指引
   } = input;
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
@@ -167,8 +167,13 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
       detailed_node_count: effectiveNodesPerVolume,
       expected_node_words: calculatedParams.expectedNodeWords,
       chapters_per_node: calculatedParams.chaptersPerNode,
+      // 新增上下文
+      parent_rough_node: parent_rough_node ? JSON.stringify(parent_rough_node) : '',
+      prev_detailed_node: prev_detailed_node ? JSON.stringify(prev_detailed_node) : '',
+      user_guidance: user_guidance || '',
     };
   } else {
+    // 兼容旧模式
     context = {
       rough_outline: roughOutlinePayload,
       target_words: targetWords || null,
@@ -184,7 +189,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
   }
 
   const fallbackPrompt = regenerate_single || isSingleBlockMode
-    ? `请为以下分卷生成细纲节点（JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n全文大纲背景：${rough_outline_context || '无'}`
+    ? `请为以下分卷生成细纲节点（JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n全文大纲背景：${rough_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
     : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
@@ -243,7 +248,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     });
   }
 
-  if (novelId && !regenerate_single) {
+  if (novelId && !regenerate_single && !isSingleBlockMode) {
     await prisma.novel.updateMany({
       where: { id: novelId, userId },
       data: {
@@ -287,6 +292,10 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     original_chapter_title,
     parent_rough_title,
     parent_rough_content,
+    prev_chapters_summary, // 新增：前10章总结
+    recent_chapters_content, // 新增：前3章详细内容
+    user_guidance, // 新增：用户指引
+    parent_detailed_node // 新增：父细纲节点
   } = input;
 
   const isEmptyObject = (obj) => obj && typeof obj === 'object' && Object.keys(obj).length === 0;
@@ -338,6 +347,11 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
       parent_rough_content: parent_rough_content || '',
       chapters_per_node: effectiveChaptersPerNode,
       words_per_chapter: calculatedParams.wordsPerChapter,
+      // 新增上下文
+      prev_chapters_summary: prev_chapters_summary || '',
+      recent_chapters_content: recent_chapters_content || '',
+      user_guidance: user_guidance || '',
+      parent_detailed_node: parent_detailed_node ? JSON.stringify(parent_detailed_node) : '',
     };
   } else {
     context = {
@@ -348,7 +362,7 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
   }
 
   const fallbackPrompt = (regenerate_single || isSingleBlockMode)
-    ? `请为以下细纲事件生成章节大纲（JSON 输出）：\n事件标题：${target_title || '未知'}\n事件内容：${target_content || '无'}\n所属分卷：${parent_rough_title || '无'}\n全文细纲背景：${detailed_outline_context || '无'}`
+    ? `请为以下细纲事件生成章节大纲（JSON 输出）：\n事件标题：${target_title || '未知'}\n事件内容：${target_content || '无'}\n所属分卷：${parent_rough_title || '无'}\n全文细纲背景：${detailed_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
     : `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
@@ -366,7 +380,7 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     chapterOutlines = response.content;
   }
 
-  if (novelId && !regenerate_single) {
+  if (novelId && !regenerate_single && !isSingleBlockMode) {
     await prisma.novel.updateMany({
       where: { id: novelId, userId },
       data: {

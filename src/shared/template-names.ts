@@ -48,6 +48,7 @@ export const TEMPLATE_NAMES = {
   OUTLINE_ROUGH_400W: '粗略大纲生成（400万字内）',
   OUTLINE_ROUGH_500W: '粗略大纲生成（500万字内）',
   OUTLINE_ROUGH_MEGA: '粗略大纲生成（500万字以上）',
+  OUTLINE_ROUGH_SINGLE: '粗略大纲生成（单卷）',
   OUTLINE_DETAILED: '细纲生成',
   OUTLINE_CHAPTERS: '章节大纲生成',
   OUTLINE_CHAPTERS_BATCH: '批量章节大纲生成',

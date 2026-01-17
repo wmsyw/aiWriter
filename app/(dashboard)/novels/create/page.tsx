@@ -197,17 +197,6 @@ const INSPIRATION_PRESETS: Record<string, Array<{
   ],
 };
 
-interface OutlineNode {
-  id: string;
-  title: string;
-  content: string;
-  level: 'rough' | 'detailed' | 'chapter';
-  children: OutlineNode[];
-  parentId?: string;
-  isExpanded?: boolean;
-  isGenerating?: boolean;
-}
-
 interface SeedOutputWorld {
   world_setting?: string;
   time_period?: string;
@@ -223,102 +212,9 @@ interface SeedOutput {
   world?: SeedOutputWorld;
 }
 
-interface RoughOutlineOutput {
-  blocks?: OutlineNode[];
-}
+// Outline types removed
 
-interface DetailedOutlineOutput {
-  children?: OutlineNode[];
-}
-
-const OutlineTreeNode = ({ 
-  node, 
-  onToggle, 
-  onGenerateNext,
-  onRegenerate,
-  onUpdate
-}: { 
-  node: OutlineNode; 
-  onToggle: (id: string) => void;
-  onGenerateNext: (node: OutlineNode) => void;
-  onRegenerate: (node: OutlineNode) => void;
-  onUpdate: (id: string, content: string) => void;
-}) => {
-  const isLeaf = node.level === 'chapter';
-  const padding = node.level === 'rough' ? 0 : node.level === 'detailed' ? 24 : 48;
-  const nextLevelName = node.level === 'rough' ? '细纲' : '章节';
-
-  return (
-    <div className="mb-2 transition-all duration-300">
-      <div 
-        className={`glass-panel p-4 rounded-xl flex items-start gap-3 hover:bg-white/5 transition-colors ${node.level === 'rough' ? 'border-emerald-500/30' : ''}`}
-        style={{ marginLeft: padding }}
-      >
-        <button 
-          onClick={() => onToggle(node.id)}
-          className="mt-1 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white transition-colors flex-shrink-0"
-        >
-          {(node.children && node.children.length > 0) || !isLeaf ? (
-            <span className={`transform transition-transform duration-200 inline-block ${node.isExpanded ? 'rotate-90' : ''}`}>▶</span>
-          ) : <span className="w-2 h-2 rounded-full bg-gray-600"/>}
-        </button>
-        
-        <div className="flex-1 space-y-2 min-w-0">
-          <div className="flex items-center justify-between gap-4">
-            <h4 className="font-bold text-gray-200 truncate flex-1">
-              <span className="text-emerald-400 mr-2">{node.id}</span>
-              {node.title}
-            </h4>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {node.children && node.children.length > 0 && <span className="text-green-400">✓</span>}
-              {(node.content || node.level === 'rough') && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRegenerate(node); }}
-                  disabled={node.isGenerating}
-                  className="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-1 rounded transition-colors border border-amber-500/30 disabled:opacity-50"
-                >
-                  {node.isGenerating ? '生成中...' : '重新生成'}
-                </button>
-              )}
-              {!isLeaf && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onGenerateNext(node); }}
-                  disabled={node.isGenerating}
-                  className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-1 rounded transition-colors border border-emerald-500/30 disabled:opacity-50"
-                >
-                  {node.isGenerating ? '生成中...' : `生成${nextLevelName}`}
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="relative group">
-            <textarea
-              className="w-full bg-transparent text-sm text-gray-400 leading-relaxed resize-none focus:outline-none focus:text-gray-200 transition-colors"
-              value={node.content || ''}
-              onChange={(e) => onUpdate(node.id, e.target.value)}
-              rows={(node.content?.length || 0) > 100 ? 4 : 2}
-            />
-          </div>
-        </div>
-      </div>
-      
-      {node.isExpanded && node.children && node.children.length > 0 && (
-        <div className="animate-fade-in mt-2">
-          {node.children.map(child => (
-            <OutlineTreeNode 
-              key={child.id} 
-              node={child} 
-              onToggle={onToggle}
-              onGenerateNext={onGenerateNext}
-              onRegenerate={onRegenerate}
-              onUpdate={onUpdate}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
+// OutlineTreeNode component removed
 
 function NovelWizardContent() {
   const router = useRouter();
@@ -331,10 +227,7 @@ function NovelWizardContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [jobStatus, setJobStatus] = useState<string>('');
   const [seedOutput, setSeedOutput] = useState<SeedOutput | null>(null);
-  const [roughOutline, setRoughOutline] = useState<RoughOutlineOutput | null>(null);
-  const [detailedOutline, setDetailedOutline] = useState<DetailedOutlineOutput | null>(null);
-  const [chapterOutline, setChapterOutline] = useState<DetailedOutlineOutput | null>(null);
-  const [generatedOutline, setGeneratedOutline] = useState('');
+// Unused outline states removed
   const [worldBuildingLoading, setWorldBuildingLoading] = useState(false);
   const [characterLoading, setCharacterLoading] = useState(false);
   const [synopsisLoading, setSynopsisLoading] = useState(false);
@@ -358,9 +251,9 @@ function NovelWizardContent() {
     outlineMode: 'simple',
   });
 
-  const [outlineTree, setOutlineTree] = useState<OutlineNode[]>([]);
+// Outline state removed
   const [isInspirationModalOpen, setIsInspirationModalOpen] = useState(false);
-  const stepLabels = ['基础设定', '核心设定', '大纲生成', '完成'];
+  const stepLabels = ['基础设定', '完成'];
 
   const [confirmModalState, setConfirmModalState] = useState<{
     isOpen: boolean;
@@ -385,78 +278,7 @@ function NovelWizardContent() {
     setConfirmModalState(prev => ({ ...prev, isOpen: false }));
   };
 
-  const safeParseJSON = (text: string) => {
-    try {
-      const cleanText = text.replace(/```json\n|\n```/g, '').replace(/```/g, '').trim();
-      const start = cleanText.indexOf('{');
-      const end = cleanText.lastIndexOf('}');
-      if (start === -1 || end === -1) return null;
-      return JSON.parse(cleanText.substring(start, end + 1));
-    } catch (e) {
-      console.error('Failed to parse JSON', e);
-      return null;
-    }
-  };
-
-  const toggleNode = (id: string) => {
-    const toggleRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-      return nodes.map(node => {
-        if (node.id === id) {
-          return { ...node, isExpanded: !node.isExpanded };
-        }
-        if (node.children && node.children.length > 0) {
-          return { ...node, children: toggleRecursive(node.children) };
-        }
-        return node;
-      });
-    };
-    setOutlineTree(prev => toggleRecursive(prev));
-  };
-
-  const updateNodeChildren = (id: string, children: OutlineNode[]) => {
-    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-      return nodes.map(node => {
-        if (node.id === id) {
-          return { ...node, children, isExpanded: true, isGenerating: false };
-        }
-        if (node.children && node.children.length > 0) {
-          return { ...node, children: updateRecursive(node.children) };
-        }
-        return node;
-      });
-    };
-    setOutlineTree(prev => updateRecursive(prev));
-  };
-
-  const setNodeGenerating = (id: string, isGenerating: boolean) => {
-    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-      return nodes.map(node => {
-        if (node.id === id) {
-          return { ...node, isGenerating };
-        }
-        if (node.children && node.children.length > 0) {
-          return { ...node, children: updateRecursive(node.children) };
-        }
-        return node;
-      });
-    };
-    setOutlineTree(prev => updateRecursive(prev));
-  };
-
-  const updateNodeContent = (id: string, content: string) => {
-    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-      return nodes.map(node => {
-        if (node.id === id) {
-          return { ...node, content };
-        }
-        if (node.children && node.children.length > 0) {
-          return { ...node, children: updateRecursive(node.children) };
-        }
-        return node;
-      });
-    };
-    setOutlineTree(prev => updateRecursive(prev));
-  };
+// Helper functions removed
 
   useEffect(() => () => {
     if (pollTimerRef.current) {
@@ -502,30 +324,10 @@ function NovelWizardContent() {
       return;
     }
     try {
-      const roughNodes = outlineTree.filter(n => n.level === 'rough');
-      const detailedNodes = outlineTree.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
-      const chapterNodes = outlineTree.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
-
-      let outlineStage = 'none';
-      if (chapterNodes.length > 0) {
-        outlineStage = 'chapters';
-      } else if (detailedNodes.length > 0) {
-        outlineStage = 'detailed';
-      } else if (roughNodes.length > 0) {
-        outlineStage = 'rough';
-      }
-
       const payload: Record<string, unknown> = {
         wizardStatus: overrideStatus || (nextStep >= 3 ? 'completed' : 'in_progress'),
         wizardStep: nextStep,
       };
-
-      if (outlineTree.length > 0) {
-        payload.outlineRough = roughNodes.length > 0 ? { blocks: outlineTree } : null;
-        payload.outlineDetailed = detailedNodes.length > 0 ? { blocks: detailedNodes } : null;
-        payload.outlineChapters = chapterNodes.length > 0 ? { blocks: chapterNodes } : null;
-        payload.outlineStage = outlineStage;
-      }
 
       await fetch(`/api/novels/${novelId}`, {
         method: 'PATCH',
@@ -558,6 +360,7 @@ function NovelWizardContent() {
       chapterCount: formData.chapterCount || undefined,
       protagonist: formData.protagonist || undefined,
       worldSetting: formData.worldSetting || undefined,
+      goldenFinger: formData.goldenFinger || undefined,
       keywords: normalizedKeywords,
       specialRequirements: formData.specialRequirements || undefined,
       outlineMode: formData.outlineMode,
@@ -587,7 +390,8 @@ function NovelWizardContent() {
       }
       
       if (advanceStep) {
-        await persistWizardStep(1, 'in_progress');
+        // 简化流程：直接跳转到完成页 (step 1)
+        await persistWizardStep(1, 'completed');
       }
       return currentNovelId;
     } catch (error) {
@@ -815,6 +619,28 @@ function NovelWizardContent() {
     }
   };
 
+  const handleGenerateSynopsis = async () => {
+    if (!formData.title.trim()) {
+      alert('请先填写书名');
+      return;
+    }
+    const id = await saveNovel(false);
+    if (id) {
+      await startSynopsisGeneration(id);
+    }
+  };
+
+  const handleGenerateGoldenFinger = async () => {
+    if (!formData.title.trim()) {
+      alert('请先填写书名');
+      return;
+    }
+    const id = await saveNovel(false);
+    if (id) {
+      await startGoldenFingerGeneration(id);
+    }
+  };
+
   const startNovelSeed = async () => {
     if (!novelId) return;
     setJobStatus('生成核心设定中...');
@@ -846,404 +672,7 @@ function NovelWizardContent() {
     }
   };
 
-  const startRoughOutline = async () => {
-    if (!novelId) return;
-    setJobStatus('生成粗略大纲中...');
-
-    try {
-      const output = await runJob('OUTLINE_ROUGH', {
-        novelId,
-        keywords: formData.keywordsInput || formData.keywords.join(', '),
-        theme: formData.theme,
-        genre: formData.genre,
-        targetWords: formData.targetWords,
-        chapterCount: formData.chapterCount,
-        protagonist: formData.protagonist,
-        worldSetting: formData.worldSetting,
-        specialRequirements: formData.specialRequirements,
-      });
-
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      if (json && json.blocks) {
-        setOutlineTree(json.blocks);
-      } else {
-        // Fallback or error handling
-        console.warn('Unexpected output format:', output);
-      }
-      setJobStatus('');
-    } catch (error) {
-      console.error('Failed to generate rough outline', error);
-      setJobStatus(error instanceof Error ? error.message : '生成失败');
-    }
-  };
-
-  const generateDetailedForBlock = async (node: OutlineNode) => {
-    if (!novelId) return;
-    setNodeGenerating(node.id, true);
-
-    try {
-      const roughNodes = outlineTree.filter(n => n.level === 'rough');
-      const currentIndex = roughNodes.findIndex(n => n.id === node.id);
-      
-      const prevBlock = currentIndex > 0 ? roughNodes[currentIndex - 1] : null;
-      const nextBlock = currentIndex < roughNodes.length - 1 ? roughNodes[currentIndex + 1] : null;
-      
-      const context = roughNodes
-        .map(n => `${n.id}. ${n.title}: ${n.content}`)
-        .join('\n');
-
-      const output = await runJob('OUTLINE_DETAILED', {
-        novelId,
-        roughOutline: {},
-        target_title: node.title,
-        target_content: node.content,
-        target_id: node.id,
-        rough_outline_context: context,
-        prev_block_title: prevBlock?.title || '',
-        prev_block_content: prevBlock?.content || '',
-        next_block_title: nextBlock?.title || '',
-        next_block_content: nextBlock?.content || '',
-      });
-
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      if (json && json.children) {
-        updateNodeChildren(node.id, json.children);
-      }
-    } catch (error) {
-      console.error('Failed to generate detailed outline', error);
-      alert('生成细纲失败，请重试');
-    } finally {
-      setNodeGenerating(node.id, false);
-    }
-  };
-
-  const generateChaptersForBlock = async (node: OutlineNode) => {
-    if (!novelId) return;
-    setNodeGenerating(node.id, true);
-
-    try {
-      const context = outlineTree
-        .flatMap(rough => rough.children || [])
-        .map(detailed => `${detailed.id}. ${detailed.title}`)
-        .join('\n');
-
-      const output = await runJob('OUTLINE_CHAPTERS', {
-        novelId,
-        detailedOutline: {},
-        target_title: node.title,
-        target_content: node.content,
-        target_id: node.id,
-        detailed_outline_context: context,
-      });
-
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      if (json && json.children) {
-        updateNodeChildren(node.id, json.children);
-      }
-    } catch (error) {
-      console.error('Failed to generate chapters', error);
-      alert('生成章节失败，请重试');
-    } finally {
-      setNodeGenerating(node.id, false);
-    }
-  };
-
-  const regenerateSingleNode = async (node: OutlineNode, parentNode: OutlineNode) => {
-    if (!novelId) return;
-    setNodeGenerating(node.id, true);
-
-    try {
-      const allDetailedNodes = outlineTree.flatMap(n => n.children || []);
-      const currentIndex = allDetailedNodes.findIndex(n => n.id === node.id);
-      
-      const prevDetailedNode = currentIndex > 0 ? allDetailedNodes[currentIndex - 1] : null;
-      const nextDetailedNode = currentIndex < allDetailedNodes.length - 1 ? allDetailedNodes[currentIndex + 1] : null;
-
-      const output = await runJob('OUTLINE_DETAILED', {
-        novelId,
-        roughOutline: {},
-        target_title: node.title,
-        target_content: parentNode.content,
-        target_id: node.id,
-        rough_outline_context: `当前分卷：${parentNode.title}\n${parentNode.content}`,
-        prev_block_title: prevDetailedNode?.title || '',
-        prev_block_content: prevDetailedNode?.content || '',
-        next_block_title: nextDetailedNode?.title || '',
-        next_block_content: nextDetailedNode?.content || '',
-        regenerate_single: true,
-        original_node_title: node.title,
-      });
-
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      
-      if (json) {
-        const newContent = json.content || json.children?.[0]?.content || '';
-        const newTitle = json.title || json.children?.[0]?.title || node.title;
-        
-        const updateSingleNode = (nodes: OutlineNode[]): OutlineNode[] => {
-          return nodes.map(n => {
-            if (n.id === parentNode.id && n.children) {
-              return {
-                ...n,
-                children: n.children.map(child => 
-                  child.id === node.id 
-                    ? { ...child, title: newTitle, content: newContent }
-                    : child
-                )
-              };
-            }
-            if (n.children && n.children.length > 0) {
-              return { ...n, children: updateSingleNode(n.children) };
-            }
-            return n;
-          });
-        };
-        const updatedTree = updateSingleNode(outlineTree);
-        setOutlineTree(updatedTree);
-        await saveOutlineTree(updatedTree);
-      }
-    } catch (error) {
-      console.error('Failed to regenerate single node', error);
-      alert('重新生成失败，请重试');
-    } finally {
-      setNodeGenerating(node.id, false);
-    }
-  };
-
-  const regenerateSingleChapter = async (node: OutlineNode, parentDetailedNode: OutlineNode) => {
-    if (!novelId) return;
-    setNodeGenerating(node.id, true);
-
-    try {
-      const siblingChapters = parentDetailedNode.children || [];
-      const currentIndex = siblingChapters.findIndex(c => c.id === node.id);
-      
-      const prevChapter = currentIndex > 0 ? siblingChapters[currentIndex - 1] : null;
-      const nextChapter = currentIndex < siblingChapters.length - 1 ? siblingChapters[currentIndex + 1] : null;
-
-      const output = await runJob('OUTLINE_CHAPTERS', {
-        novelId,
-        detailedOutline: {},
-        target_title: node.title,
-        target_content: parentDetailedNode.content,
-        target_id: node.id,
-        detailed_outline_context: `当前细纲：${parentDetailedNode.title}\n${parentDetailedNode.content}`,
-        prev_chapter_title: prevChapter?.title || '',
-        prev_chapter_content: prevChapter?.content || '',
-        next_chapter_title: nextChapter?.title || '',
-        next_chapter_content: nextChapter?.content || '',
-        regenerate_single: true,
-        original_chapter_title: node.title,
-      });
-
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      
-      if (json) {
-        const newContent = json.content || json.chapters?.[0]?.content || '';
-        const newTitle = json.title || json.chapters?.[0]?.title || node.title;
-        
-        const updateSingleChapter = (nodes: OutlineNode[]): OutlineNode[] => {
-          return nodes.map(roughNode => {
-            if (!roughNode.children) return roughNode;
-            
-            return {
-              ...roughNode,
-              children: roughNode.children.map(detailedNode => {
-                if (detailedNode.id === parentDetailedNode.id && detailedNode.children) {
-                  return {
-                    ...detailedNode,
-                    children: detailedNode.children.map(chapterNode =>
-                      chapterNode.id === node.id
-                        ? { ...chapterNode, title: newTitle, content: newContent }
-                        : chapterNode
-                    )
-                  };
-                }
-                return detailedNode;
-              })
-            };
-          });
-        };
-        const updatedTree = updateSingleChapter(outlineTree);
-        setOutlineTree(updatedTree);
-        await saveOutlineTree(updatedTree);
-      }
-    } catch (error) {
-      console.error('Failed to regenerate single chapter', error);
-      alert('重新生成章节失败，请重试');
-    } finally {
-      setNodeGenerating(node.id, false);
-    }
-  };
-
-  const handleGenerateNext = (node: OutlineNode) => {
-    if (node.level === 'rough') {
-      generateDetailedForBlock(node);
-    } else if (node.level === 'detailed') {
-      generateChaptersForBlock(node);
-    }
-  };
-
-  const handleRegenerate = (node: OutlineNode) => {
-    const hasChildren = outlineTree.some(n => 
-      n.id === node.id && (n.children?.length ?? 0) > 0
-    );
-    
-    if (node.level === 'rough') {
-      const childCount = outlineTree.reduce((acc, n) => {
-        const detailed = n.children?.length ?? 0;
-        const chapters = n.children?.reduce((a, c) => a + (c.children?.length ?? 0), 0) ?? 0;
-        return acc + detailed + chapters;
-      }, 0);
-      
-      if (childCount > 0) {
-        showConfirmModal({
-          title: '⚠️ 高危操作确认',
-          message: `重新生成粗纲将删除所有已生成的细纲和章节（共 ${childCount} 个节点）。此操作不可撤销！`,
-          variant: 'danger',
-          requireConfirmation: '确认删除',
-          onConfirm: () => startRoughOutline(),
-        });
-        return;
-      }
-      
-      showConfirmModal({
-        title: '重新生成粗纲',
-        message: '确定要重新生成粗略大纲吗？当前粗纲内容将被覆盖。',
-        variant: 'warning',
-        onConfirm: () => startRoughOutline(),
-      });
-    } else if (node.level === 'detailed') {
-      const parentNode = outlineTree.find(n => n.children?.some(c => c.id === node.id));
-      
-      if (parentNode) {
-        showConfirmModal({
-          title: '重新生成此细纲',
-          message: `确定要重新生成"${node.title}"吗？只会影响当前节点。`,
-          variant: 'info',
-          onConfirm: () => regenerateSingleNode(node, parentNode),
-        });
-      }
-    } else if (node.level === 'chapter') {
-      const grandParentNode = outlineTree.find(n => 
-        n.children?.some(c => c.children?.some(gc => gc.id === node.id))
-      );
-      const parentDetailedNode = grandParentNode?.children?.find(c => c.children?.some(gc => gc.id === node.id));
-      
-      if (parentDetailedNode) {
-        showConfirmModal({
-          title: '重新生成此章节',
-          message: `确定要重新生成"${node.title}"吗？只会影响当前章节。`,
-          variant: 'info',
-          onConfirm: () => regenerateSingleChapter(node, parentDetailedNode),
-        });
-      }
-    }
-  };
-
-
-  const saveOutlineTree = async (treeToSave: OutlineNode[]) => {
-    if (!novelId) return;
-    
-    const serialized = treeToSave.map(node => {
-      let text = `# ${node.title}\n${node.content}\n`;
-      if (node.children && node.children.length > 0) {
-        node.children.forEach(child => {
-           text += `## ${child.title}\n${child.content}\n`;
-           if (child.children && child.children.length > 0) {
-             child.children.forEach(grandChild => {
-               text += `### ${grandChild.title}\n${grandChild.content}\n`;
-             });
-           }
-        });
-      }
-      return text;
-    }).join('\n\n');
-
-    const roughNodes = treeToSave.filter(n => n.level === 'rough');
-    const detailedNodes = treeToSave.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
-    const chapterNodes = treeToSave.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
-
-    let outlineStage = 'none';
-    if (chapterNodes.length > 0) {
-      outlineStage = 'chapters';
-    } else if (detailedNodes.length > 0) {
-      outlineStage = 'detailed';
-    } else if (roughNodes.length > 0) {
-      outlineStage = 'rough';
-    }
-
-    try {
-      await fetch(`/api/novels/${novelId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outline: serialized,
-          outlineRough: roughNodes.length > 0 ? { blocks: roughNodes } : null,
-          outlineDetailed: detailedNodes.length > 0 ? { blocks: detailedNodes } : null,
-          outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
-          outlineStage,
-        }),
-      });
-    } catch (error) {
-      console.error('Failed to auto-save outline', error);
-    }
-  };
-
-  const applyOutline = async () => {
-    if (!novelId) return;
-    setIsSaving(true);
-    
-    const serialized = outlineTree.map(node => {
-      let text = `# ${node.title}\n${node.content}\n`;
-      if (node.children && node.children.length > 0) {
-        node.children.forEach(child => {
-           text += `## ${child.title}\n${child.content}\n`;
-           if (child.children && child.children.length > 0) {
-             child.children.forEach(grandChild => {
-               text += `### ${grandChild.title}\n${grandChild.content}\n`;
-             });
-           }
-        });
-      }
-      return text;
-    }).join('\n\n');
-
-    const roughNodes = outlineTree.filter(n => n.level === 'rough');
-    const detailedNodes = outlineTree.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
-    const chapterNodes = outlineTree.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
-
-    let outlineStage = 'none';
-    if (chapterNodes.length > 0) {
-      outlineStage = 'chapters';
-    } else if (detailedNodes.length > 0) {
-      outlineStage = 'detailed';
-    } else if (roughNodes.length > 0) {
-      outlineStage = 'rough';
-    }
-
-    try {
-      const res = await fetch(`/api/novels/${novelId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outline: serialized,
-          outlineRough: roughNodes.length > 0 ? { blocks: roughNodes } : null,
-          outlineDetailed: detailedNodes.length > 0 ? { blocks: detailedNodes } : null,
-          outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
-          outlineStage,
-          wizardStatus: 'completed',
-          wizardStep: 3,
-        }),
-      });
-      if (!res.ok) throw new Error('更新失败');
-      setStep(3);
-    } catch (error) {
-      console.error('Failed to apply outline', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+// Outline generation logic removed as it's now handled in the workbench
 
   return (
     <div className="min-h-screen p-6 md:p-12 max-w-7xl mx-auto space-y-12">
@@ -1347,13 +776,26 @@ function NovelWizardContent() {
                         onChange={e => setField('title', e.target.value)}
                         placeholder="请输入书名"
                       />
-                      <Textarea
-                        label="一句话简介"
-                        className="min-h-[80px]"
-                        value={formData.description}
-                        onChange={e => setField('description', e.target.value)}
-                        placeholder="吸引读者的核心梗概..."
-                      />
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-sm font-medium text-gray-300">一句话简介</label>
+                          <Button
+                            variant="ai"
+                            size="sm"
+                            onClick={handleGenerateSynopsis}
+                            disabled={synopsisLoading || !formData.title.trim()}
+                            isLoading={synopsisLoading}
+                          >
+                            {synopsisLoading ? '生成中' : '✨ AI 生成'}
+                          </Button>
+                        </div>
+                        <Textarea
+                          className="min-h-[80px]"
+                          value={formData.description}
+                          onChange={e => setField('description', e.target.value)}
+                          placeholder="吸引读者的核心梗概..."
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1379,12 +821,26 @@ function NovelWizardContent() {
                         placeholder="选择频道"
                       />
                     </div>
-                    <Input
-                      label="世界观一句话"
-                      value={formData.worldSetting}
-                      onChange={e => setField('worldSetting', e.target.value)}
-                      placeholder="例如：赛博朋克风格的修仙世界"
-                    />
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-sm font-medium text-gray-300">世界观</label>
+                        <Button
+                          variant="ai"
+                          size="sm"
+                          onClick={handleGenerateWorldSetting}
+                          disabled={worldBuildingLoading || !formData.title.trim()}
+                          isLoading={worldBuildingLoading}
+                        >
+                          {worldBuildingLoading ? '生成中' : '✨ AI 生成'}
+                        </Button>
+                      </div>
+                      <Textarea
+                        className="min-h-[100px]"
+                        value={formData.worldSetting}
+                        onChange={e => setField('worldSetting', e.target.value)}
+                        placeholder="例如：赛博朋克风格的修仙世界，灵气与科技共存..."
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">关键词 (Tags)</label>
                       <Input
@@ -1408,19 +864,53 @@ function NovelWizardContent() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                       <span className="w-1 h-6 bg-cyan-500 rounded-full"></span>
-                      主角与要求
+                      主角与金手指
                     </h3>
                     <div className="space-y-4">
-                      <Input
-                        label="主角人设"
-                        value={formData.protagonist}
-                        onChange={e => setField('protagonist', e.target.value)}
-                        placeholder="姓名，性格，金手指..."
-                      />
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-sm font-medium text-gray-300">主角人设</label>
+                          <Button
+                            variant="ai"
+                            size="sm"
+                            onClick={handleGenerateCharacter}
+                            disabled={characterLoading || !formData.title.trim()}
+                            isLoading={characterLoading}
+                          >
+                            {characterLoading ? '生成中' : '✨ AI 生成'}
+                          </Button>
+                        </div>
+                        <Textarea
+                          className="min-h-[100px]"
+                          value={formData.protagonist}
+                          onChange={e => setField('protagonist', e.target.value)}
+                          placeholder="主角姓名、性格、成长路径..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-sm font-medium text-gray-300">金手指</label>
+                          <Button
+                            variant="ai"
+                            size="sm"
+                            onClick={handleGenerateGoldenFinger}
+                            disabled={goldenFingerLoading || !formData.title.trim()}
+                            isLoading={goldenFingerLoading}
+                          >
+                            {goldenFingerLoading ? '生成中' : '✨ AI 生成'}
+                          </Button>
+                        </div>
+                        <Textarea
+                          className="min-h-[80px]"
+                          value={formData.goldenFinger}
+                          onChange={e => setField('goldenFinger', e.target.value)}
+                          placeholder="外挂/系统/特殊能力..."
+                        />
+                      </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">特殊要求/禁忌</label>
                         <Textarea
-                          className="min-h-[100px]"
+                          className="min-h-[80px]"
                           value={formData.specialRequirements}
                           onChange={e => setField('specialRequirements', e.target.value)}
                           placeholder="给 AI 的额外叮嘱，比如不要写感情戏，或者必须是悲剧结尾..."
@@ -1547,7 +1037,7 @@ function NovelWizardContent() {
                   isLoading={isSaving}
                   onClick={handleSaveBasicInfo}
                 >
-                  {isSaving ? '保存中...' : '保存设定，下一步 →'}
+                  {isSaving ? '创建中...' : '创建小说'}
                 </Button>
               </div>
             </Card>
@@ -1557,228 +1047,6 @@ function NovelWizardContent() {
       {step === 1 && (
         <motion.div
           key="step1"
-          variants={fadeIn}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          className="w-full"
-        >
-          <Card className="p-8 rounded-3xl space-y-8 min-h-[500px] flex flex-col">
-            <div className="flex items-center justify-between border-b border-white/5 pb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">核心设定生成</h2>
-                <p className="text-gray-400 mt-1">自动生成简介、世界观与金手指</p>
-              </div>
-              <div className="flex gap-3">
-                <Button variant="secondary" onClick={() => persistWizardStep(2)}>跳过</Button>
-                <Button
-                  variant="ai"
-                  onClick={startNovelSeed}
-                  disabled={!!jobStatus}
-                  isLoading={!!jobStatus}
-                >
-                  {jobStatus ? '生成中...' : (
-                    <>
-                      <span className="text-lg mr-2">✨</span>
-                      <span>生成核心设定</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {jobStatus && (
-              <div className="flex items-center justify-center p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-300 animate-pulse">
-                {jobStatus}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-gray-300">一句话简介</label>
-                  <Button
-                    variant="ai"
-                    size="sm"
-                    onClick={() => startSynopsisGeneration()}
-                    disabled={synopsisLoading || !novelId}
-                    isLoading={synopsisLoading}
-                  >
-                    {synopsisLoading ? '生成中' : '✨ AI 生成'}
-                  </Button>
-                </div>
-                <Textarea
-                  className="min-h-[120px]"
-                  value={formData.description}
-                  onChange={e => setField('description', e.target.value)}
-                  placeholder="生成后会自动填充，也可手动编辑"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-gray-300">世界观核心</label>
-                  <Button
-                    variant="ai"
-                    size="sm"
-                    onClick={() => startWorldBuilding()}
-                    disabled={worldBuildingLoading || !novelId}
-                    isLoading={worldBuildingLoading}
-                  >
-                    {worldBuildingLoading ? '生成中' : '✨ AI 生成'}
-                  </Button>
-                </div>
-                <Textarea
-                  className="min-h-[120px]"
-                  value={formData.worldSetting}
-                  onChange={e => setField('worldSetting', e.target.value)}
-                  placeholder="生成后会自动填充，也可手动编辑"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-gray-300">主角设定</label>
-                  <Button
-                    variant="ai"
-                    size="sm"
-                    onClick={() => startCharacterGeneration()}
-                    disabled={characterLoading || !novelId}
-                    isLoading={characterLoading}
-                  >
-                    {characterLoading ? '生成中' : '✨ AI 生成'}
-                  </Button>
-                </div>
-                <Textarea
-                  className="min-h-[120px]"
-                  value={formData.protagonist}
-                  onChange={e => setField('protagonist', e.target.value)}
-                  placeholder="主角身份、性格、成长路径"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-gray-300">金手指</label>
-                  <Button
-                    variant="ai"
-                    size="sm"
-                    onClick={() => startGoldenFingerGeneration()}
-                    disabled={goldenFingerLoading || !novelId}
-                    isLoading={goldenFingerLoading}
-                  >
-                    {goldenFingerLoading ? '生成中' : '✨ AI 生成'}
-                  </Button>
-                </div>
-                <Textarea
-                  className="min-h-[120px]"
-                  value={formData.goldenFinger}
-                  onChange={e => setField('goldenFinger', e.target.value)}
-                  placeholder="外挂/系统/特殊能力"
-                />
-              </div>
-            </div>
-
-            {seedOutput && (
-              <div className="text-xs text-gray-500">本次生成已同步保存到小说设定中。</div>
-            )}
-
-            <div className="flex justify-end pt-4">
-              <Button variant="primary" className="px-8 py-3" onClick={() => persistWizardStep(2)}>确认并下一步 →</Button>
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {step === 2 && (
-        <motion.div
-          key="step2"
-          variants={fadeIn}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          className="w-full"
-        >
-          <Card className="p-8 rounded-3xl space-y-8 min-h-[600px] flex flex-col">
-            <div className="flex items-center justify-between border-b border-white/5 pb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">大纲生成</h2>
-                <p className="text-gray-400 mt-1">生成故事主线，并可进一步扩展细纲与章节</p>
-              </div>
-              <div className="flex gap-3">
-                <Button
-                  variant="ai"
-                  onClick={startRoughOutline}
-                  disabled={!!jobStatus}
-                  isLoading={!!jobStatus && jobStatus !== '生成失败'}
-                >
-                  {jobStatus ? '生成中...' : outlineTree.length > 0 ? (
-                    <>
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                      <span>重新生成</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-lg mr-2">✨</span>
-                      <span>生成粗略大纲</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {jobStatus && (
-              <div role="status" aria-live="polite" aria-label="生成进度" className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-                    <span className="text-emerald-300 text-sm font-medium">{jobStatus}</span>
-                  </div>
-                </div>
-                <div role="progressbar" aria-valuetext="生成中" className="relative h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-progress-shimmer" />
-                </div>
-              </div>
-            )}
-
-            <div className="flex-1 w-full border border-white/10 bg-black/20 rounded-xl p-6 min-h-[400px] custom-scrollbar overflow-y-auto">
-              {outlineTree.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-4">
-                  <span className="text-4xl opacity-50">📝</span>
-                  <p>点击上方按钮，AI 将为您构建大纲结构...</p>
-                </div>
-              ) : (
-                <div>
-                {outlineTree.map(node => (
-                      <OutlineTreeNode 
-                        key={node.id} 
-                        node={node} 
-                        onToggle={toggleNode}
-                        onGenerateNext={handleGenerateNext}
-                        onRegenerate={handleRegenerate}
-                        onUpdate={updateNodeContent}
-                      />
-                   ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-6 border-t border-white/5 gap-4">
-              <Button variant="secondary" onClick={() => applyOutline()}>稍后再说</Button>
-              <Button
-                variant="primary"
-                className="px-8 py-3 shadow-lg shadow-emerald-500/20"
-                disabled={outlineTree.length === 0 || isSaving}
-                isLoading={isSaving}
-                onClick={applyOutline}
-              >
-                {isSaving ? '正在应用...' : '应用大纲并完成'}
-              </Button>
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {step === 3 && (
-        <motion.div
-          key="step3"
           variants={scaleIn}
           initial="hidden"
           animate="visible"
@@ -1790,7 +1058,7 @@ function NovelWizardContent() {
               <span className="text-4xl">🎉</span>
             </div>
             <h2 className="text-4xl font-bold text-white mb-4">创建完成！</h2>
-            <p className="text-xl text-gray-400 mb-8">你的小说架构已搭建完毕，现在开始创作正文吧。</p>
+            <p className="text-xl text-gray-400 mb-8">你的小说已创建成功，现在可以生成大纲并开始创作正文。</p>
 
             {novelId && (
               <Button

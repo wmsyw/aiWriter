@@ -213,8 +213,8 @@ export default function ChapterEditorPage() {
               setCanonCheckError(null);
               setShowCanonCheckPanel(true);
             } else if (job.type === 'MEMORY_EXTRACT') {
-              // Show notification or visual cue?
-              alert('记忆提取完成！'); 
+              // 静默完成，不弹通知
+              console.log('Memory extraction completed silently');
             }
           } else if (job.status === 'failed') {
             if (job.type === 'CANON_CHECK') {
@@ -418,7 +418,7 @@ export default function ChapterEditorPage() {
     return (
       <AnimatePresence>
         {showBranchPanel && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-8">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

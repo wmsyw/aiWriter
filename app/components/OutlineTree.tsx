@@ -55,14 +55,14 @@ const OutlineTreeNode = ({
       badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     },
     detailed: {
-      container: "mb-3 bg-zinc-900/40 border border-white/5 rounded-lg border-l-2 border-l-emerald-500/30 ml-4 relative group",
+      container: "mb-3 bg-zinc-900/40 border border-white/5 rounded-lg border-l-2 border-l-emerald-500/30 ml-1 relative group",
       header: "p-3 hover:bg-white/5 transition-colors",
       title: "text-base font-semibold text-gray-200",
       content: "p-3 pl-10 text-sm bg-black/10",
       badge: "bg-blue-500/20 text-blue-300 border-blue-500/30",
     },
     chapter: {
-      container: "mb-2 ml-8 border-l border-gray-800 pl-4 relative hover:bg-white/5 rounded-r-lg transition-colors group",
+      container: "mb-2 ml-2 border-l border-gray-800 pl-3 relative hover:bg-white/5 rounded-r-lg transition-colors group",
       header: "py-2 pr-2 flex items-center",
       title: "text-sm font-medium text-gray-300 group-hover:text-white",
       content: "mt-2 text-xs text-gray-500 pl-2 border-l-2 border-gray-800",
@@ -223,7 +223,7 @@ const OutlineTreeNode = ({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="pl-2 border-l border-gray-800/50 ml-4 space-y-2"
+            className="pl-2 border-l border-gray-800/50 ml-2 space-y-2"
           >
             {node.children!.map((child, index) => (
               <OutlineTreeNode 

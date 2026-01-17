@@ -1636,6 +1636,15 @@ export const BUILT_IN_TEMPLATES = {
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
 
+## ⚠️ 强制分卷约束（必须遵守）
+{% if volume_count %}
+**系统计算的最佳分卷数：{{volume_count}} 卷**
+**每卷目标字数：约 {{expected_volume_words}} 字（约 {{expected_volume_words | divided_by: 10000}} 万字）**
+
+⚠️ 你必须生成正好 {{volume_count}} 个分卷，不能多也不能少！
+每个分卷必须承载足够的剧情量，content 字段至少 300 字描述。
+{% endif %}
+
 ## 200万字级分卷策略
 
 ### 【核心原则】多层递进、持续爽感
@@ -1688,8 +1697,12 @@ export const BUILT_IN_TEMPLATES = {
 
 ## 输出格式（JSON）
 
+{% if volume_count %}
+⚠️ 你必须输出正好 {{volume_count}} 个 blocks，每个 block 代表一卷！每卷 content 至少 300 字！
+{% endif %}
+
 {
-  "total_volumes": <卷数>,
+  "total_volumes": {% if volume_count %}{{volume_count}}{% else %}<卷数>{% endif %},
   "total_words_estimate": {{target_words}},
   "volume_strategy": "200万字级大长篇架构",
   "blocks": [
@@ -1714,6 +1727,10 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'volume_count', type: 'number' as const, description: '计算的分卷数' },
+      { name: 'expected_volume_words', type: 'number' as const, description: '预计每卷字数' },
+      { name: 'nodes_per_volume', type: 'number' as const, description: '每卷事件节点数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每节点章节数' },
     ],
   },
 
@@ -1732,6 +1749,15 @@ export const BUILT_IN_TEMPLATES = {
 {% if protagonist %}主角设定：{{protagonist}}{% endif %}
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## ⚠️ 强制分卷约束（必须遵守）
+{% if volume_count %}
+**系统计算的最佳分卷数：{{volume_count}} 卷**
+**每卷目标字数：约 {{expected_volume_words}} 字（约 {{expected_volume_words | divided_by: 10000}} 万字）**
+
+⚠️ 你必须生成正好 {{volume_count}} 个分卷，不能多也不能少！
+每个分卷必须承载足够的剧情量，content 字段至少 400 字描述。
+{% endif %}
 
 ## 300万字级分卷策略
 
@@ -1786,8 +1812,12 @@ export const BUILT_IN_TEMPLATES = {
 
 ## 输出格式（JSON）
 
+{% if volume_count %}
+⚠️ 你必须输出正好 {{volume_count}} 个 blocks，每个 block 代表一卷！每卷 content 至少 400 字！
+{% endif %}
+
 {
-  "total_volumes": <卷数>,
+  "total_volumes": {% if volume_count %}{{volume_count}}{% else %}<卷数>{% endif %},
   "total_words_estimate": {{target_words}},
   "volume_strategy": "300万字级史诗架构",
   "world_layers": ["第一层：XXX", "第二层：XXX", "第三层：XXX"],
@@ -1813,6 +1843,10 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'volume_count', type: 'number' as const, description: '计算的分卷数' },
+      { name: 'expected_volume_words', type: 'number' as const, description: '预计每卷字数' },
+      { name: 'nodes_per_volume', type: 'number' as const, description: '每卷事件节点数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每节点章节数' },
     ],
   },
 
@@ -1831,6 +1865,15 @@ export const BUILT_IN_TEMPLATES = {
 {% if protagonist %}主角设定：{{protagonist}}{% endif %}
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## ⚠️ 强制分卷约束（必须遵守）
+{% if volume_count %}
+**系统计算的最佳分卷数：{{volume_count}} 卷**
+**每卷目标字数：约 {{expected_volume_words}} 字（约 {{expected_volume_words | divided_by: 10000}} 万字）**
+
+⚠️ 你必须生成正好 {{volume_count}} 个分卷，不能多也不能少！
+每个分卷必须承载足够的剧情量，content 字段至少 500 字描述。
+{% endif %}
 
 ## 400万字级分卷策略
 
@@ -1873,8 +1916,12 @@ export const BUILT_IN_TEMPLATES = {
 
 ## 输出格式（JSON）
 
+{% if volume_count %}
+⚠️ 你必须输出正好 {{volume_count}} 个 blocks，每个 block 代表一卷！每卷 content 至少 500 字！
+{% endif %}
+
 {
-  "total_volumes": <卷数>,
+  "total_volumes": {% if volume_count %}{{volume_count}}{% else %}<卷数>{% endif %},
   "total_words_estimate": {{target_words}},
   "volume_strategy": "400万字级多世界架构",
   "parts": [
@@ -1904,6 +1951,10 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'volume_count', type: 'number' as const, description: '计算的分卷数' },
+      { name: 'expected_volume_words', type: 'number' as const, description: '预计每卷字数' },
+      { name: 'nodes_per_volume', type: 'number' as const, description: '每卷事件节点数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每节点章节数' },
     ],
   },
 
@@ -1922,6 +1973,15 @@ export const BUILT_IN_TEMPLATES = {
 {% if protagonist %}主角设定：{{protagonist}}{% endif %}
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## ⚠️ 强制分卷约束（必须遵守）
+{% if volume_count %}
+**系统计算的最佳分卷数：{{volume_count}} 卷**
+**每卷目标字数：约 {{expected_volume_words}} 字（约 {{expected_volume_words | divided_by: 10000}} 万字）**
+
+⚠️ 你必须生成正好 {{volume_count}} 个分卷，不能多也不能少！
+每个分卷必须承载足够的剧情量，content 字段至少 500 字描述。
+{% endif %}
 
 ## 500万字级分卷策略
 
@@ -1972,8 +2032,12 @@ export const BUILT_IN_TEMPLATES = {
 
 ## 输出格式（JSON）
 
+{% if volume_count %}
+⚠️ 你必须输出正好 {{volume_count}} 个 blocks，每个 block 代表一卷！每卷 content 至少 500 字！
+{% endif %}
+
 {
-  "total_volumes": <卷数>,
+  "total_volumes": {% if volume_count %}{{volume_count}}{% else %}<卷数>{% endif %},
   "total_words_estimate": {{target_words}},
   "volume_strategy": "500万字级宇宙架构",
   "seasons": [
@@ -2004,6 +2068,10 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'volume_count', type: 'number' as const, description: '计算的分卷数' },
+      { name: 'expected_volume_words', type: 'number' as const, description: '预计每卷字数' },
+      { name: 'nodes_per_volume', type: 'number' as const, description: '每卷事件节点数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每节点章节数' },
     ],
   },
 
@@ -2022,6 +2090,15 @@ export const BUILT_IN_TEMPLATES = {
 {% if protagonist %}主角设定：{{protagonist}}{% endif %}
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
+
+## ⚠️ 强制分卷约束（必须遵守）
+{% if volume_count %}
+**系统计算的最佳分卷数：{{volume_count}} 卷**
+**每卷目标字数：约 {{expected_volume_words}} 字（约 {{expected_volume_words | divided_by: 10000}} 万字）**
+
+⚠️ 你必须生成正好 {{volume_count}} 个分卷，不能多也不能少！
+每个分卷必须承载足够的剧情量，content 字段至少 600 字描述。
+{% endif %}
 
 ## 500万字+超级长篇策略
 
@@ -2081,8 +2158,12 @@ export const BUILT_IN_TEMPLATES = {
 
 ## 输出格式（JSON）
 
+{% if volume_count %}
+⚠️ 你必须输出正好 {{volume_count}} 个 blocks，每个 block 代表一卷！每卷 content 至少 600 字！
+{% endif %}
+
 {
-  "total_volumes": <卷数>,
+  "total_volumes": {% if volume_count %}{{volume_count}}{% else %}<卷数>{% endif %},
   "total_words_estimate": {{target_words}},
   "volume_strategy": "500万字+多元宇宙架构",
   "big_worlds": [
@@ -2114,6 +2195,60 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'volume_count', type: 'number' as const, description: '计算的分卷数' },
+      { name: 'expected_volume_words', type: 'number' as const, description: '预计每卷字数' },
+      { name: 'nodes_per_volume', type: 'number' as const, description: '每卷事件节点数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每节点章节数' },
+    ],
+  },
+
+  OUTLINE_ROUGH_SINGLE: {
+    name: '粗略大纲生成（单卷）',
+    content: `# 网文单卷策划专家
+
+你是一位经验丰富的网文主编，正在指导作者进行分卷式大纲创作。请根据前文脉络和用户指引，为这一卷设计精彩的剧情。
+
+## 创作基础信息
+{% if keywords %}关键词：{{keywords}}{% endif %}
+{% if theme %}主题：{{theme}}{% endif %}
+{% if genre %}类型：{{genre}}{% endif %}
+{% if protagonist %}主角设定：{{protagonist}}{% endif %}
+{% if world_setting %}世界观：{{world_setting}}{% endif %}
+{% if special_requirements %}全局要求：{{special_requirements}}{% endif %}
+
+## 当前创作上下文
+**前卷概要**：
+{{prev_volume_summary}}
+
+**本卷用户指引**：
+{{user_guidance}}
+
+## 分卷设计原则
+1. **承上启下**：紧接上一卷的剧情和伏笔，同时开启新的地图或矛盾。
+2. **核心目标**：本卷主角必须有一个明确的、贯穿始终的目标。
+3. **爽点密集**：设计至少3-5个高潮爽点。
+4. **节奏把控**：起因->发展->高潮->收尾，结构完整。
+5. **卷末悬念**：结尾必须留下巨大的悬念或期待，勾引读者看下一卷。
+
+## 输出格式（JSON）
+
+{
+  "title": "第X卷：[卷名]（约X万字）",
+  "content": "【本卷核心】XXX\\n【主要矛盾】XXX\\n【剧情大纲】\\n1. 开局：XXX\\n2. 发展：XXX\\n3. 转折：XXX\\n4. 高潮：XXX\\n5. 结局：XXX\\n【爽点设计】1.XXX 2.XXX 3.XXX\\n【伏笔埋设】XXX\\n【卷末钩子】XXX",
+  "level": "rough",
+  "word_count": <预计字数>
+}
+
+请开始生成本卷大纲：`,
+    variables: [
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'prev_volume_summary', type: 'string' as const, description: '前卷概要' },
+      { name: 'user_guidance', type: 'string' as const, description: '用户指引' },
     ],
   },
 
@@ -2142,15 +2277,17 @@ export const BUILT_IN_TEMPLATES = {
 **系统计算的每卷事件节点数：{{detailed_node_count}} 个**
 {% endif %}
 {% if expected_node_words %}
-**每个事件节点目标字数：约 {{expected_node_words}} 字**
+**每个事件节点目标字数：约 {{expected_node_words}} 字（约 {{expected_node_words | divided_by: 10000}} 万字）**
 {% endif %}
 {% if chapters_per_node %}
 **每个事件节点预计章节数：{{chapters_per_node}} 章**
 {% endif %}
 
-⚠️ 你必须为【每个分卷】生成正好 {{detailed_node_count}} 个事件节点！
-每个事件节点必须足够丰富，能支撑约 {{chapters_per_node}} 个章节的剧情量。
-不能生成空洞的一句话剧情，必须包含完整的「起因→经过→高潮→结果」链条。
+### ⚠️⚠️⚠️ 硬性要求（违反将导致大纲无法使用）
+1. 你必须为【每个分卷】生成正好 {% if detailed_node_count %}{{detailed_node_count}}{% else %}5-10{% endif %} 个事件节点！
+2. 每个事件节点的 content 字段必须至少 200 字，包含完整的「起因→经过→高潮→结果→钩子」链条
+3. 不能生成空洞的一句话剧情
+4. 每个事件节点必须能支撑约 {% if chapters_per_node %}{{chapters_per_node}}{% else %}5-15{% endif %} 个章节的剧情量
 
 ## 扩展任务
 请将上述粗略大纲中的【每个分卷/板块】都扩展为详细的事件节点。
@@ -2176,10 +2313,15 @@ export const BUILT_IN_TEMPLATES = {
 {% else %}
 ## 单板块扩展模式
 
-### 待扩展板块
+### 待扩展板块（粗纲节点）
 标题：{{target_title}}
 内容：{{target_content}}
 ID：{{target_id}}
+
+{% if parent_rough_node %}
+### 父级粗纲信息
+{{parent_rough_node}}
+{% endif %}
 
 {% if prev_block_title %}
 ### 前一分卷（用于衔接）
@@ -2187,6 +2329,11 @@ ID：{{target_id}}
 {{prev_block_content}}
 
 ⚠️ 请确保本分卷开头与上一分卷结尾自然过渡，保持情节连贯性。
+{% endif %}
+
+{% if prev_detailed_node %}
+### 前一个细纲事件
+{{prev_detailed_node}}
 {% endif %}
 
 {% if next_block_title %}
@@ -2199,6 +2346,11 @@ ID：{{target_id}}
 
 ### 全文背景
 {{rough_outline_context}}
+
+{% if user_guidance %}
+### 用户指引
+{{user_guidance}}
+{% endif %}
 
 {% if target_word_count %}
 ### 本板块目标字数：{{target_word_count}}万字
@@ -2304,7 +2456,11 @@ ID：{{target_id}}
 {% endif %}
 
 {% if rough_outline %}
-⚠️ 重要：请为粗略大纲中的【每一个分卷/板块】都生成完整的事件节点。目标是支撑{{target_words}}万字的内容量，不要生成太少！
+⚠️ 重要检查清单（生成前请确认）：
+1. ✅ 为每个分卷生成了 {% if detailed_node_count %}{{detailed_node_count}}{% else %}5-10{% endif %} 个事件节点？
+2. ✅ 每个事件节点的 content 至少 200 字？
+3. ✅ 总事件节点数 = 分卷数 × {% if detailed_node_count %}{{detailed_node_count}}{% else %}5-10{% endif %}？
+4. ✅ 能支撑 {{target_words}} 万字的内容量？
 {% else %}
 请根据板块字数生成合适数量的事件节点：
 {% endif %}`,
@@ -2350,19 +2506,39 @@ ID：{{target_id}}
 {% else %}
 ## 单事件拆解模式
 
-### 待拆解事件
+### 待拆解事件（细纲节点）
 标题：{{target_title}}
 内容：{{target_content}}
 ID：{{target_id}}
 
+{% if parent_detailed_node %}
+### 父级细纲信息
+{{parent_detailed_node}}
+{% endif %}
+
 {% if parent_rough_title %}
-### 所属分卷
+### 所属分卷（粗纲）
 标题：{{parent_rough_title}}
 内容：{{parent_rough_content}}
 {% endif %}
 
+{% if prev_chapters_summary %}
+### 前10章总结
+{{prev_chapters_summary}}
+{% endif %}
+
+{% if recent_chapters_content %}
+### 前3章详细内容（接续点）
+{{recent_chapters_content}}
+{% endif %}
+
 ### 全文细纲上下文（其他事件节点）
 {{detailed_outline_context}}
+
+{% if user_guidance %}
+### 用户指引
+{{user_guidance}}
+{% endif %}
 
 {% if target_word_count %}
 ### 本事件目标字数：{{target_word_count}}万字
@@ -2377,8 +2553,11 @@ ID：{{target_id}}
 **每章目标字数：{{words_per_chapter}} 字**
 {% endif %}
 
-⚠️ 你必须为【每个事件节点】生成正好 {{chapters_per_node}} 个章节大纲！
-每个章节必须有完整的「开篇钩子→核心剧情→章末钩子」结构。
+### ⚠️⚠️⚠️ 硬性要求（违反将导致大纲无法使用）
+1. 你必须为【每个事件节点】生成正好 {% if chapters_per_node %}{{chapters_per_node}}{% else %}5-15{% endif %} 个章节大纲！
+2. 每个章节的 content 字段必须至少 150 字，包含完整的「本章看点→开场场景→核心剧情→出场人物→爽点设计→章末钩子」
+3. 不能生成一句话章节大纲
+4. 总章节数 = 事件节点数 × {% if chapters_per_node %}{{chapters_per_node}}{% else %}5-15{% endif %}
 
 ## 章节设计原则
 
@@ -2443,7 +2622,14 @@ ID：{{target_id}}
 }
 {% endif %}
 
-请根据事件字数生成合适数量的章节大纲：`,
+{% if detailed_outline %}
+⚠️ 生成前检查清单：
+1. ✅ 为每个事件节点生成了 {% if chapters_per_node %}{{chapters_per_node}}{% else %}5-15{% endif %} 个章节？
+2. ✅ 每个章节的 content 至少 150 字？
+3. ✅ 每个章节都有章末钩子？
+{% else %}
+请根据事件字数生成合适数量的章节大纲：
+{% endif %}`,
     variables: [
       { name: 'detailed_outline', type: 'string' as const, description: '完整细纲（批量模式）' },
       { name: 'chapters_per_node', type: 'number' as const, description: '每个事件节点生成的章节数（计算值）' },
