@@ -1,11 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { calculateOutlineParams } from '@/src/shared/outline-calculator';
+
+interface OutlineData {
+  outline: string;
+  outlineRough?: unknown;
+  outlineDetailed?: unknown;
+  outlineChapters?: unknown;
+}
 
 interface OutlineGeneratorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerated: (outline: string) => void;
+  onGenerated: (data: OutlineData) => void;
   novelId: string;
 }
 
@@ -21,6 +29,8 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
     worldSetting: '',
     chapterCount: 100,
     targetWords: 200,
+    detailedNodeCount: 0,
+    chaptersPerNode: 0,
     keywords: '',
     specialRequirements: '',
   });
@@ -31,6 +41,21 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
   const [chapterOutline, setChapterOutline] = useState<any>(null);
   const [stage, setStage] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+  
+  const calculatedParams = useMemo(() => {
+    return calculateOutlineParams(formData.targetWords, formData.chapterCount);
+  }, [formData.targetWords, formData.chapterCount]);
+  
+  const effectiveDetailedNodeCount = formData.detailedNodeCount || calculatedParams.nodesPerVolume;
+  const effectiveChaptersPerNode = formData.chaptersPerNode || calculatedParams.chaptersPerNode;
+  
+  const wordsPerChapterDensity = useMemo(() => {
+    if (!formData.chapterCount || formData.chapterCount <= 0) return 3000;
+    return (formData.targetWords * 10000) / formData.chapterCount;
+  }, [formData.targetWords, formData.chapterCount]);
+  
+  const hasChapterDensityWarning = wordsPerChapterDensity > 10000 || wordsPerChapterDensity < 1000;
+  
   const stageLabel = useMemo(() => {
     if (stage === 'rough') return '粗略大纲';
     if (stage === 'detailed') return '细纲扩展';
@@ -96,6 +121,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         roughOutline: roughOutput,
         targetWords: formData.targetWords,
         chapterCount: formData.chapterCount,
+        detailedNodeCount: effectiveDetailedNodeCount,
       });
       setDetailedOutline(detailedOutput);
 
@@ -103,6 +129,9 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
       const chaptersOutput = await runJob('OUTLINE_CHAPTERS', {
         novelId,
         detailedOutline: detailedOutput,
+        targetWords: formData.targetWords,
+        chapterCount: formData.chapterCount,
+        chaptersPerNode: effectiveChaptersPerNode,
       });
       setChapterOutline(chaptersOutput);
 
@@ -124,7 +153,12 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
   };
 
   const handleApply = () => {
-    onGenerated(generatedOutline);
+    onGenerated({
+      outline: generatedOutline,
+      outlineRough: roughOutline,
+      outlineDetailed: detailedOutline,
+      outlineChapters: chapterOutline,
+    });
     onClose();
   };
 
@@ -161,6 +195,22 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         <div className="flex-1 w-full min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 isolate">
           <div className="lg:col-span-5 min-w-0 lg:h-full lg:overflow-y-auto p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-white/5 custom-scrollbar bg-black/10">
             <div className="space-y-6">
+
+              {hasChapterDensityWarning && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div className="text-xs text-amber-200">
+                    <span className="font-medium">章节密度异常：</span>
+                    每章约 {Math.round(wordsPerChapterDensity).toLocaleString()} 字
+                    {wordsPerChapterDensity > 10000 
+                      ? '（过高，AI 难以生成连贯内容，建议增加章节数）'
+                      : '（过低，建议减少章节数或增加目标字数）'}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-sm font-medium text-emerald-300">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,6 +314,74 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                     min={1}
                     max={1000}
                   />
+                </div>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                    细纲节点数/卷
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.detailedNodeCount || ''}
+                    onChange={e => setFormData(prev => ({ ...prev, detailedNodeCount: parseInt(e.target.value) || 0 }))}
+                    className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
+                    min={3}
+                    max={20}
+                    placeholder={`自动: ${calculatedParams.nodesPerVolume}`}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    章节数/节点
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.chaptersPerNode || ''}
+                    onChange={e => setFormData(prev => ({ ...prev, chaptersPerNode: parseInt(e.target.value) || 0 }))}
+                    className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
+                    min={3}
+                    max={30}
+                    placeholder={`自动: ${calculatedParams.chaptersPerNode}`}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-emerald-300 mb-3">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  智能参数预览
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between text-gray-400">
+                    <span>预计分卷</span>
+                    <span className="text-white font-medium">{calculatedParams.volumeCount} 卷</span>
+                  </div>
+                  <div className="flex justify-between text-gray-400">
+                    <span>每卷字数</span>
+                    <span className="text-white font-medium">~{Math.round(calculatedParams.expectedVolumeWords / 10000)} 万</span>
+                  </div>
+                  <div className="flex justify-between text-gray-400">
+                    <span>每卷事件</span>
+                    <span className="text-white font-medium">{effectiveDetailedNodeCount} 个</span>
+                  </div>
+                  <div className="flex justify-between text-gray-400">
+                    <span>每事件章节</span>
+                    <span className="text-white font-medium">{effectiveChaptersPerNode} 章</span>
+                  </div>
+                </div>
+                <div className="pt-2 mt-2 border-t border-emerald-500/20 flex justify-between text-xs">
+                  <span className="text-gray-400">预计总章节</span>
+                  <span className="text-emerald-300 font-medium">
+                    {calculatedParams.volumeCount * effectiveDetailedNodeCount * effectiveChaptersPerNode} 章
+                    ({Math.round(calculatedParams.volumeCount * effectiveDetailedNodeCount * effectiveChaptersPerNode * 3000 / 10000)} 万字)
+                  </span>
                 </div>
               </div>
 

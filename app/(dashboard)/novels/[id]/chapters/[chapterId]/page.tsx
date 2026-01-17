@@ -117,6 +117,10 @@ export default function ChapterEditorPage() {
   const [feedback, setFeedback] = useState('');
   const [reviewFeedback, setReviewFeedback] = useState('');
   
+  // Review panel state (moved from renderReviewPanel to fix React Hooks rule violation)
+  const [reviewPanelActiveTab, setReviewPanelActiveTab] = useState<'review' | 'consistency'>('review');
+  const [activeReviewIdx, setActiveReviewIdx] = useState(0);
+  
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
   // const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set()); // Deprecated in favor of SSE
@@ -575,9 +579,7 @@ export default function ChapterEditorPage() {
     const hasReview = !!reviewResult;
     const hasConsistency = !!consistencyResult;
 
-    const [activeTab, setActiveTab] = useState<'review' | 'consistency'>(hasReview ? 'review' : 'consistency');
     const isMulti = reviewResult?.isMultiReview;
-    const [activeReviewIdx, setActiveReviewIdx] = useState(0);
 
     return (
       <AnimatePresence>
@@ -612,16 +614,16 @@ export default function ChapterEditorPage() {
                 <div className="flex border-b border-white/10 px-6">
                   {hasReview && (
                     <button 
-                      onClick={() => setActiveTab('review')}
-                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'review' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                      onClick={() => setReviewPanelActiveTab('review')}
+                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${reviewPanelActiveTab === 'review' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                       质量评审
                     </button>
                   )}
                   {hasConsistency && (
                     <button 
-                      onClick={() => setActiveTab('consistency')}
-                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'consistency' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                      onClick={() => setReviewPanelActiveTab('consistency')}
+                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${reviewPanelActiveTab === 'consistency' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
                     >
                       一致性检查
                     </button>
@@ -629,7 +631,7 @@ export default function ChapterEditorPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                  {activeTab === 'review' && reviewResult && (
+                  {reviewPanelActiveTab === 'review' && reviewResult && (
                     isMulti ? (
                     <div className="space-y-8">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -750,7 +752,7 @@ export default function ChapterEditorPage() {
                     </div>
                   ))}
 
-                  {activeTab === 'consistency' && consistencyResult && (
+                  {reviewPanelActiveTab === 'consistency' && consistencyResult && (
                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                        <Card className="p-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/10 to-purple-900/10">
                          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">

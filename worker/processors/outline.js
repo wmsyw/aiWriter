@@ -2,6 +2,7 @@ import { renderTemplateString } from '../../src/server/services/templates.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
 import { generateCharacterBios } from './character.js';
 import { getOutlineRoughTemplateName, TEMPLATE_NAMES } from '../../src/shared/template-names.js';
+import { calculateOutlineParams } from '../../src/shared/outline-calculator.js';
 
 function extractCharactersFromMarkdown(content) {
   const characters = [];
@@ -21,7 +22,7 @@ function extractCharactersFromMarkdown(content) {
 }
 
 export async function handleOutlineRough(prisma, job, { jobId, userId, input }) {
-  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId } = input;
+  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId, volumeCount: userVolumeCount } = input;
 
   const selectedTemplateName = getOutlineRoughTemplateName(targetWords);
 
@@ -35,15 +36,25 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
+  const calculatedParams = calculateOutlineParams(targetWords || 100, chapterCount);
+  
+  const effectiveVolumeCount = userVolumeCount || calculatedParams.volumeCount;
+  const effectiveNodesPerVolume = calculatedParams.nodesPerVolume;
+  const effectiveChaptersPerNode = calculatedParams.chaptersPerNode;
+  
   const context = {
     keywords: keywords || '',
     theme: theme || '',
     genre: genre || '',
     target_words: targetWords || null,
-    chapter_count: chapterCount || null,
+    chapter_count: chapterCount || calculatedParams.totalChapters,
     protagonist: protagonist || '',
     world_setting: worldSetting || '',
     special_requirements: specialRequirements || '',
+    volume_count: effectiveVolumeCount,
+    expected_volume_words: Math.floor((targetWords || 100) * 10000 / effectiveVolumeCount),
+    nodes_per_volume: effectiveNodesPerVolume,
+    chapters_per_node: effectiveChaptersPerNode,
   };
 
   const fallbackPrompt = `请生成粗略大纲，分段描述故事主线（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}\n目标字数：${targetWords || '未知'}万字`;
@@ -61,6 +72,13 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   let roughOutline = parseModelJson(response.content);
   if (roughOutline.raw) {
     roughOutline = response.content;
+  }
+
+  if (typeof roughOutline === 'object' && roughOutline !== null) {
+    const blocks = roughOutline.blocks || roughOutline.volumes || roughOutline.arcs || [];
+    if (Array.isArray(blocks) && blocks.length !== effectiveVolumeCount) {
+      console.warn(`[Outline] AI generated ${blocks.length} volumes, expected ${effectiveVolumeCount}. Output may not match target word count.`);
+    }
   }
 
   if (novelId) {
@@ -84,7 +102,8 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     novelId, 
     roughOutline, 
     targetWords, 
-    chapterCount, 
+    chapterCount,
+    detailedNodeCount,
     agentId, 
     prev_block_title, 
     prev_block_content, 
@@ -112,6 +131,9 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     ? (typeof roughOutline === 'string' ? roughOutline : JSON.stringify(roughOutline, null, 2))
     : '';
 
+  const calculatedParams = calculateOutlineParams(targetWords || 100, chapterCount);
+  const effectiveNodesPerVolume = detailedNodeCount || calculatedParams.nodesPerVolume;
+
   const context = regenerate_single ? {
     target_id: target_id || '',
     target_title: target_title || '',
@@ -126,7 +148,10 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
   } : {
     rough_outline: roughOutlinePayload,
     target_words: targetWords || null,
-    chapter_count: chapterCount || null,
+    chapter_count: chapterCount || calculatedParams.totalChapters,
+    detailed_node_count: effectiveNodesPerVolume,
+    expected_node_words: calculatedParams.expectedNodeWords,
+    chapters_per_node: calculatedParams.chaptersPerNode,
     prev_block_title: prev_block_title || '',
     prev_block_content: prev_block_content || '',
     next_block_title: next_block_title || '',
@@ -209,7 +234,10 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
 export async function handleOutlineChapters(prisma, job, { jobId, userId, input }) {
   const { 
     novelId, 
-    detailedOutline, 
+    detailedOutline,
+    chaptersPerNode,
+    targetWords,
+    chapterCount,
     agentId,
     regenerate_single,
     target_id,
@@ -241,6 +269,9 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
     : '';
 
+  const calculatedParams = calculateOutlineParams(targetWords || 100, chapterCount);
+  const effectiveChaptersPerNode = chaptersPerNode || calculatedParams.chaptersPerNode;
+
   const context = regenerate_single ? {
     target_id: target_id || '',
     target_title: target_title || '',
@@ -253,6 +284,8 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     original_chapter_title: original_chapter_title || '',
   } : {
     detailed_outline: detailedPayload,
+    chapters_per_node: effectiveChaptersPerNode,
+    words_per_chapter: calculatedParams.wordsPerChapter,
   };
 
   const fallbackPrompt = regenerate_single

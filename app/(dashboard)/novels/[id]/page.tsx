@@ -65,6 +65,14 @@ interface Novel {
   outlineChapters?: { blocks: OutlineNode[] };
   outlineStage?: string;
   updatedAt: string;
+  keywords?: string[];
+  theme?: string;
+  genre?: string;
+  targetWords?: number;
+  chapterCount?: number;
+  protagonist?: string;
+  worldSetting?: string;
+  specialRequirements?: string;
 }
 
 interface BlockingInfo {
@@ -121,6 +129,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [plotBranches, setPlotBranches] = useState<PlotBranch[]>([]);
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
   const [outlineNodes, setOutlineNodes] = useState<OutlineNode[]>([]);
+  const [regeneratingOutline, setRegeneratingOutline] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -595,6 +604,108 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const handleRegenerateOutline = async (type: 'rough' | 'detailed' | 'chapters') => {
+    if (!novel) return;
+    
+    const typeLabels = { rough: '粗纲', detailed: '细纲', chapters: '章节纲' };
+    
+    setConfirmState({
+      isOpen: true,
+      title: `重新生成${typeLabels[type]}`,
+      message: `确定要重新生成${typeLabels[type]}吗？这将覆盖现有的${typeLabels[type]}内容。${type === 'rough' ? '细纲和章节纲也会被重置。' : type === 'detailed' ? '章节纲也会被重置。' : ''}`,
+      confirmText: '确认重新生成',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        setRegeneratingOutline(type);
+        
+        try {
+          if (type === 'rough') {
+            const roughOutput = await runJob('OUTLINE_ROUGH', {
+              novelId: novel.id,
+              keywords: novel.keywords?.join(',') || '',
+              theme: novel.theme || '',
+              genre: novel.genre || '',
+              targetWords: novel.targetWords || 100,
+              chapterCount: novel.chapterCount || 100,
+              protagonist: novel.protagonist || '',
+              worldSetting: novel.worldSetting || '',
+              specialRequirements: novel.specialRequirements || '',
+            });
+            
+            const blocks = roughOutput?.blocks || (Array.isArray(roughOutput) ? roughOutput : []);
+            setOutlineNodes(blocks.map((b: any) => ({ ...b, level: 'rough', isExpanded: false })));
+            setNovel(prev => prev ? { ...prev, outlineRough: { blocks }, outlineStage: 'rough' } : null);
+            
+          } else if (type === 'detailed') {
+            const roughOutline = novel.outlineRough || { blocks: outlineNodes.filter(n => n.level === 'rough') };
+            
+            const detailedOutput = await runJob('OUTLINE_DETAILED', {
+              novelId: novel.id,
+              roughOutline,
+              targetWords: novel.targetWords || 100,
+              chapterCount: novel.chapterCount || 100,
+            });
+            
+            const storyArcs = detailedOutput?.story_arcs || [];
+            const updatedNodes = outlineNodes.map(node => {
+              if (node.level !== 'rough') return node;
+              const matchingArc = storyArcs.find((arc: any) => 
+                arc.arc_id === node.id || arc.arc_title?.includes(node.title)
+              );
+              if (matchingArc?.children) {
+                return { ...node, children: matchingArc.children.map((c: any) => ({ ...c, level: 'detailed' })), isExpanded: true };
+              }
+              return node;
+            });
+            setOutlineNodes(updatedNodes);
+            setNovel(prev => prev ? { ...prev, outlineDetailed: detailedOutput, outlineStage: 'detailed' } : null);
+            
+          } else if (type === 'chapters') {
+            const detailedOutline = novel.outlineDetailed || { 
+              story_arcs: outlineNodes.map(n => ({
+                arc_id: n.id,
+                arc_title: n.title,
+                children: n.children || []
+              }))
+            };
+            
+            const chaptersOutput = await runJob('OUTLINE_CHAPTERS', {
+              novelId: novel.id,
+              detailedOutline,
+            });
+            
+            const events = chaptersOutput?.events || [];
+            const updateWithChapters = (nodes: OutlineNode[]): OutlineNode[] => {
+              return nodes.map(node => {
+                if (node.level === 'detailed') {
+                  const matchingEvent = events.find((e: any) => 
+                    e.event_id === node.id || e.event_title?.includes(node.title)
+                  );
+                  if (matchingEvent?.children) {
+                    return { ...node, children: matchingEvent.children.map((c: any) => ({ ...c, level: 'chapter' })), isExpanded: true };
+                  }
+                }
+                if (node.children) {
+                  return { ...node, children: updateWithChapters(node.children) };
+                }
+                return node;
+              });
+            };
+            setOutlineNodes(prev => updateWithChapters(prev));
+            setNovel(prev => prev ? { ...prev, outlineChapters: chaptersOutput, outlineStage: 'chapters' } : null);
+          }
+          
+        } catch (error) {
+          console.error(`Failed to regenerate ${type} outline`, error);
+          alert(`重新生成${typeLabels[type]}失败，请重试`);
+        } finally {
+          setRegeneratingOutline(null);
+        }
+      },
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -820,12 +931,57 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                             {(!novel.outlineStage || novel.outlineStage === 'none') && '已生成大纲'}
                           </p>
                         </div>
-                        <Badge 
-                          variant={novel.outlineStage === 'chapters' ? 'success' : 'info'}
-                          className="px-3 py-1"
-                        >
-                          {outlineNodes.length} 个主节点
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 mr-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegenerateOutline('rough')}
+                              disabled={regeneratingOutline !== null}
+                              isLoading={regeneratingOutline === 'rough'}
+                              className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              粗纲
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegenerateOutline('detailed')}
+                              disabled={regeneratingOutline !== null || !novel?.outlineRough}
+                              isLoading={regeneratingOutline === 'detailed'}
+                              title={!novel?.outlineRough ? '需要先有粗纲才能重新生成细纲' : ''}
+                              className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-40"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              细纲
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegenerateOutline('chapters')}
+                              disabled={regeneratingOutline !== null || !novel?.outlineDetailed}
+                              isLoading={regeneratingOutline === 'chapters'}
+                              title={!novel?.outlineDetailed ? '需要先有细纲才能重新生成章节纲' : ''}
+                              className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-40"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              章节纲
+                            </Button>
+                          </div>
+                          <Badge 
+                            variant={novel.outlineStage === 'chapters' ? 'success' : 'info'}
+                            className="px-3 py-1"
+                          >
+                            {outlineNodes.length} 个主节点
+                          </Badge>
+                        </div>
                       </div>
                       
                       <OutlineTree 
@@ -1079,7 +1235,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
             <TabsContent value="workbench" key="workbench">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-emerald-500/30 transition-all bg-white/[0.02]">
+                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-emerald-500/30 transition-all bg-white/[0.02] flex flex-col">
                   <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
                   <div className="flex items-start justify-between mb-6 relative z-10">
@@ -1094,11 +1250,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
                   
-                  <p className="text-gray-400 mb-6 text-sm h-10 line-clamp-2">
+                  <p className="text-gray-400 mb-6 text-sm line-clamp-2 flex-grow">
                     结构化整理角色、地点、情节要点和世界观设定，让 AI 更好地理解你的故事世界。
                   </p>
                   
-                  <Link href={`/novels/${id}/materials`} className="block">
+                  <Link href={`/novels/${id}/materials`} className="block mt-auto">
                     <Button variant="secondary" className="w-full gap-2 group/btn justify-between">
                       进入素材库
                       <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
@@ -1106,7 +1262,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </Link>
                 </Card>
 
-                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-orange-500/30 transition-all bg-white/[0.02]">
+                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-orange-500/30 transition-all bg-white/[0.02] flex flex-col">
                   <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
                   <div className="flex items-start justify-between mb-6 relative z-10">
@@ -1126,7 +1282,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-2 gap-4 mb-6 flex-grow">
                     <div className="bg-black/20 rounded-xl p-3 border border-white/5">
                       <div className="text-xl font-bold text-white">{workflowStats.unresolvedHooks}</div>
                       <div className="text-[10px] text-gray-500 uppercase tracking-wider">未解决</div>
@@ -1137,7 +1293,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
                   
-                  <Link href={`/novels/${id}/hooks`} className="block">
+                  <Link href={`/novels/${id}/hooks`} className="block mt-auto">
                     <Button variant="secondary" className="w-full gap-2 group/btn justify-between">
                       管理钩子
                       <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
@@ -1145,7 +1301,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </Link>
                 </Card>
 
-                <Card className={`p-8 rounded-3xl relative overflow-hidden group border transition-all bg-white/[0.02] ${blockingInfo.hasBlocking ? 'border-red-500/30 hover:border-red-500/50' : 'border-white/5 hover:border-purple-500/30'}`}>
+                <Card className={`p-8 rounded-3xl relative overflow-hidden group border transition-all bg-white/[0.02] flex flex-col ${blockingInfo.hasBlocking ? 'border-red-500/30 hover:border-red-500/50' : 'border-white/5 hover:border-purple-500/30'}`}>
                   <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-emerald-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
                   
                   <div className="flex items-start justify-between mb-6 relative z-10">
@@ -1165,20 +1321,22 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     )}
                   </div>
                   
-                  {blockingInfo.hasBlocking ? (
-                    <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                      <p className="text-red-300/90 text-sm">
-                        有 <span className="font-bold text-white">{blockingInfo.count}</span> 个待确认实体阻碍生成。
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="mb-6 flex items-center gap-3">
-                      <div className="text-3xl font-bold text-white">{workflowStats.pendingEntities}</div>
-                      <div className="text-sm text-gray-500">个待处理项目</div>
-                    </div>
-                  )}
+                  <div className="flex-grow">
+                    {blockingInfo.hasBlocking ? (
+                      <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                        <p className="text-red-300/90 text-sm">
+                          有 <span className="font-bold text-white">{blockingInfo.count}</span> 个待确认实体阻碍生成。
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mb-6 flex items-center gap-3">
+                        <div className="text-3xl font-bold text-white">{workflowStats.pendingEntities}</div>
+                        <div className="text-sm text-gray-500">个待处理项目</div>
+                      </div>
+                    )}
+                  </div>
                   
-                  <Link href={`/novels/${id}/pending-entities`} className="block">
+                  <Link href={`/novels/${id}/pending-entities`} className="block mt-auto">
                     <Button 
                       variant={blockingInfo.hasBlocking ? 'danger' : 'secondary'}
                       className="w-full gap-2 group/btn justify-between"
@@ -1189,7 +1347,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </Link>
                 </Card>
 
-                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-blue-500/30 transition-all bg-white/[0.02]">
+                <Card className="p-8 rounded-3xl relative overflow-hidden group border border-white/5 hover:border-blue-500/30 transition-all bg-white/[0.02] flex flex-col">
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   
                   <div className="flex items-start justify-between mb-6 relative z-10">
@@ -1204,22 +1362,24 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
 
-                  {plotBranches.length > 0 ? (
-                     <div className="mb-6">
-                        <PlotBranchingView branches={plotBranches} />
-                     </div>
-                  ) : (
-                    <div className="mb-6 text-sm text-gray-400 h-10 flex items-center">
-                      点击推演，系统将分析当前剧情并预测 3 条发展路线。
-                    </div>
-                  )}
+                  <div className="flex-grow">
+                    {plotBranches.length > 0 ? (
+                       <div className="mb-6">
+                          <PlotBranchingView branches={plotBranches} />
+                       </div>
+                    ) : (
+                      <div className="mb-6 text-sm text-gray-400 flex items-center">
+                        点击推演，系统将分析当前剧情并预测 3 条发展路线。
+                      </div>
+                    )}
+                  </div>
 
                   <Button
                     variant="secondary"
                     onClick={handleGeneratePlot}
                     disabled={isGeneratingPlot}
                     isLoading={isGeneratingPlot}
-                    className="w-full gap-2 group/btn justify-between"
+                    className="w-full gap-2 group/btn justify-between mt-auto"
                   >
                     开始推演
                     <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
@@ -1324,9 +1484,20 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         isOpen={showOutlineGenerator}
         onClose={() => setShowOutlineGenerator(false)}
         novelId={novel?.id || ''}
-        onGenerated={(outline) => {
-          setNovel(prev => prev ? { ...prev, outline } : null);
-          setEditedOutline(outline);
+        onGenerated={(data) => {
+          setNovel(prev => prev ? { 
+            ...prev, 
+            outline: data.outline,
+            outlineRough: data.outlineRough as { blocks: OutlineNode[] } | undefined,
+            outlineDetailed: data.outlineDetailed as { blocks: OutlineNode[] } | undefined,
+            outlineChapters: data.outlineChapters as { blocks: OutlineNode[] } | undefined,
+          } : null);
+          setEditedOutline(data.outline);
+          if (data.outlineChapters && typeof data.outlineChapters === 'object' && 'blocks' in (data.outlineChapters as any)) {
+            setOutlineNodes((data.outlineChapters as any).blocks);
+          } else if (data.outlineDetailed && typeof data.outlineDetailed === 'object' && 'blocks' in (data.outlineDetailed as any)) {
+            setOutlineNodes((data.outlineDetailed as any).blocks);
+          }
           setShowOutlineGenerator(false);
         }}
       />

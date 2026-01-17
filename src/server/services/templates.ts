@@ -1551,33 +1551,21 @@ export const BUILT_IN_TEMPLATES = {
 {% if world_setting %}世界观：{{world_setting}}{% endif %}
 {% if special_requirements %}特殊要求：{{special_requirements}}{% endif %}
 
+## ⚠️ 强制分卷约束（必须遵守）
+{% if volume_count %}
+**系统计算的最佳分卷数：{{volume_count}} 卷**
+**每卷目标字数：约 {{expected_volume_words}} 字**
+
+⚠️ 你必须生成正好 {{volume_count}} 个分卷，不能多也不能少！
+每个分卷必须承载足够的剧情量，不能设计得太单薄。
+{% endif %}
+
 ## 100万字内分卷策略
 
 ### 【核心原则】精炼不水、节奏紧凑
 - **30万字以内**：不分卷，按4阶段划分（起承转合）
 - **30-60万字**：分2卷，双高潮结构
 - **60-100万字**：分3卷，三幕剧经典结构
-
-### 【字数分配参考】
-{% if target_words <= 30 %}
-**短篇模式 ({{target_words}}万字)**
-- 4个阶段块，每阶段约{{target_words | divided_by: 4}}万字
-- 阶段一【起】：开局+金手指觉醒
-- 阶段二【承】：初步发展+第一次危机
-- 阶段三【转】：重大转折+实力飞跃
-- 阶段四【合】：最终对决+圆满收尾
-{% elsif target_words <= 60 %}
-**中篇模式 ({{target_words}}万字)**
-- 分2卷，每卷约{{target_words | divided_by: 2}}万字
-- 第一卷：从开局到初步成功（60%铺垫+40%高潮）
-- 第二卷：从危机到最终胜利（30%铺垫+70%高潮）
-{% else %}
-**标准长篇 ({{target_words}}万字)**
-- 分3卷，每卷约{{target_words | divided_by: 3}}万字
-- 第一卷【起步】：新手村→初露锋芒
-- 第二卷【发展】：势力扩张→强敌考验
-- 第三卷【巅峰】：终极对决→完美结局
-{% endif %}
 
 ### 【紧凑节奏要求】
 1. **黄金三章**：前3章必须完成主角出场+金手指展示+第一个冲突
@@ -1596,7 +1584,7 @@ export const BUILT_IN_TEMPLATES = {
 ## 输出格式（JSON）
 
 {
-  "total_volumes": <卷数>,
+  "total_volumes": {% if volume_count %}{{volume_count}}{% else %}<卷数>{% endif %},
   "total_words_estimate": {{target_words}},
   "volume_strategy": "100万字内{{target_words}}万字精炼结构",
   "blocks": [
@@ -1611,6 +1599,10 @@ export const BUILT_IN_TEMPLATES = {
   ]
 }
 
+{% if volume_count %}
+⚠️ 重要：你必须输出正好 {{volume_count}} 个 blocks，每个 block 代表一卷！
+{% endif %}
+
 请开始生成：`,
     variables: [
       { name: 'keywords', type: 'string' as const, description: '关键词' },
@@ -1621,6 +1613,10 @@ export const BUILT_IN_TEMPLATES = {
       { name: 'protagonist', type: 'string' as const, description: '主角设定' },
       { name: 'world_setting', type: 'string' as const, description: '世界观' },
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+      { name: 'volume_count', type: 'number' as const, description: '计算的分卷数' },
+      { name: 'expected_volume_words', type: 'number' as const, description: '预计每卷字数' },
+      { name: 'nodes_per_volume', type: 'number' as const, description: '每卷事件节点数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每节点章节数' },
     ],
   },
 
@@ -2127,13 +2123,66 @@ export const BUILT_IN_TEMPLATES = {
 
 你是专业的网文剧情策划，负责将粗略大纲扩展为详细的事件节点。每个事件都要有冲突、有爽点、有钩子。
 
-## 待扩展板块
+{% if rough_outline %}
+## 批量扩展模式
+
+### 完整粗略大纲
+{{rough_outline}}
+
+{% if target_words %}
+### 目标总字数：{{target_words}}万字
+{% endif %}
+
+{% if chapter_count %}
+### 预计章节数：{{chapter_count}}章
+{% endif %}
+
+## ⚠️ 强制数量约束（必须遵守）
+{% if detailed_node_count %}
+**系统计算的每卷事件节点数：{{detailed_node_count}} 个**
+{% endif %}
+{% if expected_node_words %}
+**每个事件节点目标字数：约 {{expected_node_words}} 字**
+{% endif %}
+{% if chapters_per_node %}
+**每个事件节点预计章节数：{{chapters_per_node}} 章**
+{% endif %}
+
+⚠️ 你必须为【每个分卷】生成正好 {{detailed_node_count}} 个事件节点！
+每个事件节点必须足够丰富，能支撑约 {{chapters_per_node}} 个章节的剧情量。
+不能生成空洞的一句话剧情，必须包含完整的「起因→经过→高潮→结果」链条。
+
+## 扩展任务
+请将上述粗略大纲中的【每个分卷/板块】都扩展为详细的事件节点。
+
+### 扩展策略
+{% if target_words %}
+{% if target_words >= 200 %}
+【超长篇模式：{{target_words}}万字】
+- 每个板块需要扩展出 {{detailed_node_count}} 个事件节点
+- 每个事件约 {{expected_node_words}} 字的内容量
+- 必须设计多层递进结构：每个板块内有起承转合
+{% elsif target_words >= 100 %}
+【长篇模式：{{target_words}}万字】
+- 每个板块需要扩展出 {{detailed_node_count}} 个事件节点
+- 每个事件约 {{expected_node_words}} 字的内容量
+{% else %}
+【标准模式：{{target_words}}万字】
+- 每个板块需要扩展出 {{detailed_node_count}} 个事件节点
+- 每个事件约 {{expected_node_words}} 字的内容量
+{% endif %}
+{% endif %}
+
+{% else %}
+## 单板块扩展模式
+
+### 待扩展板块
 标题：{{target_title}}
 内容：{{target_content}}
 ID：{{target_id}}
 
 {% if prev_block_title %}
-## 前一分卷（用于衔接）
+### 前一分卷（用于衔接）
 **{{prev_block_title}}**
 {{prev_block_content}}
 
@@ -2141,48 +2190,49 @@ ID：{{target_id}}
 {% endif %}
 
 {% if next_block_title %}
-## 后一分卷（用于铺垫）
+### 后一分卷（用于铺垫）
 **{{next_block_title}}**
 {{next_block_content}}
 
 ⚠️ 请在本分卷中适当埋设伏笔，为后续情节发展做铺垫。
 {% endif %}
 
-## 全文背景
+### 全文背景
 {{rough_outline_context}}
 
 {% if target_word_count %}
-## 本板块目标字数：{{target_word_count}}万字
+### 本板块目标字数：{{target_word_count}}万字
 {% endif %}
 
-## 扩展策略（根据板块字数动态调整）
+### 扩展策略（根据板块字数动态调整）
 
 {% if target_word_count %}
 {% if target_word_count < 10 %}
-### 【小板块模式：约{{target_word_count}}万字】
+【小板块模式：约{{target_word_count}}万字】
 - 生成2-3个事件节点
 - 每个事件约3-4万字
 - 节奏紧凑，每个事件都要有明确冲突和爽点
 {% elsif target_word_count < 20 %}
-### 【中板块模式：约{{target_word_count}}万字】
+【中板块模式：约{{target_word_count}}万字】
 - 生成3-4个事件节点
 - 每个事件约4-6万字
 - 包含1个核心高潮事件
 {% elsif target_word_count < 40 %}
-### 【大板块模式：约{{target_word_count}}万字】
+【大板块模式：约{{target_word_count}}万字】
 - 生成4-6个事件节点
 - 每个事件约5-8万字
 - 设计递进式冲突升级
 {% else %}
-### 【超大板块：{{target_word_count}}万字+】
+【超大板块：{{target_word_count}}万字+】
 - 生成5-8个事件节点
 - 每个事件约6-10万字
 - 需要内部分层（前期铺垫→中期发展→后期爆发）
 {% endif %}
 {% else %}
-### 【默认模式：约25万字】
+【默认模式：约25万字】
 - 生成4-5个事件节点
 - 每个事件约5-6万字
+{% endif %}
 {% endif %}
 
 ## 扩展原则
@@ -2210,6 +2260,33 @@ ID：{{target_id}}
 ## 输出格式（JSON）
 请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
 
+{% if rough_outline %}
+{
+  "story_arcs": [
+    {
+      "arc_id": "arc_1",
+      "arc_title": "第一卷：XXX",
+      "arc_summary": "本卷概述",
+      "estimated_words": <本卷预计字数（万）>,
+      "children": [
+        {
+          "id": "arc_1_event_1",
+          "title": "事件标题（要有吸引力）",
+          "content": "【事件概述】XXX\\n【核心冲突】XXX\\n【关键场景】XXX\\n【爽点设计】XXX\\n【人物互动】XXX\\n【事件结果】XXX\\n【留下的钩子】XXX",
+          "level": "detailed",
+          "estimated_words": <该事件预计字数（万）>,
+          "estimated_chapters": <预计章节数>,
+          "key_characters": ["角色1", "角色2"],
+          "hook_type": "悬念|危机|期待|反转",
+          "new_characters": [{"name": "角色名", "role": "角色类型", "brief": "简介"}]
+        }
+      ]
+    }
+  ],
+  "total_estimated_words": <总字数估计（万）>,
+  "total_estimated_chapters": <总章节数估计>
+}
+{% else %}
 {
   "children": [
     {
@@ -2224,12 +2301,23 @@ ID：{{target_id}}
     }
   ]
 }
+{% endif %}
 
-请根据板块字数生成合适数量的事件节点：`,
+{% if rough_outline %}
+⚠️ 重要：请为粗略大纲中的【每一个分卷/板块】都生成完整的事件节点。目标是支撑{{target_words}}万字的内容量，不要生成太少！
+{% else %}
+请根据板块字数生成合适数量的事件节点：
+{% endif %}`,
     variables: [
-      { name: 'target_title', type: 'string' as const, required: true, description: '目标块标题' },
-      { name: 'target_content', type: 'string' as const, required: true, description: '目标块内容' },
-      { name: 'target_id', type: 'string' as const, required: true, description: '目标块ID' },
+      { name: 'rough_outline', type: 'string' as const, description: '完整粗略大纲（批量模式）' },
+      { name: 'target_words', type: 'number' as const, description: '目标总字数（万）' },
+      { name: 'chapter_count', type: 'number' as const, description: '预计章节数' },
+      { name: 'detailed_node_count', type: 'number' as const, description: '每个分卷的事件节点数（计算值）' },
+      { name: 'expected_node_words', type: 'number' as const, description: '每个事件节点预计字数' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每个事件节点的章节数' },
+      { name: 'target_title', type: 'string' as const, description: '目标块标题（单块模式）' },
+      { name: 'target_content', type: 'string' as const, description: '目标块内容（单块模式）' },
+      { name: 'target_id', type: 'string' as const, description: '目标块ID（单块模式）' },
       { name: 'rough_outline_context', type: 'string' as const, description: '粗略大纲上下文' },
       { name: 'target_word_count', type: 'number' as const, description: '目标块字数（万）' },
       { name: 'prev_block_title', type: 'string' as const, description: '前一分卷标题' },
@@ -2245,51 +2333,51 @@ ID：{{target_id}}
 
 你是资深网文策划，负责将事件节点拆解为具体章节。每章都要让读者有"必须看下一章"的冲动。
 
-## 待拆解事件
+{% if detailed_outline %}
+## 批量拆解模式
+
+### 完整细纲
+{{detailed_outline}}
+
+{% if chapters_per_node %}
+### 用户指定：每个事件节点生成 {{chapters_per_node}} 个章节
+⚠️ 请严格遵循此要求！
+{% endif %}
+
+## 拆解任务
+请将上述细纲中的【每个事件节点】都拆解为具体章节大纲。
+
+{% else %}
+## 单事件拆解模式
+
+### 待拆解事件
 标题：{{target_title}}
 内容：{{target_content}}
 ID：{{target_id}}
 
-## 上下文
+### 上下文
 {{detailed_outline_context}}
 
 {% if target_word_count %}
-## 本事件目标字数：{{target_word_count}}万字
+### 本事件目标字数：{{target_word_count}}万字
+{% endif %}
 {% endif %}
 
-## 章节数量策略
+## ⚠️ 强制章节数约束（必须遵守）
+{% if chapters_per_node %}
+**系统计算的每事件章节数：{{chapters_per_node}} 章**
+{% endif %}
+{% if words_per_chapter %}
+**每章目标字数：{{words_per_chapter}} 字**
+{% endif %}
 
-{% if target_word_count %}
-{% if target_word_count < 3 %}
-### 【短事件：约{{target_word_count}}万字】
-- 生成3-5个章节
-- 每章约2500-3000字
-- 节奏紧凑，直奔主题
-{% elsif target_word_count < 6 %}
-### 【中事件：约{{target_word_count}}万字】
-- 生成5-8个章节
-- 每章约3000字
-- 铺垫→发展→高潮结构
-{% elsif target_word_count < 10 %}
-### 【大事件：约{{target_word_count}}万字】
-- 生成8-15个章节
-- 每章约3000字
-- 可包含1-2个小高潮和1个大高潮
-{% else %}
-### 【超大事件：{{target_word_count}}万字+】
-- 生成15-25个章节
-- 每章约3000字
-- 设计多层递进结构，多个小高潮层层推进
-{% endif %}
-{% else %}
-### 【默认模式：约5万字】
-- 生成8-12个章节
-{% endif %}
+⚠️ 你必须为【每个事件节点】生成正好 {{chapters_per_node}} 个章节大纲！
+每个章节必须有完整的「开篇钩子→核心剧情→章末钩子」结构。
 
 ## 章节设计原则
 
 ### 【章节结构】
-每章约3000字，包含：
+每章约{% if words_per_chapter %}{{words_per_chapter}}{% else %}3000{% endif %}字，包含：
 1. **开篇钩子**：承接上章或直接冲突开场
 2. **核心内容**：推进剧情的主体部分
 3. **章末钩子**：悬念、危机、转折
@@ -2312,6 +2400,28 @@ ID：{{target_id}}
 ## 输出格式（JSON）
 请严格输出 JSON 格式，不要包含 Markdown 代码块标记。
 
+{% if detailed_outline %}
+{
+  "events": [
+    {
+      "event_id": "arc_1_event_1",
+      "event_title": "事件标题",
+      "children": [
+        {
+          "id": "arc_1_event_1_ch1",
+          "title": "章节标题（要有吸引力，不是第X章）",
+          "content": "【本章看点】XXX\\n【开场场景】XXX\\n【核心剧情】XXX\\n【出场人物】XXX\\n【爽点设计】XXX\\n【章末钩子】XXX",
+          "level": "chapter",
+          "word_count": 3000,
+          "hook_type": "悬念|危机|期待|反转",
+          "importance": "普通|重要|高潮"
+        }
+      ]
+    }
+  ],
+  "total_chapters": <总章节数>
+}
+{% else %}
 {
   "children": [
     {
@@ -2325,12 +2435,16 @@ ID：{{target_id}}
     }
   ]
 }
+{% endif %}
 
 请根据事件字数生成合适数量的章节大纲：`,
     variables: [
-      { name: 'target_title', type: 'string' as const, required: true, description: '目标块标题' },
-      { name: 'target_content', type: 'string' as const, required: true, description: '目标块内容' },
-      { name: 'target_id', type: 'string' as const, required: true, description: '目标块ID' },
+      { name: 'detailed_outline', type: 'string' as const, description: '完整细纲（批量模式）' },
+      { name: 'chapters_per_node', type: 'number' as const, description: '每个事件节点生成的章节数（计算值）' },
+      { name: 'words_per_chapter', type: 'number' as const, description: '每章目标字数' },
+      { name: 'target_title', type: 'string' as const, description: '目标块标题（单块模式）' },
+      { name: 'target_content', type: 'string' as const, description: '目标块内容（单块模式）' },
+      { name: 'target_id', type: 'string' as const, description: '目标块ID（单块模式）' },
       { name: 'detailed_outline_context', type: 'string' as const, description: '细纲上下文' },
       { name: 'target_word_count', type: 'number' as const, description: '目标事件字数（万）' },
     ],
