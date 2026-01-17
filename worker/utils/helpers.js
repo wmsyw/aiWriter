@@ -196,28 +196,46 @@ export function parseModelJson(content, options = {}) {
   const { throwOnError = false } = options;
   
   const candidate = extractJsonCandidate(content);
+  
+  const sanitizeControlChars = (str) => {
+    return str
+      .replace(/[\x00-\x1F\x7F]/g, (char) => {
+        switch (char) {
+          case '\n': return '\\n';
+          case '\r': return '\\r';
+          case '\t': return '\\t';
+          default: return '';
+        }
+      });
+  };
+  
   try {
     return JSON.parse(candidate);
   } catch (firstError) {
     try {
-      const fixed = candidate
-        .replace(/,\s*([\]}])/g, '$1')
-        .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
-      return JSON.parse(fixed);
-    } catch (secondError) {
+      const sanitized = sanitizeControlChars(candidate);
+      return JSON.parse(sanitized);
+    } catch (sanitizeError) {
       try {
-        const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (arrayMatch) {
-          return JSON.parse(arrayMatch[0]);
+        const fixed = sanitizeControlChars(candidate)
+          .replace(/,\s*([\]}])/g, '$1')
+          .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+        return JSON.parse(fixed);
+      } catch (secondError) {
+        try {
+          const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (arrayMatch) {
+            return JSON.parse(sanitizeControlChars(arrayMatch[0]));
+          }
+        } catch (thirdError) {
+          /* fallthrough */
         }
-      } catch (thirdError) {
-        /* fallthrough */
+        
+        if (throwOnError) {
+          throw new Error(`Failed to parse AI JSON output: ${firstError.message}`);
+        }
+        return { raw: content, parseError: firstError.message };
       }
-      
-      if (throwOnError) {
-        throw new Error(`Failed to parse AI JSON output: ${firstError.message}`);
-      }
-      return { raw: content, parseError: firstError.message };
     }
   }
 }
