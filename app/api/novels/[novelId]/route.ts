@@ -8,6 +8,10 @@ const updateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   outline: z.string().optional(),
+  outlineRough: z.any().optional(),
+  outlineDetailed: z.any().optional(),
+  outlineChapters: z.any().optional(),
+  outlineStage: z.enum(['none', 'rough', 'detailed', 'chapters']).optional(),
   theme: z.string().optional(),
   genre: z.string().optional(),
   targetWords: z.number().int().min(1).optional(),
@@ -62,6 +66,9 @@ export async function PATCH(
     const updateData = {
       ...data,
       inspirationData: data.inspirationData ? (data.inspirationData as Prisma.InputJsonValue) : undefined,
+      outlineRough: data.outlineRough ? (data.outlineRough as Prisma.InputJsonValue) : undefined,
+      outlineDetailed: data.outlineDetailed ? (data.outlineDetailed as Prisma.InputJsonValue) : undefined,
+      outlineChapters: data.outlineChapters ? (data.outlineChapters as Prisma.InputJsonValue) : undefined,
     };
 
     const novel = await prisma.novel.updateMany({

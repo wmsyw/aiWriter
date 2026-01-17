@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import MobileBlocker from "./components/MobileBlocker";
 
 export const metadata: Metadata = {
   title: "AI Writer - 创作你的杰作",
@@ -19,7 +20,9 @@ export default function RootLayout({
   
   return (
     <html lang={locale}>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        <MobileBlocker>{children}</MobileBlocker>
+      </body>
     </html>
   );
 }

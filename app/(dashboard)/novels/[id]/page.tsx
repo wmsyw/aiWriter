@@ -130,6 +130,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
   const [outlineNodes, setOutlineNodes] = useState<OutlineNode[]>([]);
   const [regeneratingOutline, setRegeneratingOutline] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
+  const [outlineSelectionMode, setOutlineSelectionMode] = useState(false);
+  const [selectedOutlineIds, setSelectedOutlineIds] = useState<Set<string>>(new Set());
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -435,16 +437,17 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
     setEditedOutline(serialized);
 
-    const roughNodes = treeToSave.filter(n => n.level === 'rough');
-    const detailedNodes = treeToSave.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
-    const chapterNodes = treeToSave.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
+    const hasDetailed = treeToSave.some(n => n.children && n.children.length > 0);
+    const hasChapters = treeToSave.some(n => 
+      n.children?.some(c => c.children && c.children.length > 0)
+    );
 
     let outlineStage = 'none';
-    if (chapterNodes.length > 0) {
+    if (hasChapters) {
       outlineStage = 'chapters';
-    } else if (detailedNodes.length > 0) {
+    } else if (hasDetailed) {
       outlineStage = 'detailed';
-    } else if (roughNodes.length > 0) {
+    } else if (treeToSave.length > 0) {
       outlineStage = 'rough';
     }
 
@@ -454,9 +457,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           outline: serialized,
-          outlineRough: roughNodes.length > 0 ? { blocks: roughNodes } : null,
-          outlineDetailed: detailedNodes.length > 0 ? { blocks: detailedNodes } : null,
-          outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
+          outlineRough: treeToSave.length > 0 ? { blocks: treeToSave } : null,
           outlineStage,
         }),
       });
@@ -542,7 +543,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
       const output = await runJob('OUTLINE_DETAILED', {
         novelId: novel.id,
-        roughOutline: {},
         target_title: node.title,
         target_content: node.content,
         target_id: node.id,
@@ -551,11 +551,17 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         prev_block_content: prevBlock?.content || '',
         next_block_title: nextBlock?.title || '',
         next_block_content: nextBlock?.content || '',
+        targetWords: novel.targetWords,
+        chapterCount: novel.chapterCount,
       });
 
       const json = typeof output === 'string' ? safeParseJSON(output) : output;
       if (json && json.children) {
-        updateNodeChildren(node.id, json.children);
+        const normalizedChildren = json.children.map((child: any) => ({
+          ...child,
+          level: 'detailed' as const,
+        }));
+        updateNodeChildren(node.id, normalizedChildren);
       }
     } catch (error) {
       console.error('Failed to generate detailed outline', error);
@@ -570,23 +576,32 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     setNodeGenerating(node.id, true);
 
     try {
-      const context = outlineNodes
-        .flatMap(rough => rough.children || [])
-        .map(detailed => `${detailed.id}. ${detailed.title}`)
+      const parentRough = outlineNodes.find(r => r.children?.some(c => c.id === node.id));
+      
+      const allDetailed = outlineNodes.flatMap(rough => rough.children || []);
+      const context = allDetailed
+        .map(detailed => `${detailed.id}. ${detailed.title}: ${detailed.content}`)
         .join('\n');
 
       const output = await runJob('OUTLINE_CHAPTERS', {
         novelId: novel.id,
-        detailedOutline: {},
         target_title: node.title,
         target_content: node.content,
         target_id: node.id,
         detailed_outline_context: context,
+        parent_rough_title: parentRough?.title || '',
+        parent_rough_content: parentRough?.content || '',
+        targetWords: novel.targetWords,
+        chapterCount: novel.chapterCount,
       });
 
       const json = typeof output === 'string' ? safeParseJSON(output) : output;
       if (json && json.children) {
-        updateNodeChildren(node.id, json.children);
+        const normalizedChildren = json.children.map((child: any) => ({
+          ...child,
+          level: 'chapter' as const,
+        }));
+        updateNodeChildren(node.id, normalizedChildren);
       }
     } catch (error) {
       console.error('Failed to generate chapters', error);
@@ -601,6 +616,285 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       generateDetailedForBlock(node);
     } else if (node.level === 'detailed') {
       generateChaptersForBlock(node);
+    }
+  };
+
+  const handleRegenerateSingleNode = async (node: OutlineNode) => {
+    if (!novel?.id) return;
+    
+    const levelLabels = { rough: '粗纲', detailed: '细纲', chapter: '章节' };
+    
+    setConfirmState({
+      isOpen: true,
+      title: `重新生成此${levelLabels[node.level]}`,
+      message: `确定要重新生成「${node.title}」吗？${node.children?.length ? '其下级节点也会被重新生成。' : ''}`,
+      confirmText: '确认重新生成',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        setNodeGenerating(node.id, true);
+        
+        try {
+          if (node.level === 'rough') {
+            const roughNodes = outlineNodes.filter(n => n.level === 'rough');
+            const currentIndex = roughNodes.findIndex(n => n.id === node.id);
+            const prevBlock = currentIndex > 0 ? roughNodes[currentIndex - 1] : null;
+            const nextBlock = currentIndex < roughNodes.length - 1 ? roughNodes[currentIndex + 1] : null;
+            
+            const output = await runJob('OUTLINE_ROUGH', {
+              novelId: novel.id,
+              keywords: novel.keywords?.join(',') || '',
+              theme: novel.theme || '',
+              genre: novel.genre || '',
+              targetWords: novel.targetWords || 100,
+              regenerate_single: true,
+              target_id: node.id,
+              target_title: node.title,
+              target_content: node.content,
+              prev_block_title: prevBlock?.title || '',
+              prev_block_content: prevBlock?.content || '',
+              next_block_title: nextBlock?.title || '',
+              next_block_content: nextBlock?.content || '',
+            });
+            
+            const newNode = output?.block || output;
+            if (newNode) {
+              setOutlineNodes(prev => prev.map(n => 
+                n.id === node.id ? { ...n, ...newNode, level: 'rough', children: undefined } : n
+              ));
+            }
+            
+          } else if (node.level === 'detailed') {
+            const allDetailed = outlineNodes.flatMap(r => r.children || []);
+            const currentIndex = allDetailed.findIndex(n => n.id === node.id);
+            const prevNode = currentIndex > 0 ? allDetailed[currentIndex - 1] : null;
+            const nextNode = currentIndex < allDetailed.length - 1 ? allDetailed[currentIndex + 1] : null;
+            
+            const parentRough = outlineNodes.find(r => r.children?.some(c => c.id === node.id));
+            
+            const output = await runJob('OUTLINE_DETAILED', {
+              novelId: novel.id,
+              roughOutline: {},
+              regenerate_single: true,
+              target_id: node.id,
+              target_title: node.title,
+              target_content: node.content,
+              rough_outline_context: parentRough ? `${parentRough.id}. ${parentRough.title}: ${parentRough.content}` : '',
+              prev_block_title: prevNode?.title || '',
+              prev_block_content: prevNode?.content || '',
+              next_block_title: nextNode?.title || '',
+              next_block_content: nextNode?.content || '',
+              original_node_title: node.title,
+            });
+            
+            const newNode = output?.node || output;
+            if (newNode) {
+              const updateDetailedNode = (nodes: OutlineNode[]): OutlineNode[] => {
+                return nodes.map(n => {
+                  if (n.id === node.id) {
+                    return { ...n, ...newNode, level: 'detailed', children: undefined };
+                  }
+                  if (n.children) {
+                    return { ...n, children: updateDetailedNode(n.children) };
+                  }
+                  return n;
+                });
+              };
+              setOutlineNodes(prev => updateDetailedNode(prev));
+            }
+            
+          } else if (node.level === 'chapter') {
+            const allChapters = outlineNodes.flatMap(r => (r.children || []).flatMap(d => d.children || []));
+            const currentIndex = allChapters.findIndex(n => n.id === node.id);
+            const prevChapter = currentIndex > 0 ? allChapters[currentIndex - 1] : null;
+            const nextChapter = currentIndex < allChapters.length - 1 ? allChapters[currentIndex + 1] : null;
+            
+            const parentDetailed = outlineNodes.flatMap(r => r.children || []).find(d => d.children?.some(c => c.id === node.id));
+            
+            const output = await runJob('OUTLINE_CHAPTERS', {
+              novelId: novel.id,
+              detailedOutline: {},
+              regenerate_single: true,
+              target_id: node.id,
+              target_title: node.title,
+              target_content: node.content,
+              detailed_outline_context: parentDetailed ? `${parentDetailed.id}. ${parentDetailed.title}: ${parentDetailed.content}` : '',
+              prev_chapter_title: prevChapter?.title || '',
+              prev_chapter_content: prevChapter?.content || '',
+              next_chapter_title: nextChapter?.title || '',
+              next_chapter_content: nextChapter?.content || '',
+              original_chapter_title: node.title,
+            });
+            
+            const newNode = output?.chapter || output;
+            if (newNode) {
+              const updateChapterNode = (nodes: OutlineNode[]): OutlineNode[] => {
+                return nodes.map(n => {
+                  if (n.id === node.id) {
+                    return { ...n, ...newNode, level: 'chapter' };
+                  }
+                  if (n.children) {
+                    return { ...n, children: updateChapterNode(n.children) };
+                  }
+                  return n;
+                });
+              };
+              setOutlineNodes(prev => updateChapterNode(prev));
+            }
+          }
+        } catch (error) {
+          console.error('Failed to regenerate node', error);
+          alert('重新生成失败，请重试');
+        } finally {
+          setNodeGenerating(node.id, false);
+        }
+      },
+    });
+  };
+
+  const handleOutlineSelect = (id: string, selected: boolean) => {
+    setSelectedOutlineIds(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const handleBatchRegenerate = async () => {
+    if (!novel?.id || selectedOutlineIds.size === 0) return;
+    
+    const findNodes = (nodes: OutlineNode[]): OutlineNode[] => {
+      const result: OutlineNode[] = [];
+      for (const node of nodes) {
+        if (selectedOutlineIds.has(node.id)) {
+          result.push(node);
+        }
+        if (node.children) {
+          result.push(...findNodes(node.children));
+        }
+      }
+      return result;
+    };
+    
+    const selectedNodes = findNodes(outlineNodes);
+    
+    setConfirmState({
+      isOpen: true,
+      title: '批量重新生成',
+      message: `确定要重新生成选中的 ${selectedNodes.length} 个节点吗？`,
+      confirmText: '确认批量重新生成',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        
+        for (const node of selectedNodes) {
+          setNodeGenerating(node.id, true);
+        }
+        
+        try {
+          for (const node of selectedNodes) {
+            await handleRegenerateSingleNodeInternal(node);
+          }
+        } finally {
+          for (const node of selectedNodes) {
+            setNodeGenerating(node.id, false);
+          }
+          setSelectedOutlineIds(new Set());
+          setOutlineSelectionMode(false);
+        }
+      },
+    });
+  };
+
+  const handleRegenerateSingleNodeInternal = async (node: OutlineNode) => {
+    if (!novel?.id) return;
+    
+    try {
+      if (node.level === 'rough') {
+        const roughNodes = outlineNodes.filter(n => n.level === 'rough');
+        const currentIndex = roughNodes.findIndex(n => n.id === node.id);
+        const prevBlock = currentIndex > 0 ? roughNodes[currentIndex - 1] : null;
+        const nextBlock = currentIndex < roughNodes.length - 1 ? roughNodes[currentIndex + 1] : null;
+        
+        const output = await runJob('OUTLINE_ROUGH', {
+          novelId: novel.id,
+          keywords: novel.keywords?.join(',') || '',
+          theme: novel.theme || '',
+          genre: novel.genre || '',
+          targetWords: novel.targetWords || 100,
+          regenerate_single: true,
+          target_id: node.id,
+          target_title: node.title,
+          target_content: node.content,
+          prev_block_title: prevBlock?.title || '',
+          prev_block_content: prevBlock?.content || '',
+          next_block_title: nextBlock?.title || '',
+          next_block_content: nextBlock?.content || '',
+        });
+        
+        const newNode = output?.block || output;
+        if (newNode) {
+          setOutlineNodes(prev => prev.map(n => 
+            n.id === node.id ? { ...n, ...newNode, level: 'rough', children: undefined } : n
+          ));
+        }
+      } else if (node.level === 'detailed') {
+        const parentRough = outlineNodes.find(r => r.children?.some(c => c.id === node.id));
+        
+        const output = await runJob('OUTLINE_DETAILED', {
+          novelId: novel.id,
+          roughOutline: {},
+          regenerate_single: true,
+          target_id: node.id,
+          target_title: node.title,
+          target_content: node.content,
+          rough_outline_context: parentRough ? `${parentRough.id}. ${parentRough.title}` : '',
+          original_node_title: node.title,
+        });
+        
+        const newNode = output?.node || output;
+        if (newNode) {
+          const updateDetailedNode = (nodes: OutlineNode[]): OutlineNode[] => {
+            return nodes.map(n => {
+              if (n.id === node.id) return { ...n, ...newNode, level: 'detailed', children: undefined };
+              if (n.children) return { ...n, children: updateDetailedNode(n.children) };
+              return n;
+            });
+          };
+          setOutlineNodes(prev => updateDetailedNode(prev));
+        }
+      } else if (node.level === 'chapter') {
+        const parentDetailed = outlineNodes.flatMap(r => r.children || []).find(d => d.children?.some(c => c.id === node.id));
+        
+        const output = await runJob('OUTLINE_CHAPTERS', {
+          novelId: novel.id,
+          detailedOutline: {},
+          regenerate_single: true,
+          target_id: node.id,
+          target_title: node.title,
+          target_content: node.content,
+          detailed_outline_context: parentDetailed ? `${parentDetailed.id}. ${parentDetailed.title}` : '',
+          original_chapter_title: node.title,
+        });
+        
+        const newNode = output?.chapter || output;
+        if (newNode) {
+          const updateChapterNode = (nodes: OutlineNode[]): OutlineNode[] => {
+            return nodes.map(n => {
+              if (n.id === node.id) return { ...n, ...newNode, level: 'chapter' };
+              if (n.children) return { ...n, children: updateChapterNode(n.children) };
+              return n;
+            });
+          };
+          setOutlineNodes(prev => updateChapterNode(prev));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to regenerate node', node.id, error);
     }
   };
 
@@ -932,6 +1226,49 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {outlineSelectionMode ? (
+                            <>
+                              <span className="text-xs text-gray-400 mr-1">
+                                已选 {selectedOutlineIds.size} 个
+                              </span>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={handleBatchRegenerate}
+                                disabled={selectedOutlineIds.size === 0}
+                                className="text-xs px-3 py-1 h-7 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+                              >
+                                批量重新生成
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setOutlineSelectionMode(false);
+                                  setSelectedOutlineIds(new Set());
+                                }}
+                                className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10"
+                              >
+                                取消
+                              </Button>
+                              <div className="w-px h-4 bg-gray-700 mx-1" />
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setOutlineSelectionMode(true)}
+                                className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10"
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                批量选择
+                              </Button>
+                              <div className="w-px h-4 bg-gray-700 mx-1" />
+                            </>
+                          )}
                           <div className="flex items-center gap-1.5 mr-2">
                             <Button
                               variant="ghost"
@@ -987,6 +1324,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       <OutlineTree 
                         nodes={outlineNodes}
                         onGenerateNext={handleGenerateNext}
+                        onRegenerate={handleRegenerateSingleNode}
                         onToggle={handleToggle}
                         onUpdateNode={(id, content) => {
                           const updateNodes = (nodes: OutlineNode[]): OutlineNode[] => {
@@ -998,6 +1336,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           };
                           setOutlineNodes(prev => updateNodes(prev));
                         }}
+                        selectedIds={selectedOutlineIds}
+                        onSelect={handleOutlineSelect}
+                        selectionMode={outlineSelectionMode}
                         readOnly={false}
                       />
                     </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 export interface OutlineNode {
   id: string;
@@ -16,7 +16,12 @@ interface OutlineTreeNodeProps {
   node: OutlineNode;
   onToggle: (id: string) => void;
   onGenerateNext?: (node: OutlineNode) => void;
+  onRegenerate?: (node: OutlineNode) => void;
   onUpdateNode?: (id: string, content: string) => void;
+  isSelected?: boolean;
+  selectedIds?: Set<string>;
+  onSelect?: (id: string, selected: boolean) => void;
+  selectionMode?: boolean;
   readOnly?: boolean;
 }
 
@@ -24,20 +29,39 @@ const OutlineTreeNode = ({
   node, 
   onToggle, 
   onGenerateNext,
+  onRegenerate,
   onUpdateNode,
+  isSelected = false,
+  selectedIds = new Set(),
+  onSelect,
+  selectionMode = false,
   readOnly = false
 }: OutlineTreeNodeProps) => {
   const isLeaf = node.level === 'chapter';
   const padding = node.level === 'rough' ? 0 : node.level === 'detailed' ? 24 : 48;
   const nextLevelName = node.level === 'rough' ? '细纲' : '章节';
   const hasChildren = node.children && node.children.length > 0;
+  const levelLabel = node.level === 'rough' ? '粗纲' : node.level === 'detailed' ? '细纲' : '章节';
 
   return (
     <div className="mb-2 transition-all duration-300">
       <div 
-        className={`glass-panel p-4 rounded-xl flex items-start gap-3 hover:bg-white/5 transition-colors ${node.level === 'rough' ? 'border-l-2 border-emerald-500/50' : ''}`}
+        className={`glass-panel p-4 rounded-xl flex items-start gap-3 hover:bg-white/5 transition-colors ${
+          node.level === 'rough' ? 'border-l-2 border-emerald-500/50' : ''
+        } ${isSelected ? 'ring-2 ring-emerald-500/50 bg-emerald-500/5' : ''}`}
         style={{ marginLeft: padding }}
       >
+        {selectionMode && (
+          <label className="mt-1 flex items-center cursor-pointer flex-shrink-0">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => onSelect?.(node.id, e.target.checked)}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-emerald-500/50"
+            />
+          </label>
+        )}
+        
         <button 
           onClick={() => onToggle(node.id)}
           className="mt-1 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white transition-colors flex-shrink-0"
@@ -55,6 +79,18 @@ const OutlineTreeNode = ({
             </h4>
             <div className="flex items-center gap-2 flex-shrink-0">
               {hasChildren && <span className="text-green-400 text-sm">✓ 已展开</span>}
+              
+              {!readOnly && onRegenerate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRegenerate(node); }}
+                  disabled={node.isGenerating}
+                  className="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-1 rounded-lg transition-colors border border-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={`重新生成此${levelLabel}`}
+                >
+                  {node.isGenerating ? '生成中...' : '重新生成'}
+                </button>
+              )}
+              
               {!isLeaf && !readOnly && onGenerateNext && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onGenerateNext(node); }}
@@ -91,7 +127,12 @@ const OutlineTreeNode = ({
               node={child} 
               onToggle={onToggle}
               onGenerateNext={onGenerateNext}
+              onRegenerate={onRegenerate}
               onUpdateNode={onUpdateNode}
+              isSelected={selectedIds.has(child.id)}
+              selectedIds={selectedIds}
+              onSelect={onSelect}
+              selectionMode={selectionMode}
               readOnly={readOnly}
             />
           ))}
@@ -104,8 +145,12 @@ const OutlineTreeNode = ({
 interface OutlineTreeProps {
   nodes: OutlineNode[];
   onGenerateNext?: (node: OutlineNode) => void;
+  onRegenerate?: (node: OutlineNode) => void;
   onUpdateNode?: (id: string, content: string) => void;
   onToggle: (id: string) => void;
+  selectedIds?: Set<string>;
+  onSelect?: (id: string, selected: boolean) => void;
+  selectionMode?: boolean;
   readOnly?: boolean;
   className?: string;
 }
@@ -113,8 +158,12 @@ interface OutlineTreeProps {
 export default function OutlineTree({ 
   nodes, 
   onGenerateNext,
+  onRegenerate,
   onUpdateNode,
   onToggle,
+  selectedIds = new Set(),
+  onSelect,
+  selectionMode = false,
   readOnly = false,
   className = ''
 }: OutlineTreeProps) {
@@ -135,7 +184,11 @@ export default function OutlineTree({
           node={node} 
           onToggle={onToggle}
           onGenerateNext={onGenerateNext}
+          onRegenerate={onRegenerate}
           onUpdateNode={onUpdateNode}
+          isSelected={selectedIds.has(node.id)}
+          onSelect={onSelect}
+          selectionMode={selectionMode}
           readOnly={readOnly}
         />
       ))}
