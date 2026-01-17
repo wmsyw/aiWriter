@@ -42,7 +42,8 @@ const OutlineTreeNode = ({
 }: OutlineTreeNodeProps) => {
   const [isContentExpanded, setIsContentExpanded] = useState(false);
   
-  const isLeaf = node.level === 'chapter';
+  const effectiveLevel = node.level || 'rough';
+  const isLeaf = effectiveLevel === 'chapter';
   const hasChildren = node.children && node.children.length > 0;
   
   const styles = {
@@ -54,7 +55,7 @@ const OutlineTreeNode = ({
       badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     },
     detailed: {
-      container: "mb-3 bg-zinc-900/40 border border-white/5 rounded-lg border-l-2 border-l-emerald-500/30 ml-4 relative",
+      container: "mb-3 bg-zinc-900/40 border border-white/5 rounded-lg border-l-2 border-l-emerald-500/30 ml-4 relative group",
       header: "p-3 hover:bg-white/5 transition-colors",
       title: "text-base font-semibold text-gray-200",
       content: "p-3 pl-10 text-sm bg-black/10",
@@ -69,13 +70,13 @@ const OutlineTreeNode = ({
     }
   };
 
-  const currentStyle = styles[node.level];
-  const levelLabel = node.level === 'rough' ? '粗纲' : node.level === 'detailed' ? '细纲' : '章节';
-  const nextLevelName = node.level === 'rough' ? '细纲' : '章节';
+  const currentStyle = styles[effectiveLevel];
+  const levelLabel = effectiveLevel === 'rough' ? '粗纲' : effectiveLevel === 'detailed' ? '细纲' : '章节';
+  const nextLevelName = effectiveLevel === 'rough' ? '细纲' : '章节';
 
   return (
-    <div className={`relative ${node.level === 'rough' ? 'mb-8' : ''}`}>
-      {node.level !== 'rough' && (
+    <div className={`relative ${effectiveLevel === 'rough' ? 'mb-8' : ''}`}>
+      {effectiveLevel !== 'rough' && (
         <div className="absolute -left-4 top-4 w-4 h-px bg-gray-800" />
       )}
       
@@ -122,20 +123,20 @@ const OutlineTreeNode = ({
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className={`font-mono text-xs opacity-50 ${node.level === 'rough' ? 'bg-white/10 px-1.5 py-0.5 rounded' : ''}`}>
+                  <span className={`font-mono text-xs opacity-50 ${effectiveLevel === 'rough' ? 'bg-white/10 px-1.5 py-0.5 rounded' : ''}`}>
                     {node.id}
                   </span>
                   <h4 className={`${currentStyle.title} truncate cursor-pointer`} onClick={() => setIsContentExpanded(!isContentExpanded)}>
                     {node.title}
                   </h4>
-                  {node.level === 'rough' && (
+                  {effectiveLevel === 'rough' && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-400 uppercase tracking-wider">
                       ROUGH
                     </span>
                   )}
                 </div>
 
-                <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${node.level === 'rough' || node.isGenerating ? 'opacity-100' : ''}`}>
+                <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${effectiveLevel === 'rough' || effectiveLevel === 'detailed' || node.isGenerating ? 'opacity-100' : ''}`}>
                   {!readOnly && onRegenerate && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onRegenerate(node); }}
@@ -188,7 +189,7 @@ const OutlineTreeNode = ({
                     className="w-full bg-transparent text-gray-400 text-sm leading-relaxed resize-none focus:outline-none focus:text-gray-200 transition-colors placeholder-gray-600"
                     value={node.content}
                     onChange={(e) => onUpdateNode?.(node.id, e.target.value)}
-                    rows={node.level === 'rough' ? 3 : 2}
+                    rows={effectiveLevel === 'rough' ? 3 : 2}
                     placeholder={`请输入${levelLabel}内容...`}
                     style={{ height: isContentExpanded ? 'auto' : undefined }}
                   />

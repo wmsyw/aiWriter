@@ -360,7 +360,7 @@ function NovelWizardContent() {
 
   const [outlineTree, setOutlineTree] = useState<OutlineNode[]>([]);
   const [isInspirationModalOpen, setIsInspirationModalOpen] = useState(false);
-  const stepLabels = ['基础设定', '核心设定', '粗略大纲', '大纲细化', '完成'];
+  const stepLabels = ['基础设定', '核心设定', '大纲生成', '完成'];
 
   const [confirmModalState, setConfirmModalState] = useState<{
     isOpen: boolean;
@@ -516,7 +516,7 @@ function NovelWizardContent() {
       }
 
       const payload: Record<string, unknown> = {
-        wizardStatus: overrideStatus || (nextStep >= 4 ? 'completed' : 'in_progress'),
+        wizardStatus: overrideStatus || (nextStep >= 3 ? 'completed' : 'in_progress'),
         wizardStep: nextStep,
       };
 
@@ -1233,11 +1233,11 @@ function NovelWizardContent() {
           outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
           outlineStage,
           wizardStatus: 'completed',
-          wizardStep: 5,
+          wizardStep: 3,
         }),
       });
       if (!res.ok) throw new Error('更新失败');
-      setStep(4);
+      setStep(3);
     } catch (error) {
       console.error('Failed to apply outline', error);
     } finally {
@@ -1699,8 +1699,8 @@ function NovelWizardContent() {
           <Card className="p-8 rounded-3xl space-y-8 min-h-[600px] flex flex-col">
             <div className="flex items-center justify-between border-b border-white/5 pb-6">
               <div>
-                <h2 className="text-2xl font-bold text-white">粗略大纲</h2>
-                <p className="text-gray-400 mt-1">生成故事主线与阶段节奏</p>
+                <h2 className="text-2xl font-bold text-white">大纲生成</h2>
+                <p className="text-gray-400 mt-1">生成故事主线，并可进一步扩展细纲与章节</p>
               </div>
               <div className="flex gap-3">
                 <Button
@@ -1760,58 +1760,12 @@ function NovelWizardContent() {
               )}
             </div>
 
-            <div className="flex justify-end pt-6 border-t border-white/5">
-              <Button
-                variant="primary"
-                className="px-8 py-3"
-                disabled={outlineTree.length === 0}
-                onClick={() => persistWizardStep(3)}
-              >
-                确认并下一步 →
-              </Button>
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {step === 3 && (
-        <motion.div
-          key="step3"
-          variants={fadeIn}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          className="w-full"
-        >
-          <Card className="p-8 rounded-3xl space-y-8 min-h-[600px] flex flex-col">
-            <div className="flex items-center justify-between border-b border-white/5 pb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">大纲细化</h2>
-                <p className="text-gray-400 mt-1">扩展细纲与章节，构建完整故事树</p>
-              </div>
-            </div>
-
-            <div className="flex-1 w-full border border-white/10 bg-black/20 rounded-xl p-6 min-h-[400px] custom-scrollbar overflow-y-auto">
-               <div>
-                {outlineTree.map(node => (
-                      <OutlineTreeNode 
-                        key={node.id} 
-                        node={node} 
-                        onToggle={toggleNode}
-                        onGenerateNext={handleGenerateNext}
-                        onRegenerate={handleRegenerate}
-                        onUpdate={updateNodeContent}
-                      />
-                   ))}
-                </div>
-            </div>
-
             <div className="flex justify-end pt-6 border-t border-white/5 gap-4">
-              <Button variant="secondary" onClick={() => persistWizardStep(4, 'completed')}>稍后再说</Button>
+              <Button variant="secondary" onClick={() => applyOutline()}>稍后再说</Button>
               <Button
                 variant="primary"
                 className="px-8 py-3 shadow-lg shadow-emerald-500/20"
-                disabled={isSaving}
+                disabled={outlineTree.length === 0 || isSaving}
                 isLoading={isSaving}
                 onClick={applyOutline}
               >
@@ -1822,9 +1776,9 @@ function NovelWizardContent() {
         </motion.div>
       )}
 
-      {step === 4 && (
+      {step === 3 && (
         <motion.div
-          key="step4"
+          key="step3"
           variants={scaleIn}
           initial="hidden"
           animate="visible"

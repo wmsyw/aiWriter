@@ -1294,48 +1294,64 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                               <div className="w-px h-4 bg-gray-700 mx-1" />
                             </>
                           )}
-                          <div className="flex items-center gap-1.5 mr-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRegenerateOutline('rough')}
-                              disabled={regeneratingOutline !== null}
-                              isLoading={regeneratingOutline === 'rough'}
-                              className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              粗纲
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRegenerateOutline('detailed')}
-                              disabled={regeneratingOutline !== null || !novel?.outlineRough}
-                              isLoading={regeneratingOutline === 'detailed'}
-                              title={!novel?.outlineRough ? '需要先有粗纲才能重新生成细纲' : ''}
-                              className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-40"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              细纲
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRegenerateOutline('chapters')}
-                              disabled={regeneratingOutline !== null || !novel?.outlineDetailed}
-                              isLoading={regeneratingOutline === 'chapters'}
-                              title={!novel?.outlineDetailed ? '需要先有细纲才能重新生成章节纲' : ''}
-                              className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-40"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              章节纲
-                            </Button>
+                          <div className="flex items-center gap-2 mr-2">
+                            {/* Primary Progression Action */}
+                            {novel.outlineStage === 'rough' && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleRegenerateOutline('detailed')}
+                                isLoading={regeneratingOutline === 'detailed'}
+                                className="h-7 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+                              >
+                                ✨ 生成全部细纲
+                              </Button>
+                            )}
+                            {novel.outlineStage === 'detailed' && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleRegenerateOutline('chapters')}
+                                isLoading={regeneratingOutline === 'chapters'}
+                                className="h-7 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+                              >
+                                ✨ 生成全部章节
+                              </Button>
+                            )}
+
+                            {/* Regeneration Toolbar */}
+                            <div className="flex items-center bg-white/5 rounded-lg border border-white/10 h-7 overflow-hidden">
+                              <button
+                                onClick={() => handleRegenerateOutline('rough')}
+                                disabled={regeneratingOutline !== null}
+                                className="px-2 h-full text-[10px] text-gray-400 hover:text-white hover:bg-white/10 transition-colors border-r border-white/5 disabled:opacity-50"
+                                title="重新生成粗纲 (将重置所有内容)"
+                              >
+                                重置粗纲
+                              </button>
+                              
+                              {(novel.outlineStage === 'detailed' || novel.outlineStage === 'chapters') && (
+                                <button
+                                  onClick={() => handleRegenerateOutline('detailed')}
+                                  disabled={regeneratingOutline !== null}
+                                  className="px-2 h-full text-[10px] text-gray-400 hover:text-white hover:bg-white/10 transition-colors border-r border-white/5 disabled:opacity-50"
+                                  title="重新生成细纲 (将重置细纲和章节)"
+                                >
+                                  重置细纲
+                                </button>
+                              )}
+                              
+                              {novel.outlineStage === 'chapters' && (
+                                <button
+                                  onClick={() => handleRegenerateOutline('chapters')}
+                                  disabled={regeneratingOutline !== null}
+                                  className="px-2 h-full text-[10px] text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                                  title="重新生成章节"
+                                >
+                                  重置章节
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <Badge 
                             variant={novel.outlineStage === 'chapters' ? 'success' : 'info'}
