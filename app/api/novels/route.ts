@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
+import { checkRateLimit, getClientIp } from '@/src/server/middleware/rate-limit';
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -21,6 +22,10 @@ const createSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  const ip = getClientIp(request);
+  const rateLimitResponse = await checkRateLimit(ip, 'novels');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -34,6 +39,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
+  const rateLimitResponse = await checkRateLimit(ip, 'novels/create');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

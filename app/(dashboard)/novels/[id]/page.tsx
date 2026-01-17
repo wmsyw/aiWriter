@@ -214,11 +214,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       } else {
         setError('更新标题失败');
       }
-        } catch {
-          setError('删除章节失败，请重试');
-        }
-      }
-    });
+    } catch {
+      setError('更新标题失败，请重试');
+    }
+    setIsEditingTitle(false);
   };
 
   const handleUpdateDescription = async () => {
@@ -1325,7 +1324,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         isOpen={showOutlineGenerator}
         onClose={() => setShowOutlineGenerator(false)}
         novelId={novel?.id || ''}
-        onGenerate={(outline) => {
+        onGenerated={(outline) => {
           setNovel(prev => prev ? { ...prev, outline } : null);
           setEditedOutline(outline);
           setShowOutlineGenerator(false);

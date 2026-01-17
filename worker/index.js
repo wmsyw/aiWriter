@@ -5,19 +5,17 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
 import { JobType } from './types.js';
+import { workerLogger } from '../src/core/logger.js';
 
-// === DIAGNOSTIC LOGGING ===
-const log = (level, message, data = {}) => {
-  const timestamp = new Date().toISOString();
-  const dataStr = Object.keys(data).length > 0 ? ` | ${JSON.stringify(data)}` : '';
-  console.log(`[${timestamp}] [WORKER] [${level}] ${message}${dataStr}`);
-};
-log('INFO', 'Worker module loaded', { 
+const log = workerLogger;
+
+log.info('Worker module loaded', { 
   APP_MODE: process.env.APP_MODE,
   NODE_ENV: process.env.NODE_ENV,
   DATABASE_URL: process.env.DATABASE_URL ? '[SET]' : '[NOT SET]',
   APP_ENCRYPTION_KEY_B64: process.env.APP_ENCRYPTION_KEY_B64 ? '[SET]' : '[NOT SET]'
 });
+
 import { handleChapterGenerate, handleChapterGenerateBranches } from './processors/chapter.js';
 import { handleOutlineRough, handleOutlineDetailed, handleOutlineChapters, handleOutlineGenerate } from './processors/outline.js';
 import { handleReviewScore, handleConsistencyCheck, handleCanonCheck } from './processors/review.js';
@@ -88,36 +86,38 @@ const placeholderTypes = [
 
 async function handleJob([job]) {
   if (!job) {
-    log('WARN', 'Empty job array received');
+    log.warn('Empty job array received');
     return;
   }
   
   const { id: pgBossJobId, name: jobType, data: jobData } = job;
+  const jobLogger = log.child({ pgBossJobId, jobType });
   
-  log('INFO', '>>> JOB PICKED UP', { pgBossJobId, jobType, jobData: JSON.stringify(jobData || {}).slice(0, 200) });
+  jobLogger.info('Job picked up', { inputPreview: JSON.stringify(jobData || {}).slice(0, 200) });
   
   if (!jobData || typeof jobData !== 'object') {
-    log('ERROR', 'Job data is missing or invalid', { pgBossJobId, jobType, jobData });
+    jobLogger.error('Job data is missing or invalid', { jobData });
     throw new Error('Job data is missing or invalid');
   }
   
   const { jobId, userId, input } = jobData;
   
   if (!jobId) {
-    log('ERROR', 'jobId is missing from job data', { pgBossJobId, jobType, jobDataKeys: Object.keys(jobData) });
+    jobLogger.error('jobId is missing from job data', { jobDataKeys: Object.keys(jobData) });
     throw new Error('jobId is missing from job data');
   }
 
-  log('INFO', 'Processing job', { pgBossJobId, jobType, jobId, userId });
+  const taskLogger = log.child({ pgBossJobId, jobType, jobId, userId });
+  taskLogger.info('Processing job');
 
   try {
     await prisma.job.update({
       where: { id: jobId },
       data: { status: 'running' },
     });
-    log('INFO', 'Job marked as running', { jobId });
+    taskLogger.info('Job marked as running');
   } catch (updateErr) {
-    log('WARN', 'Failed to mark job as running', { jobId, error: updateErr.message });
+    taskLogger.warn('Failed to mark job as running', {}, updateErr);
   }
 
   try {
@@ -125,11 +125,11 @@ async function handleJob([job]) {
     let result;
     
     if (handler) {
-      log('INFO', 'Executing handler', { jobType, handlerFound: true });
+      taskLogger.info('Executing handler');
       result = await handler(prisma, job, { jobId, userId, input });
-      log('INFO', 'Handler completed successfully', { jobId });
+      taskLogger.info('Handler completed successfully');
     } else if (placeholderTypes.includes(jobType)) {
-      log('WARN', 'Using placeholder handler', { jobType });
+      taskLogger.warn('Using placeholder handler');
       result = await placeholderHandler();
     } else {
       throw new Error(`Unknown job type: ${jobType}`);
@@ -143,14 +143,14 @@ async function handleJob([job]) {
           output: result ?? null,
         },
       });
-      log('INFO', '<<< JOB SUCCEEDED', { jobId });
+      taskLogger.info('Job succeeded');
     } catch (updateErr) {
-      log('ERROR', 'Failed to mark job as succeeded', { jobId, error: updateErr.message });
+      taskLogger.error('Failed to mark job as succeeded', {}, updateErr);
     }
 
     return result;
   } catch (error) {
-    log('ERROR', '<<< JOB FAILED', { jobId, error: error.message, stack: error.stack?.slice(0, 500) });
+    taskLogger.error('Job failed', { errorMessage: error.message }, error);
     
     try {
       await prisma.job.update({
@@ -161,7 +161,7 @@ async function handleJob([job]) {
         },
       });
     } catch (updateErr) {
-      log('ERROR', 'Failed to mark job as failed in DB', { jobId, error: updateErr.message });
+      taskLogger.error('Failed to mark job as failed in DB', {}, updateErr);
     }
     
     throw error;
@@ -169,65 +169,67 @@ async function handleJob([job]) {
 }
 
 async function startWorker() {
-  log('INFO', '=== STARTING WORKER ===');
+  log.info('Starting worker');
   
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    log('ERROR', 'DATABASE_URL is not set - worker cannot start');
+    log.error('DATABASE_URL is not set - worker cannot start');
     process.exit(1);
   }
-  log('INFO', 'Connecting to pg-boss', { dbHost: dbUrl.split('@')[1]?.split('/')[0] || '[hidden]' });
+  
+  const dbHost = dbUrl.split('@')[1]?.split('/')[0] || '[hidden]';
+  log.info('Connecting to pg-boss', { dbHost });
   
   const boss = new PgBoss(dbUrl);
   
   boss.on('error', error => {
-    log('ERROR', 'PgBoss internal error', { error: error.message, stack: error.stack?.slice(0, 300) });
+    log.error('PgBoss internal error', {}, error);
   });
   
   boss.on('monitor-states', states => {
-    log('DEBUG', 'PgBoss monitor-states', states);
+    log.debug('PgBoss monitor-states', states);
   });
   
   try {
     await boss.start();
-    log('INFO', 'PgBoss started successfully');
+    log.info('PgBoss started successfully');
   } catch (startErr) {
-    log('ERROR', 'Failed to start PgBoss', { error: startErr.message, stack: startErr.stack });
+    log.error('Failed to start PgBoss', {}, startErr);
     process.exit(1);
   }
   
   const allQueues = Object.values(JobType);
-  log('INFO', 'Creating queues', { count: allQueues.length, queues: allQueues });
+  log.info('Creating queues', { count: allQueues.length });
   
   for (const queue of allQueues) {
     try {
       await boss.createQueue(queue);
-      log('DEBUG', 'Queue created', { queue });
+      log.debug('Queue created', { queue });
     } catch (queueErr) {
-      log('WARN', 'Queue creation issue', { queue, error: queueErr.message });
+      log.warn('Queue creation issue', { queue, error: queueErr.message });
     }
   }
   
   for (const queue of allQueues) {
     try {
       await boss.work(queue, handleJob);
-      log('INFO', 'Subscribed to queue', { queue });
+      log.info('Subscribed to queue', { queue });
     } catch (workErr) {
-      log('ERROR', 'Failed to subscribe to queue', { queue, error: workErr.message });
+      log.error('Failed to subscribe to queue', { queue }, workErr);
     }
   }
   
-  log('INFO', '=== WORKER STARTED - LISTENING FOR JOBS ===');
+  log.info('Worker started - listening for jobs');
 }
 
 if (process.env.APP_MODE === 'worker') {
-  log('INFO', 'APP_MODE=worker detected, starting worker process');
+  log.info('APP_MODE=worker detected, starting worker process');
   startWorker().catch(err => {
-    log('ERROR', 'Fatal: Failed to start worker', { error: err.message, stack: err.stack });
+    log.error('Fatal: Failed to start worker', {}, err);
     process.exit(1);
   });
 } else {
-  log('INFO', 'APP_MODE is not worker, skipping worker startup', { APP_MODE: process.env.APP_MODE });
+  log.info('APP_MODE is not worker, skipping worker startup', { APP_MODE: process.env.APP_MODE });
 }
 
 export { handleJob };

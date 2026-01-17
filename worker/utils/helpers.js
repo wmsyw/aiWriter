@@ -1,5 +1,5 @@
 import { createAdapter } from '../../src/server/adapters/providers.js';
-import { decryptApiKey } from '../../src/server/crypto.js';
+import { decryptApiKey } from '../../src/core/crypto.js';
 
 const log = (level, message, data = {}) => {
   const timestamp = new Date().toISOString();

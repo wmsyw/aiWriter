@@ -30,6 +30,38 @@ export const WEB_SEARCH_TOOL = {
   },
 };
 
+interface TavilySearchResult {
+  title?: string;
+  url?: string;
+  content?: string;
+  score?: number;
+  raw_content?: string;
+}
+
+interface TavilySearchResponse {
+  results?: TavilySearchResult[];
+  query?: string;
+  answer?: string;
+  response_time?: number;
+}
+
+interface ExaSearchResult {
+  title?: string;
+  url?: string;
+  text?: string;
+  highlight?: string;
+  score?: number;
+  publishedDate?: string;
+  author?: string;
+}
+
+interface ExaSearchResponse {
+  results?: ExaSearchResult[];
+  requestId?: string;
+  resolvedSearchType?: string;
+  autopromptString?: string;
+}
+
 async function searchWithTavily(apiKey: string, query: string, maxResults = 5): Promise<WebSearchResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
@@ -51,13 +83,15 @@ async function searchWithTavily(apiKey: string, query: string, maxResults = 5): 
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      throw new Error(`Tavily API error: ${res.status}`);
+      const errorText = await res.text().catch(() => 'Unknown error');
+      throw new Error(`Tavily API error: ${res.status} - ${errorText}`);
     }
 
-    const data = await res.json();
+    const data: TavilySearchResponse = await res.json();
+    
     return {
       query,
-      results: (data.results || []).map((r: any) => ({
+      results: (data.results || []).map((r): WebSearchResult => ({
         title: r.title || '',
         url: r.url || '',
         snippet: r.content || '',
@@ -93,13 +127,15 @@ async function searchWithExa(apiKey: string, query: string, maxResults = 5): Pro
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      throw new Error(`Exa API error: ${res.status}`);
+      const errorText = await res.text().catch(() => 'Unknown error');
+      throw new Error(`Exa API error: ${res.status} - ${errorText}`);
     }
 
-    const data = await res.json();
+    const data: ExaSearchResponse = await res.json();
+    
     return {
       query,
-      results: (data.results || []).map((r: any) => ({
+      results: (data.results || []).map((r): WebSearchResult => ({
         title: r.title || '',
         url: r.url || '',
         snippet: r.text || r.highlight || '',

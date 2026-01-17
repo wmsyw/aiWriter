@@ -62,7 +62,7 @@ describe('Materials Service', () => {
 
       const { listMaterials } = await import('@/src/server/services/materials');
       
-      const result = await listMaterials('novel_456', { type: 'character' });
+      const result = await listMaterials('novel_456', 'user_123', { type: 'character' });
 
       expect(result).toHaveLength(2);
       expect(result.every((m: { type: string }) => m.type === 'character')).toBe(true);

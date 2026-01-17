@@ -1,5 +1,5 @@
 import { webSearch, formatSearchResultsForContext } from '../../src/server/services/web-search.js';
-import { decryptApiKey } from '../../src/server/crypto.js';
+import { decryptApiKey } from '../../src/core/crypto.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
 import { renderTemplateString } from '../../src/server/services/templates.js';
 

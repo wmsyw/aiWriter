@@ -3,7 +3,7 @@ import { buildMaterialContext } from '../../src/server/services/materials.js';
 import { createJob } from '../../src/server/services/jobs.js';
 import { saveVersion, saveBranchVersions } from '../../src/server/services/versioning.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
-import { decryptApiKey } from '../../src/server/crypto.js';
+import { decryptApiKey } from '../../src/core/crypto.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
 import { getProviderAndAdapter, withConcurrencyLimit, trackUsage, resolveModel } from '../utils/helpers.js';
 import { JobType } from '../types.js';
@@ -102,21 +102,11 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
 
   let enhancedContext = null;
-  let contextAssemblyAttempts = 0;
-  const maxContextRetries = 2;
   
-  while (contextAssemblyAttempts < maxContextRetries && !enhancedContext) {
-    try {
-      enhancedContext = await assembleContextAsString(chapter.novelId, chapter.order);
-    } catch (err) {
-      contextAssemblyAttempts++;
-      if (contextAssemblyAttempts < maxContextRetries) {
-        console.warn(`Context assembly attempt ${contextAssemblyAttempts} failed, retrying:`, err.message);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } else {
-        console.warn('Context assembly failed after retries, using fallback:', err.message);
-      }
-    }
+  try {
+    enhancedContext = await assembleContextAsString(chapter.novelId, chapter.order);
+  } catch (err) {
+    console.warn('Context assembly failed, using fallback:', err.message);
   }
 
   const previousChapters = await prisma.chapter.findMany({
