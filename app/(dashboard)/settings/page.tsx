@@ -906,6 +906,7 @@ export default function SettingsPage() {
                   <Button
                     type="button"
                     variant="secondary"
+                    className="whitespace-nowrap"
                     onClick={() => {
                       if (formData.newModel.trim() && !formData.models.includes(formData.newModel.trim())) {
                         setFormData(prev => ({ ...prev, models: [...prev.models, prev.newModel.trim()], newModel: '' }));

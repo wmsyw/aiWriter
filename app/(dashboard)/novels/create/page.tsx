@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/app/components/ui/Card';
 import { Select } from '@/app/components/ui/Select';
 import { Progress } from '@/app/components/ui/Progress';
 import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
+import InspirationModal, { Inspiration } from './InspirationModal';
 
 const GENRES = ['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'];
 const OUTLINE_MODES = [
@@ -356,6 +357,7 @@ function NovelWizardContent() {
   });
 
   const [outlineTree, setOutlineTree] = useState<OutlineNode[]>([]);
+  const [isInspirationModalOpen, setIsInspirationModalOpen] = useState(false);
   const stepLabels = ['基础设定', '核心设定', '粗略大纲', '大纲细化', '完成'];
 
   const [confirmModalState, setConfirmModalState] = useState<{
@@ -475,6 +477,18 @@ function NovelWizardContent() {
       keywords: preset.keywords,
       keywordsInput: preset.keywords.join(', '),
     }));
+  };
+
+  const handleInspirationSelect = (inspiration: Inspiration) => {
+    setFormData(prev => ({
+      ...prev,
+      theme: inspiration.theme,
+      protagonist: inspiration.protagonist,
+      worldSetting: inspiration.worldSetting,
+      keywords: inspiration.keywords,
+      keywordsInput: inspiration.keywords.join(', '),
+    }));
+    setIsInspirationModalOpen(false);
   };
   
   const currentGenrePresets = INSPIRATION_PRESETS[formData.genre] || INSPIRATION_PRESETS['其他'] || [];
@@ -1177,6 +1191,14 @@ function NovelWizardContent() {
         variant={confirmModalState.variant}
         requireConfirmation={confirmModalState.requireConfirmation}
       />
+
+      <InspirationModal
+        isOpen={isInspirationModalOpen}
+        onClose={() => setIsInspirationModalOpen(false)}
+        onSelect={handleInspirationSelect}
+        genre={formData.genre}
+        targetWords={formData.targetWords}
+      />
       
       {/* Header */}
       <div className="flex items-end justify-between border-b border-white/5 pb-6">
@@ -1379,7 +1401,7 @@ function NovelWizardContent() {
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs text-gray-500">预计字数 (万)</label>
-                        <div className="grid grid-cols-4 gap-1.5 mt-1.5 mb-2">
+                        <div className="grid grid-cols-4 gap-2 mt-2 mb-3">
                           {[50, 100, 150, 200, 250, 300, 400, 500].map(preset => (
                             <button
                               key={preset}
@@ -1389,7 +1411,7 @@ function NovelWizardContent() {
                                 // Auto-adjust chapter count based on word count (avg 3000 words per chapter)
                                 setField('chapterCount', Math.round(preset * 10000 / 3000));
                               }}
-                              className={`px-2 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                              className={`px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                                 formData.targetWords === preset
                                   ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
                                   : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200'
@@ -1431,9 +1453,21 @@ function NovelWizardContent() {
                   </div>
 
                   <div className="space-y-3">
-                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider px-1">
-                      灵感预设 {formData.genre && <span className="text-emerald-400 normal-case">· {formData.genre}</span>}
-                    </h4>
+                    <div className="flex items-center justify-between px-1">
+                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
+                        灵感预设 {formData.genre && <span className="text-emerald-400 normal-case">· {formData.genre}</span>}
+                      </h4>
+                      {formData.genre && formData.targetWords > 0 && (
+                        <Button
+                          type="button"
+                          variant="ai"
+                          size="sm"
+                          onClick={() => setIsInspirationModalOpen(true)}
+                        >
+                          ✨ AI 生成灵感
+                        </Button>
+                      )}
+                    </div>
                     {!formData.genre ? (
                       <div className="glass-panel p-4 rounded-xl text-center text-gray-500 text-sm">
                         请先选择频道以查看热门题材预设

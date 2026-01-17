@@ -1,6 +1,29 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput, parseModelJson, resolveModel } from '../utils/helpers.js';
 
+/**
+ * @typedef {import('@prisma/client').PrismaClient} PrismaClient
+ * @typedef {{ id: string }} Job
+ * @typedef {{ jobId: string, userId: string, input: Record<string, unknown> }} JobContext
+ */
+
+/**
+ * @typedef {Object} Inspiration
+ * @property {string} name
+ * @property {string} theme
+ * @property {string[]} keywords
+ * @property {string} protagonist
+ * @property {string} worldSetting
+ * @property {string} [hook]
+ * @property {string} [potential]
+ */
+
+/**
+ * @param {PrismaClient} prisma
+ * @param {Job} job
+ * @param {JobContext} context
+ * @returns {Promise<Object>}
+ */
 export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
   const { novelId, title, theme, genre, keywords, protagonist, specialRequirements, agentId } = input;
 
@@ -149,4 +172,66 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
   await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return worldData;
+}
+
+/**
+ * @param {PrismaClient} prisma
+ * @param {Job} job
+ * @param {JobContext} context
+ * @returns {Promise<Inspiration[]>}
+ */
+export async function handleWizardInspiration(prisma, job, { jobId, userId, input }) {
+  const { genre, targetWords, targetAudience, keywords, count, agentId } = input;
+
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '灵感生成器',
+    templateName: '灵感生成',
+  });
+
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+
+  const sanitizedKeywords = typeof keywords === 'string' 
+    ? keywords.replace(/[<>]/g, '').slice(0, 200) 
+    : '';
+
+  const context = {
+    genre: genre || '玄幻',
+    target_words: targetWords || 100,
+    target_audience: targetAudience || '男性读者',
+    keywords: sanitizedKeywords,
+    count: Math.min(Math.max(count || 5, 1), 10),
+  };
+
+  const fallbackPrompt = `请生成${context.count}个${context.genre}类型小说灵感，目标字数${context.target_words}万字，目标读者${context.target_audience}。
+
+<user_keywords>${context.keywords || '无'}</user_keywords>
+
+每个灵感包含：name（书名风格标题）、theme（核心主题）、keywords（关键词数组）、protagonist（主角设定）、worldSetting（世界观）、hook（核心卖点）。
+
+返回JSON数组格式。`;
+
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: effectiveModel,
+    temperature: params.temperature || 0.9,
+    maxTokens: params.maxTokens || 4000,
+  }));
+
+  const inspirations = parseModelJson(response.content, { throwOnError: true });
+
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+
+  const result = Array.isArray(inspirations) ? inspirations : [inspirations];
+  
+  if (result.length === 0 || result[0]?.parseError) {
+    throw new Error('AI 返回的灵感格式无效，请重试');
+  }
+
+  return result;
 }

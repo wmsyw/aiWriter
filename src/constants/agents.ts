@@ -162,6 +162,13 @@ export const BUILT_IN_AGENTS: Record<string, BuiltInAgentDefinition> = {
     templateName: '原作符合度检查',
     defaultParams: { temperature: 0.2, maxTokens: 6000 },
   },
+  INSPIRATION_GENERATOR: {
+    name: '灵感生成器',
+    description: '根据用户选择的频道、目标字数和关键词，智能生成当下热门的小说主题灵感',
+    category: 'writing',
+    templateName: '灵感生成',
+    defaultParams: { temperature: 0.9, maxTokens: 4000, topP: 0.95 },
+  },
 };
 
 export const REVIEW_AGENTS = Object.entries(BUILT_IN_AGENTS)

@@ -58,6 +58,7 @@ export const TEMPLATE_NAMES = {
   NOVEL_SEED: '小说引导生成',
   WIZARD_WORLD_BUILDING: '世界观生成',
   WIZARD_CHARACTERS: '角色生成',
+  INSPIRATION_GENERATOR: '灵感生成',
   
   // Chapter templates
   CHAPTER_GENERATE: '章节写作',

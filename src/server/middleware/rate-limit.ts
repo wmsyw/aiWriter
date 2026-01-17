@@ -7,6 +7,7 @@ const RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
   'auth/reset-password': { maxRequests: 5, windowMs: 300000 },
   'auth/register': { maxRequests: 3, windowMs: 300000 },
   'jobs': { maxRequests: 30, windowMs: 60000 },
+  'jobs/inspiration': { maxRequests: 10, windowMs: 3600000 },
   'default': { maxRequests: 100, windowMs: 60000 },
 };
 

@@ -186,12 +186,39 @@ export function extractJsonCandidate(content) {
   return cleaned.slice(start, end + 1).trim();
 }
 
-export function parseModelJson(content) {
+/**
+ * @param {string} content - Raw AI output
+ * @param {Object} [options]
+ * @param {boolean} [options.throwOnError=false]
+ * @returns {Object|Array}
+ */
+export function parseModelJson(content, options = {}) {
+  const { throwOnError = false } = options;
+  
   const candidate = extractJsonCandidate(content);
   try {
     return JSON.parse(candidate);
-  } catch (error) {
-    return { raw: content, parseError: error.message };
+  } catch (firstError) {
+    try {
+      const fixed = candidate
+        .replace(/,\s*([\]}])/g, '$1')
+        .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+      return JSON.parse(fixed);
+    } catch (secondError) {
+      try {
+        const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (arrayMatch) {
+          return JSON.parse(arrayMatch[0]);
+        }
+      } catch (thirdError) {
+        /* fallthrough */
+      }
+      
+      if (throwOnError) {
+        throw new Error(`Failed to parse AI JSON output: ${firstError.message}`);
+      }
+      return { raw: content, parseError: firstError.message };
+    }
   }
 }
 

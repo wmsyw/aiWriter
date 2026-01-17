@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { createJob, listJobs } from '@/src/server/services/jobs';
+import { checkRateLimit } from '@/src/server/middleware/rate-limit';
 
 const MAX_PAYLOAD_SIZE = 100 * 1024;
 const MAX_FIELD_LENGTH = 5000;
@@ -174,6 +175,14 @@ const jobInputSchemas: Record<string, z.ZodType> = {
   BATCH_ARTICLE_ANALYZE: batchArticleAnalyzeInputSchema,
   WIZARD_WORLD_BUILDING: wizardWorldInputSchema,
   WIZARD_CHARACTERS: wizardCharactersInputSchema,
+  WIZARD_INSPIRATION: z.object({
+    genre: z.string().max(200),
+    targetWords: z.number().min(10).max(1000),
+    targetAudience: z.string().max(500).optional(),
+    keywords: z.string().max(MAX_FIELD_LENGTH).optional(),
+    count: z.number().min(1).max(10).optional(),
+    agentId: z.string().optional(),
+  }),
 };
 
 const createJobSchema = z.object({
@@ -200,6 +209,7 @@ const createJobSchema = z.object({
     'MATERIAL_SEARCH',
     'WIZARD_WORLD_BUILDING',
     'WIZARD_CHARACTERS',
+    'WIZARD_INSPIRATION',
     'CONTEXT_ASSEMBLE',
     'HOOKS_EXTRACT',
     'CHAPTER_SUMMARY_GENERATE',
@@ -227,6 +237,11 @@ export async function POST(req: NextRequest) {
     }
 
     const data = createJobSchema.parse(body);
+    
+    if (data.type === 'WIZARD_INSPIRATION') {
+      const rateLimitResponse = await checkRateLimit(session.userId, 'jobs/inspiration');
+      if (rateLimitResponse) return rateLimitResponse;
+    }
     
     const inputSchema = jobInputSchemas[data.type];
     if (inputSchema) {
