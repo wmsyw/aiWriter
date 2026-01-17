@@ -185,6 +185,17 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
+  console.log('[OUTLINE_DETAILED] Debug info:', {
+    isSingleBlockMode,
+    regenerate_single,
+    hasTemplate: !!template,
+    target_title,
+    target_content: target_content?.substring(0, 100),
+    rough_outline_context: rough_outline_context?.substring(0, 200),
+    contextKeys: Object.keys(context),
+  });
+  console.log('[OUTLINE_DETAILED] Prompt preview (first 500 chars):', prompt.substring(0, 500));
+
   const params = agent?.params || {};
   const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {

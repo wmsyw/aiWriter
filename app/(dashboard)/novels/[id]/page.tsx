@@ -161,11 +161,36 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setEditedOutline(novelData.outline || '');
           
           if (novelData.outlineRough?.blocks) {
-            setOutlineNodes(novelData.outlineRough.blocks);
+            // Restore level property when loading from database
+            const blocks = novelData.outlineRough.blocks.map((b: any) => ({
+              ...b,
+              level: b.level || 'rough',
+              children: b.children?.map((c: any) => ({
+                ...c,
+                level: c.level || 'detailed',
+                children: c.children?.map((ch: any) => ({
+                  ...ch,
+                  level: ch.level || 'chapter',
+                })),
+              })),
+            }));
+            setOutlineNodes(blocks);
           } else if (novelData.outlineDetailed?.blocks) {
-            setOutlineNodes(novelData.outlineDetailed.blocks);
+            const blocks = novelData.outlineDetailed.blocks.map((b: any) => ({
+              ...b,
+              level: b.level || 'detailed',
+              children: b.children?.map((c: any) => ({
+                ...c,
+                level: c.level || 'chapter',
+              })),
+            }));
+            setOutlineNodes(blocks);
           } else if (novelData.outlineChapters?.blocks) {
-            setOutlineNodes(novelData.outlineChapters.blocks);
+            const blocks = novelData.outlineChapters.blocks.map((b: any) => ({
+              ...b,
+              level: b.level || 'chapter',
+            }));
+            setOutlineNodes(blocks);
           }
         }
         
@@ -1837,9 +1862,21 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           } : null);
           setEditedOutline(data.outline);
           if (data.outlineChapters && typeof data.outlineChapters === 'object' && 'blocks' in (data.outlineChapters as any)) {
-            setOutlineNodes((data.outlineChapters as any).blocks);
+            const blocks = (data.outlineChapters as any).blocks.map((b: any) => ({
+              ...b,
+              level: b.level || 'chapter',
+            }));
+            setOutlineNodes(blocks);
           } else if (data.outlineDetailed && typeof data.outlineDetailed === 'object' && 'blocks' in (data.outlineDetailed as any)) {
-            setOutlineNodes((data.outlineDetailed as any).blocks);
+            const blocks = (data.outlineDetailed as any).blocks.map((b: any) => ({
+              ...b,
+              level: b.level || 'detailed',
+              children: b.children?.map((c: any) => ({
+                ...c,
+                level: c.level || 'chapter',
+              })),
+            }));
+            setOutlineNodes(blocks);
           }
           setShowOutlineGenerator(false);
         }}
