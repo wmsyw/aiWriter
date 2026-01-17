@@ -1254,6 +1254,7 @@ function NovelWizardContent() {
                     <div className="space-y-4">
                       <Input
                         label="书名"
+                        showRequired
                         className="text-lg font-bold tracking-wide"
                         value={formData.title}
                         onChange={e => setField('title', e.target.value)}
@@ -1277,19 +1278,19 @@ function NovelWizardContent() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="核心主题"
+                        showRequired
                         value={formData.theme}
                         onChange={e => setField('theme', e.target.value)}
                         placeholder="例如：复仇、种田、无限流"
                       />
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">所属频道</label>
-                        <Select
-                          value={formData.genre}
-                          onChange={val => setField('genre', val)}
-                          options={GENRES.map(g => ({ value: g, label: g }))}
-                          placeholder="选择频道"
-                        />
-                      </div>
+                      <Select
+                        label="所属频道"
+                        showRequired
+                        value={formData.genre}
+                        onChange={val => setField('genre', val)}
+                        options={GENRES.map(g => ({ value: g, label: g }))}
+                        placeholder="选择频道"
+                      />
                       <div className="md:col-span-2">
                         <div className="flex justify-between items-center mb-2">
                           <label className="block text-sm font-medium text-gray-300">世界观一句话</label>

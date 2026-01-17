@@ -1,6 +1,6 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { FALLBACK_PROMPTS } from '../../src/constants/prompts.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
 
 export async function generateCharacterBios(prisma, { userId, novelId, characters, outlineContext, agentId, jobId }) {
   if (!characters || characters.length === 0) return { characters: [], materialIds: [] };
@@ -13,7 +13,7 @@ export async function generateCharacterBios(prisma, { userId, novelId, character
     templateName: '角色传记生成',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
   const context = {
     characters_brief: JSON.stringify(characters, null, 2),
     outline_context: outlineContext || '',
@@ -23,9 +23,10 @@ export async function generateCharacterBios(prisma, { userId, novelId, character
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 6000,
   }));
@@ -68,7 +69,7 @@ export async function generateCharacterBios(prisma, { userId, novelId, character
     }
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return { characters: bioCharacters, materialIds, raw: parsed.raw || null };
 }
@@ -96,7 +97,7 @@ export async function handleCharacterChat(prisma, job, { jobId, userId, input })
     ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
     : null;
   
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
   
   const charData = character.data || {};
   const context = {
@@ -113,14 +114,15 @@ export async function handleCharacterChat(prisma, job, { jobId, userId, input })
     : FALLBACK_PROMPTS.CHARACTER_CHAT(character.name, userMessage);
   
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.8,
     maxTokens: params.maxTokens || 2000,
   }));
   
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   
   return {
     characterName: character.name,
@@ -141,7 +143,7 @@ export async function handleWizardCharacters(prisma, job, { jobId, userId, input
     templateName: '角色生成',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const context = {
     theme: theme || novel.theme || '',
@@ -157,9 +159,10 @@ export async function handleWizardCharacters(prisma, job, { jobId, userId, input
     : `请根据以下信息生成角色设定，返回 JSON 数组，每项包含 name, role, description, traits, goals：\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n世界观：${context.world_setting || '无'}\n角色数量：${context.character_count}`;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 4000,
   }));
@@ -209,7 +212,7 @@ export async function handleWizardCharacters(prisma, job, { jobId, userId, input
     });
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     characters: parsedCharacters,

@@ -229,7 +229,7 @@ export default function TemplatesPage() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-6 p-6"
+      className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-6"
     >
       <Card className="w-full md:w-72 flex-shrink-0 flex flex-col p-0 overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
         <CardHeader className="p-4 border-b border-white/5 flex flex-row justify-between items-center space-y-0 bg-zinc-900/30">

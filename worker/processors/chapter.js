@@ -5,7 +5,7 @@ import { saveVersion, saveBranchVersions } from '../../src/server/services/versi
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
 import { decryptApiKey } from '../../src/server/crypto.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
-import { getProviderAndAdapter, withConcurrencyLimit, trackUsage } from '../utils/helpers.js';
+import { getProviderAndAdapter, withConcurrencyLimit, trackUsage, resolveModel } from '../utils/helpers.js';
 import { JobType } from '../types.js';
 import { checkBlockingPendingEntities, formatPendingEntitiesForContext } from '../../src/server/services/pending-entities.js';
 import { formatHooksForContext } from '../../src/server/services/hooks.js';
@@ -99,7 +99,7 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
     : null;
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
 
   let enhancedContext = null;
   let contextAssemblyAttempts = 0;
@@ -169,9 +169,10 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
   }
 
   const params = agent.params || {};
+  const effectiveModel = resolveModel(agent.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.8,
     maxTokens: params.maxTokens || 4000,
     webSearch: useModelSearch,
@@ -185,7 +186,7 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
 
     await saveVersion(chapterId, response.content, tx);
   });
-  await trackUsage(prisma, userId, jobId, config.providerType, agent.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   let analysisQueued = true;
   let analysisQueueError = null;
@@ -240,7 +241,7 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
     : null;
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
 
   let enhancedContext;
   try {
@@ -308,18 +309,19 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
 
   const params = agent.params || {};
   const temperatures = [0.7, 0.8, 0.9];
+  const effectiveModel = resolveModel(agent.model, defaultModel, config.defaultModel);
 
   const branchPromises = Array.from({ length: branchCount }, (_, i) => 
     withConcurrencyLimit(async () => {
       const response = await adapter.generate(config, {
         messages: [{ role: 'user', content: basePrompt }],
-        model: agent.model || config.defaultModel || 'gpt-4',
+        model: effectiveModel,
         temperature: temperatures[i] || 0.8,
         maxTokens: params.maxTokens || 4000,
         webSearch: useModelSearch,
       });
       
-      await trackUsage(prisma, userId, jobId, config.providerType, agent.model || config.defaultModel, response.usage);
+      await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
       
       return {
         content: response.content,

@@ -15,6 +15,8 @@ const preferencesSchema = z.object({
   webSearchEnabled: z.boolean().optional(),
   webSearchProvider: z.enum(['tavily', 'exa', 'model']).optional(),
   webSearchApiKey: z.string().max(200).optional(),
+  defaultProviderId: z.string().optional(),
+  defaultModel: z.string().optional(),
 });
 
 type Preferences = z.infer<typeof preferencesSchema>;
@@ -29,10 +31,12 @@ interface StoredPreferences {
   webSearchEnabled?: boolean;
   webSearchProvider?: 'tavily' | 'exa' | 'model';
   webSearchApiKeyCiphertext?: string;
+  defaultProviderId?: string;
+  defaultModel?: string;
   [key: string]: Prisma.JsonValue | undefined;
 }
 
-const DEFAULT_PREFERENCES: Required<Omit<Preferences, 'webSearchApiKey'>> & { webSearchApiKey?: string } = {
+const DEFAULT_PREFERENCES: Required<Omit<Preferences, 'webSearchApiKey' | 'defaultProviderId' | 'defaultModel'>> & { webSearchApiKey?: string; defaultProviderId?: string; defaultModel?: string } = {
   autoSave: true,
   wordCount: true,
   lineNumbers: false,
@@ -42,6 +46,8 @@ const DEFAULT_PREFERENCES: Required<Omit<Preferences, 'webSearchApiKey'>> & { we
   webSearchEnabled: false,
   webSearchProvider: 'tavily',
   webSearchApiKey: undefined,
+  defaultProviderId: undefined,
+  defaultModel: undefined,
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

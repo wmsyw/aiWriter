@@ -10,14 +10,37 @@ const log = (level, message, data = {}) => {
 export async function getProviderAndAdapter(prisma, userId, providerConfigId) {
   log('DEBUG', 'getProviderAndAdapter called', { userId, providerConfigId });
   
+  let effectiveProviderId = providerConfigId;
+  let defaultModel = null;
+  
+  if (!effectiveProviderId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    const prefs = user?.preferences || {};
+    if (prefs && typeof prefs === 'object' && prefs.defaultProviderId) {
+      effectiveProviderId = prefs.defaultProviderId;
+      defaultModel = prefs.defaultModel || null;
+      log('DEBUG', 'Using default provider from user preferences', { 
+        defaultProviderId: effectiveProviderId, 
+        defaultModel 
+      });
+    }
+  }
+  
+  if (!effectiveProviderId) {
+    log('ERROR', 'No provider ID available', { userId, providerConfigId });
+    throw new Error('No provider configured for agent and no default provider set.');
+  }
+  
   const config = await prisma.providerConfig.findFirst({
-    where: providerConfigId ? { id: providerConfigId, userId } : { userId },
-    orderBy: { createdAt: 'desc' },
+    where: { id: effectiveProviderId, userId },
   });
   
   if (!config) {
-    log('ERROR', 'No provider configured for user', { userId, providerConfigId });
-    throw new Error('No provider configured');
+    log('ERROR', 'Provider config not found or access denied', { userId, effectiveProviderId });
+    throw new Error(`Provider configuration (ID: ${effectiveProviderId}) not found or was deleted. Please update your default provider settings.`);
   }
   
   log('DEBUG', 'Provider config found', { 
@@ -32,7 +55,19 @@ export async function getProviderAndAdapter(prisma, userId, providerConfigId) {
   const adapter = await createAdapter(config.providerType, apiKey, config.baseURL || undefined);
   log('DEBUG', 'Adapter created successfully', { providerType: config.providerType });
   
-  return { config, adapter };
+  return { config, adapter, defaultModel };
+}
+
+/**
+ * Resolves the model to use based on precedence chain.
+ * @param {string|null|undefined} agentModel - Model specified by the agent
+ * @param {string|null|undefined} userDefaultModel - User's global default model from preferences
+ * @param {string|null|undefined} providerDefaultModel - Provider's default model
+ * @param {string} [fallback='gpt-4'] - Hardcoded fallback model
+ * @returns {string} The resolved model name
+ */
+export function resolveModel(agentModel, userDefaultModel, providerDefaultModel, fallback = 'gpt-4') {
+  return agentModel || userDefaultModel || providerDefaultModel || fallback;
 }
 
 export async function resolveAgentAndTemplate(prisma, { userId, agentId, agentName, fallbackAgentName, templateName }) {

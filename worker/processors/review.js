@@ -1,6 +1,6 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, truncateText } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, truncateText, resolveModel } from '../utils/helpers.js';
 
 
 export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
@@ -29,23 +29,23 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
   if (reviewerModels && reviewerModels.length > 1) {
     const reviews = await Promise.all(
       reviewerModels.map(async (reviewer, index) => {
-        const { config, adapter } = await getProviderAndAdapter(prisma, userId, reviewer.providerConfigId);
+        const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, reviewer.providerConfigId);
         
-        // Add persona to prompt if specified
         let prompt = basePrompt;
         if (reviewer.persona) {
           prompt = `你现在扮演的是：${reviewer.persona}\n\n请从你的视角对以下章节进行评审，给出你独特的见解和评分。\n\n${basePrompt}`;
         }
         
         const params = agent?.params || {};
+        const effectiveModel = resolveModel(reviewer.model, defaultModel, config.defaultModel);
         const response = await withConcurrencyLimit(() => adapter.generate(config, {
           messages: [{ role: 'user', content: prompt }],
-          model: reviewer.model || config.defaultModel || 'gpt-4',
+          model: effectiveModel,
           temperature: params.temperature || 0.3,
           maxTokens: params.maxTokens || 4000,
         }));
         
-        await trackUsage(prisma, userId, jobId, config.providerType, reviewer.model || config.defaultModel, response.usage);
+        await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
         
         const parsedReview = parseModelJson(response.content);
         
@@ -82,12 +82,13 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
   }
 
   // Single model review (existing logic)
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: basePrompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.3,
     maxTokens: params.maxTokens || 2000,
   }));
@@ -99,7 +100,7 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
     data: { generationStage: 'reviewed' },
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }
 
@@ -119,7 +120,7 @@ export async function handleConsistencyCheck(prisma, job, { jobId, userId, input
     templateName: '一致性检查',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding', 'plotPoint']);
   const chapterContent = truncateText(chapter.content || '', 12000);
@@ -135,16 +136,17 @@ export async function handleConsistencyCheck(prisma, job, { jobId, userId, input
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.2,
     maxTokens: params.maxTokens || 4000,
   }));
 
   const result = parseModelJson(response.content);
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }
 
@@ -164,7 +166,7 @@ export async function handleCanonCheck(prisma, job, { jobId, userId, input }) {
     templateName: '原作符合度检查',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding']);
   const chapterContent = truncateText(chapter.content || '', 12000);
@@ -199,15 +201,16 @@ ${context.original_work || '未指定'}
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.2,
     maxTokens: params.maxTokens || 6000,
   }));
 
   const result = parseModelJson(response.content);
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }

@@ -19,6 +19,7 @@ interface SelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  showRequired?: boolean;
 }
 
 const SelectTrigger = React.forwardRef<
@@ -157,7 +158,8 @@ export function Select({
   options, 
   placeholder = '请选择...', 
   className = '',
-  disabled = false 
+  disabled = false,
+  showRequired = false
 }: SelectProps) {
   const validOptions = options.filter(opt => opt.value !== '');
   const selectedOption = validOptions.find(opt => opt.value === value);
@@ -207,8 +209,9 @@ export function Select({
   return (
     <div className={cn('relative group/select', className)}>
       {label && (
-        <label className="block text-sm font-medium text-gray-400 mb-2 group-hover/select:text-gray-300 transition-colors">
+        <label className="block text-sm font-medium text-zinc-300 mb-2">
           {label}
+          {showRequired && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
       <SelectPrimitive.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>

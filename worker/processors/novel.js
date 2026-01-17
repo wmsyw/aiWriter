@@ -1,5 +1,5 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput, parseModelJson } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput, parseModelJson, resolveModel } from '../utils/helpers.js';
 
 export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
   const { novelId, title, theme, genre, keywords, protagonist, specialRequirements, agentId } = input;
@@ -15,7 +15,7 @@ export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
     templateName: '小说引导生成',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const context = {
     title: title || novel.title,
@@ -30,9 +30,10 @@ export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 3000,
   }));
@@ -57,7 +58,7 @@ export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
     },
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return seedResult;
 }
@@ -75,7 +76,7 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
     templateName: '世界观生成',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const context = {
     theme: theme || novel.theme || '',
@@ -91,9 +92,10 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
     : `请根据以下信息生成小说世界观设定，并返回 JSON：\n\n字段：world_time_period, world_location, world_atmosphere, world_rules, world_setting\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n已有设定：${context.world_setting || '无'}\n特殊要求：${context.special_requirements || '无'}`;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.6,
     maxTokens: params.maxTokens || 3000,
   }));
@@ -144,7 +146,7 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
   });
 
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return worldData;
 }

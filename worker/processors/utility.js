@@ -6,7 +6,7 @@ import { processExtractedHooks, formatHooksForContext } from '../../src/server/s
 import { batchProcessExtractedEntities } from '../../src/server/services/pending-entities.js';
 import { upsertChapterSummary } from '../../src/server/services/chapter-summary.js';
 import { cleanSlop, detectSlopLevel } from '../../src/server/services/slop-cleaner.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, normalizeString } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, normalizeString, resolveModel } from '../utils/helpers.js';
 
 function mergeRelationshipEntries(existing = [], incoming = []) {
   const merged = Array.isArray(existing) ? [...existing] : [];
@@ -272,7 +272,7 @@ export async function handleMemoryExtract(prisma, job, { jobId, userId, input })
     throw new Error('Agent not found');
   }
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const existingHooksContext = extractHooks ? await formatHooksForContext(chapter.novelId, chapter.order) : '';
 
@@ -349,9 +349,10 @@ ${existingHooksContext || '（暂无）'}
   const prompt = template ? renderTemplateString(template.content, context) : enhancedPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.2,
     maxTokens: params.maxTokens || 6000,
   }));
@@ -448,7 +449,7 @@ ${existingHooksContext || '（暂无）'}
     });
   }
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     analysis,
@@ -475,7 +476,7 @@ export async function handleDeaiRewrite(prisma, job, { jobId, userId, input }) {
     templateName: '去AI化改写',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const context = {
     original_content: chapter.content || '',
@@ -488,9 +489,10 @@ export async function handleDeaiRewrite(prisma, job, { jobId, userId, input }) {
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 8000,
   }));
@@ -513,7 +515,7 @@ export async function handleDeaiRewrite(prisma, job, { jobId, userId, input }) {
     await saveVersion(chapterId, finalContent, tx);
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     content: finalContent,

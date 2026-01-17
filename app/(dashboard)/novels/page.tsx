@@ -26,7 +26,7 @@ export default function NovelsPage() {
   const novels = data?.novels || [];
 
   return (
-    <div className="min-h-screen p-8 space-y-8">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-1 tracking-tight text-zinc-100">我的小说</h1>

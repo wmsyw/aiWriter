@@ -1,5 +1,5 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
 import { generateCharacterBios } from './character.js';
 import { getOutlineRoughTemplateName, TEMPLATE_NAMES } from '../../src/shared/template-names.js';
 
@@ -33,7 +33,7 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     templateName: selectedTemplateName,
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const context = {
     keywords: keywords || '',
@@ -50,9 +50,10 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 4000,
   }));
@@ -73,7 +74,7 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     });
   }
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return roughOutline;
 }
@@ -105,7 +106,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     templateName: TEMPLATE_NAMES.OUTLINE_DETAILED,
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const roughOutlinePayload = roughOutline
     ? (typeof roughOutline === 'string' ? roughOutline : JSON.stringify(roughOutline, null, 2))
@@ -138,9 +139,10 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 6000,
   }));
@@ -191,7 +193,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     });
   }
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   if (typeof detailedOutline === 'string') {
     return detailedOutline;
@@ -233,7 +235,7 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     templateName,
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const detailedPayload = detailedOutline
     ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
@@ -259,9 +261,10 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.6,
     maxTokens: params.maxTokens || 8000,
   }));
@@ -285,7 +288,7 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     });
   }
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return chapterOutlines;
 }
@@ -301,7 +304,7 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
     ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
     : null;
   
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
   
   const context = {
     keywords: keywords || '',
@@ -319,9 +322,10 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
     : `请根据以下要求生成小说大纲：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}`;
   
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.7,
     maxTokens: params.maxTokens || 8000,
   }));
@@ -329,6 +333,6 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
   const output = parseModelJson(response.content);
   const result = output.raw ? response.content : output;
   
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }

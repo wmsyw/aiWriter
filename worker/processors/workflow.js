@@ -4,7 +4,7 @@ import { processExtractedHooks, formatHooksForContext, getOverdueHooks } from '.
 import { batchProcessExtractedEntities, checkBlockingPendingEntities } from '../../src/server/services/pending-entities.js';
 import { buildAdherenceCheckPrompt, parseAdherenceResponse, formatAdherenceResultForReview } from '../../src/server/services/outline-adherence.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, truncateText } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, truncateText, resolveModel } from '../utils/helpers.js';
 import { breakChapterIntoScenes, generateActSummary, detectActBoundaries, syncActSummaries } from '../../src/server/services/hierarchical-summary.js';
 import { generatePlotBranches, simulatePlotForward } from '../../src/server/services/plot-mcts.js';
 
@@ -49,7 +49,7 @@ export async function handleChapterSummaryGenerate(prisma, job, { jobId, userId,
     templateName: '章节摘要',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const prompt = `请为以下章节生成一个结构化摘要，返回JSON格式：
 
@@ -68,9 +68,10 @@ ${chapter.content}
 }`;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.3,
     maxTokens: params.maxTokens || 2000,
   }));
@@ -90,7 +91,7 @@ ${chapter.content}
     newOrganizations: parsed.newOrganizations || [],
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return { summaryId: summary.id, ...parsed };
 }
@@ -111,7 +112,7 @@ export async function handleHooksExtract(prisma, job, { jobId, userId, input }) 
     templateName: '钩子提取',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const existingHooksContext = await formatHooksForContext(chapter.novelId, chapter.order);
 
@@ -149,9 +150,10 @@ ${chapter.content}
 }`;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.3,
     maxTokens: params.maxTokens || 3000,
   }));
@@ -166,7 +168,7 @@ ${chapter.content}
 
   const overdueHooks = await getOverdueHooks(chapter.novelId, chapter.order);
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     extracted,
@@ -191,7 +193,7 @@ export async function handlePendingEntityExtract(prisma, job, { jobId, userId, i
     templateName: '实体提取',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const existingMaterials = await prisma.material.findMany({
     where: { novelId: chapter.novelId },
@@ -233,9 +235,10 @@ ${chapter.content}
 }`;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.3,
     maxTokens: params.maxTokens || 3000,
   }));
@@ -250,7 +253,7 @@ ${chapter.content}
     extracted.organizations || []
   );
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     extracted,
@@ -274,7 +277,7 @@ export async function handleOutlineAdherenceCheck(prisma, job, { jobId, userId, 
     templateName: '大纲符合度检查',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const previousChapter = await prisma.chapter.findFirst({
     where: { novelId: chapter.novelId, order: chapter.order - 1 },
@@ -289,9 +292,10 @@ export async function handleOutlineAdherenceCheck(prisma, job, { jobId, userId, 
   });
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.2,
     maxTokens: params.maxTokens || 3000,
   }));
@@ -303,7 +307,7 @@ export async function handleOutlineAdherenceCheck(prisma, job, { jobId, userId, 
     data: { outlineAdherence: result.score },
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     ...result,
@@ -327,7 +331,7 @@ export async function handleReviewScore5Dim(prisma, job, { jobId, userId, input 
     templateName: '5维度评审',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding']);
   const chapterContent = truncateText(chapter.content || '', 12000);
@@ -422,9 +426,10 @@ ${hooksContext || '（暂无）'}
 }`;
 
   const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const response = await withConcurrencyLimit(() => adapter.generate(config, {
     messages: [{ role: 'user', content: prompt }],
-    model: agent?.model || config.defaultModel || 'gpt-4',
+    model: effectiveModel,
     temperature: params.temperature || 0.2,
     maxTokens: params.maxTokens || 6000,
   }));
@@ -451,7 +456,7 @@ ${hooksContext || '（暂无）'}
     },
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return parsed;
 }
@@ -517,17 +522,18 @@ export async function handlePlotSimulate(prisma, job, { jobId, userId, input }) 
     templateName: '剧情策划',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const generator = async (prompt, options) => {
     const params = agent?.params || {};
     const response = await withConcurrencyLimit(() => adapter.generate(config, {
       messages: [{ role: 'user', content: prompt }],
-      model: agent?.model || config.defaultModel || 'gpt-4',
+      model: effectiveModel,
       temperature: options?.temperature || params.temperature || 0.7,
       maxTokens: options?.maxTokens || params.maxTokens || 4000,
     }));
-    await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
     return response.content;
   };
 
@@ -555,17 +561,18 @@ export async function handlePlotBranchGenerate(prisma, job, { jobId, userId, inp
     templateName: '剧情策划',
   });
 
-  const { config, adapter } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const generator = async (prompt, options) => {
     const params = agent?.params || {};
     const response = await withConcurrencyLimit(() => adapter.generate(config, {
       messages: [{ role: 'user', content: prompt }],
-      model: agent?.model || config.defaultModel || 'gpt-4',
+      model: effectiveModel,
       temperature: options?.temperature || params.temperature || 0.7,
       maxTokens: options?.maxTokens || params.maxTokens || 4000,
     }));
-    await trackUsage(prisma, userId, jobId, config.providerType, agent?.model || config.defaultModel, response.usage);
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
     return response.content;
   };
 

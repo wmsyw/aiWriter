@@ -10,10 +10,11 @@ export interface InputProps
   error?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  showRequired?: boolean;
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, label, helperText, error, leftIcon, rightIcon, id, ...props }, ref) => {
+  ({ className, type, label, helperText, error, leftIcon, rightIcon, id, showRequired, ...props }, ref) => {
     const inputId = id || React.useId();
 
     return (
@@ -24,6 +25,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-300"
           >
             {label}
+            {showRequired && <span className="text-red-500 ml-0.5">*</span>}
           </label>
         )}
         <div className="relative group">
@@ -71,10 +73,11 @@ export interface TextareaProps
   label?: string;
   helperText?: string;
   error?: string;
+  showRequired?: boolean;
 }
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, helperText, error, id, ...props }, ref) => {
+  ({ className, label, helperText, error, id, showRequired, ...props }, ref) => {
     const inputId = id || React.useId();
 
     return (
@@ -85,6 +88,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-300"
           >
             {label}
+            {showRequired && <span className="text-red-500 ml-0.5">*</span>}
           </label>
         )}
         <textarea

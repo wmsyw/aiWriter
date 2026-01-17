@@ -82,6 +82,8 @@ export default function SettingsPage() {
     webSearchEnabled: false,
     webSearchProvider: 'model' as 'tavily' | 'exa' | 'model',
     webSearchApiKey: '',
+    defaultProviderId: '',
+    defaultModel: '',
   });
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -662,6 +664,48 @@ export default function SettingsPage() {
                   { value: 'serious', label: '严肃正式' },
                 ]}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>全局默认模型</CardTitle>
+              <CardDescription>当 AI 助手未指定模型时，将使用此默认模型</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Select
+                label="默认服务商"
+                value={preferences.defaultProviderId}
+                onChange={(val) => {
+                  const provider = providers.find(p => p.id === val);
+                  setPreferences(p => ({ 
+                    ...p, 
+                    defaultProviderId: val,
+                    defaultModel: provider?.defaultModel || (provider?.models?.[0]) || ''
+                  }));
+                }}
+                options={[
+                  { value: '', label: '未设置' },
+                  ...providers.map(p => ({ value: p.id, label: p.name }))
+                ]}
+              />
+              {preferences.defaultProviderId && (
+                <Select
+                  label="默认模型"
+                  value={preferences.defaultModel}
+                  onChange={(val) => setPreferences(p => ({ ...p, defaultModel: val }))}
+                  options={(() => {
+                    const provider = providers.find(p => p.id === preferences.defaultProviderId);
+                    const models = provider?.models || [];
+                    return models.map(m => ({ value: m, label: m }));
+                  })()}
+                />
+              )}
+              {!preferences.defaultProviderId && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm">
+                  请先选择服务商，然后选择默认模型
+                </div>
+              )}
             </CardContent>
           </Card>
 
