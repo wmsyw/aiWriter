@@ -326,6 +326,254 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const safeParseJSON = (text: string) => {
+    try {
+      const cleanText = text.replace(/```json\n|\n```/g, '').replace(/```/g, '').trim();
+      const start = cleanText.indexOf('{');
+      const end = cleanText.lastIndexOf('}');
+      if (start === -1 || end === -1) return null;
+      return JSON.parse(cleanText.substring(start, end + 1));
+    } catch (e) {
+      console.error('Failed to parse JSON', e);
+      return null;
+    }
+  };
+
+  const pollJobResult = (jobId: string) => new Promise<any>((resolve, reject) => {
+    let attempts = 0;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        if (!res.ok) return;
+        const { job } = await res.json();
+        if (job.status === 'succeeded') {
+          resolve(job.output);
+          return;
+        }
+        if (job.status === 'failed') {
+          reject(new Error(job.error || '生成失败'));
+          return;
+        }
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      if (attempts < 300) {
+        setTimeout(poll, 2000);
+      } else {
+        reject(new Error('生成超时 (超过10分钟)'));
+      }
+    };
+    poll();
+  });
+
+  const runJob = async (type: string, input: Record<string, unknown>) => {
+    const res = await fetch('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, input }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const errorMsg = errorData.error 
+        ? (Array.isArray(errorData.error) ? errorData.error.map((e: { message?: string }) => e.message).join(', ') : String(errorData.error))
+        : '生成失败';
+      throw new Error(errorMsg);
+    }
+    const { job } = await res.json();
+    return pollJobResult(job.id);
+  };
+
+  const saveStructuredOutline = async (treeToSave: OutlineNode[]) => {
+    if (!novel?.id) return;
+    
+    const serialized = treeToSave.map(node => {
+      let text = `# ${node.title}\n${node.content}\n`;
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => {
+           text += `## ${child.title}\n${child.content}\n`;
+           if (child.children && child.children.length > 0) {
+             child.children.forEach(grandChild => {
+               text += `### ${grandChild.title}\n${grandChild.content}\n`;
+             });
+           }
+        });
+      }
+      return text;
+    }).join('\n\n');
+
+    setEditedOutline(serialized);
+
+    const roughNodes = treeToSave.filter(n => n.level === 'rough');
+    const detailedNodes = treeToSave.flatMap(n => n.children || []).filter(c => c.level === 'detailed');
+    const chapterNodes = treeToSave.flatMap(n => (n.children || []).flatMap(c => c.children || [])).filter(c => c.level === 'chapter');
+
+    let outlineStage = 'none';
+    if (chapterNodes.length > 0) {
+      outlineStage = 'chapters';
+    } else if (detailedNodes.length > 0) {
+      outlineStage = 'detailed';
+    } else if (roughNodes.length > 0) {
+      outlineStage = 'rough';
+    }
+
+    try {
+      await fetch(`/api/novels/${novel.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outline: serialized,
+          outlineRough: roughNodes.length > 0 ? { blocks: roughNodes } : null,
+          outlineDetailed: detailedNodes.length > 0 ? { blocks: detailedNodes } : null,
+          outlineChapters: chapterNodes.length > 0 ? { blocks: chapterNodes } : null,
+          outlineStage,
+        }),
+      });
+      setNovel(prev => prev ? { ...prev, outline: serialized, outlineStage } : null);
+    } catch (error) {
+      console.error('Failed to auto-save outline', error);
+    }
+  };
+
+  const handleToggle = (id: string) => {
+    setOutlineNodes(prev => {
+      const toggleRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+        return nodes.map(node => {
+          if (node.id === id) {
+            return { ...node, isExpanded: !node.isExpanded };
+          }
+          if (node.children && node.children.length > 0) {
+            return { ...node, children: toggleRecursive(node.children) };
+          }
+          return node;
+        });
+      };
+      return toggleRecursive(prev);
+    });
+  };
+
+  const updateNodeChildren = (id: string, children: OutlineNode[]) => {
+    setOutlineNodes(prev => {
+      const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+        return nodes.map(node => {
+          if (node.id === id) {
+            return { ...node, children, isExpanded: true, isGenerating: false };
+          }
+          if (node.children && node.children.length > 0) {
+            return { ...node, children: updateRecursive(node.children) };
+          }
+          return node;
+        });
+      };
+      return updateRecursive(prev);
+    });
+  };
+
+  useEffect(() => {
+    if (outlineNodes.length === 0) return;
+    
+    const timer = setTimeout(() => {
+      saveStructuredOutline(outlineNodes);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [outlineNodes]);
+
+  const setNodeGenerating = (id: string, isGenerating: boolean) => {
+    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, isGenerating };
+        }
+        if (node.children && node.children.length > 0) {
+          return { ...node, children: updateRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    setOutlineNodes(prev => updateRecursive(prev));
+  };
+
+  const generateDetailedForBlock = async (node: OutlineNode) => {
+    if (!novel?.id) return;
+    setNodeGenerating(node.id, true);
+
+    try {
+      const roughNodes = outlineNodes.filter(n => n.level === 'rough');
+      const currentIndex = roughNodes.findIndex(n => n.id === node.id);
+      
+      const prevBlock = currentIndex > 0 ? roughNodes[currentIndex - 1] : null;
+      const nextBlock = currentIndex < roughNodes.length - 1 ? roughNodes[currentIndex + 1] : null;
+      
+      const context = roughNodes
+        .map(n => `${n.id}. ${n.title}: ${n.content}`)
+        .join('\n');
+
+      const output = await runJob('OUTLINE_DETAILED', {
+        novelId: novel.id,
+        roughOutline: {},
+        target_title: node.title,
+        target_content: node.content,
+        target_id: node.id,
+        rough_outline_context: context,
+        prev_block_title: prevBlock?.title || '',
+        prev_block_content: prevBlock?.content || '',
+        next_block_title: nextBlock?.title || '',
+        next_block_content: nextBlock?.content || '',
+      });
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      if (json && json.children) {
+        updateNodeChildren(node.id, json.children);
+      }
+    } catch (error) {
+      console.error('Failed to generate detailed outline', error);
+      alert('生成细纲失败，请重试');
+    } finally {
+      setNodeGenerating(node.id, false);
+    }
+  };
+
+  const generateChaptersForBlock = async (node: OutlineNode) => {
+    if (!novel?.id) return;
+    setNodeGenerating(node.id, true);
+
+    try {
+      const context = outlineNodes
+        .flatMap(rough => rough.children || [])
+        .map(detailed => `${detailed.id}. ${detailed.title}`)
+        .join('\n');
+
+      const output = await runJob('OUTLINE_CHAPTERS', {
+        novelId: novel.id,
+        detailedOutline: {},
+        target_title: node.title,
+        target_content: node.content,
+        target_id: node.id,
+        detailed_outline_context: context,
+      });
+
+      const json = typeof output === 'string' ? safeParseJSON(output) : output;
+      if (json && json.children) {
+        updateNodeChildren(node.id, json.children);
+      }
+    } catch (error) {
+      console.error('Failed to generate chapters', error);
+      alert('生成章节失败，请重试');
+    } finally {
+      setNodeGenerating(node.id, false);
+    }
+  };
+
+  const handleGenerateNext = (node: OutlineNode) => {
+    if (node.level === 'rough') {
+      generateDetailedForBlock(node);
+    } else if (node.level === 'detailed') {
+      generateChaptersForBlock(node);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -569,9 +817,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       
                       <OutlineTree 
                         nodes={outlineNodes}
-                        onGenerateNext={(node) => {
-                          console.log('Generate next level for:', node);
-                        }}
+                        onGenerateNext={handleGenerateNext}
+                        onToggle={handleToggle}
                         onUpdateNode={(id, content) => {
                           const updateNodes = (nodes: OutlineNode[]): OutlineNode[] => {
                             return nodes.map(n => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 
 export interface OutlineNode {
   id: string;
@@ -105,36 +105,19 @@ interface OutlineTreeProps {
   nodes: OutlineNode[];
   onGenerateNext?: (node: OutlineNode) => void;
   onUpdateNode?: (id: string, content: string) => void;
+  onToggle: (id: string) => void;
   readOnly?: boolean;
   className?: string;
 }
 
 export default function OutlineTree({ 
-  nodes: initialNodes, 
+  nodes, 
   onGenerateNext,
   onUpdateNode,
+  onToggle,
   readOnly = false,
   className = ''
 }: OutlineTreeProps) {
-  const [nodes, setNodes] = useState<OutlineNode[]>(() => 
-    initialNodes.map(n => ({ ...n, isExpanded: true }))
-  );
-
-  const toggleNode = useCallback((id: string) => {
-    const toggle = (nodeList: OutlineNode[]): OutlineNode[] => {
-      return nodeList.map(node => {
-        if (node.id === id) {
-          return { ...node, isExpanded: !node.isExpanded };
-        }
-        if (node.children) {
-          return { ...node, children: toggle(node.children) };
-        }
-        return node;
-      });
-    };
-    setNodes(prev => toggle(prev));
-  }, []);
-
   if (nodes.length === 0) {
     return (
       <div className={`flex flex-col items-center justify-center py-12 text-gray-500 ${className}`}>
@@ -150,7 +133,7 @@ export default function OutlineTree({
         <OutlineTreeNode 
           key={node.id} 
           node={node} 
-          onToggle={toggleNode}
+          onToggle={onToggle}
           onGenerateNext={onGenerateNext}
           onUpdateNode={onUpdateNode}
           readOnly={readOnly}

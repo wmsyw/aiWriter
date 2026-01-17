@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import MaterialSearchModal from './MaterialSearchModal';
 import Modal from '@/app/components/ui/Modal';
 import GlassCard from '@/app/components/ui/GlassCard';
@@ -216,8 +217,19 @@ export default function MaterialsPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gradient mb-2">素材库</h1>
-          <p className="text-gray-400">管理你的故事元素、角色和世界观设定</p>
+          <div className="flex items-center gap-2 mb-2">
+            <Link 
+              href={`/novels/${novelId}`}
+              className="p-2 -ml-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              title="返回小说详情"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </Link>
+            <h1 className="text-3xl font-bold text-gradient">素材库</h1>
+          </div>
+          <p className="text-gray-400 pl-1">管理你的故事元素、角色和世界观设定</p>
         </div>
         <div className="flex gap-3">
           <button 
@@ -483,25 +495,24 @@ function MaterialCard({
       onClick={isSelectionMode ? onToggle : onClick}
       className={`relative overflow-hidden ${isSelected ? 'ring-2 ring-emerald-500' : ''}`}
     >
-      {isSelectionMode && (
-        <div className="absolute top-3 left-3 z-20">
-          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-            isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-500 bg-black/40'
-          }`}>
-            {isSelected && (
-              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </div>
-        </div>
-      )}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
       
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-4">
-          <div className={`p-2.5 rounded-xl bg-white/5 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/10 transition-all duration-300 ${isSelectionMode ? 'ml-8' : ''}`}>
-            {getIcon(material.type)}
+          <div className={`p-2.5 rounded-xl bg-white/5 transition-all duration-300 ${isSelectionMode ? '' : 'text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/10'}`}>
+            {isSelectionMode ? (
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-500 bg-black/20'
+              }`}>
+                {isSelected && (
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+            ) : (
+              getIcon(material.type)
+            )}
           </div>
           <span className="text-xs font-medium text-gray-500 bg-white/5 px-2 py-1 rounded-lg">
             {getTypeLabel(material.type)}
