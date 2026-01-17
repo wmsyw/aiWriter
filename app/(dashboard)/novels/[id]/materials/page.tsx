@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import MaterialSearchModal from './MaterialSearchModal';
 import Modal from '@/app/components/ui/Modal';
@@ -41,6 +41,86 @@ export default function MaterialsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  const [activeSearch, setActiveSearch] = useState<{ jobId: string; keyword: string } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(filteredMaterials.map(m => m.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`确定要删除 ${selectedIds.size} 个素材吗？`)) return;
+    
+    const deleteCount = selectedIds.size;
+    try {
+      const res = await fetch(`/api/novels/${novelId}/materials/batch`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Error: ${res.status}`);
+      }
+      
+      clearSelection();
+      refetch();
+      setToast({ message: `已删除 ${deleteCount} 个素材`, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      console.error('Batch delete failed:', error);
+      setToast({ message: '批量删除失败', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeSearch) return;
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/${activeSearch.jobId}`);
+        if (res.ok) {
+          const { job } = await res.json();
+          if (job.status === 'succeeded') {
+            clearInterval(pollInterval);
+            setActiveSearch(null);
+            setToast({ message: `"${activeSearch.keyword}" 搜索完成，素材已保存`, type: 'success' });
+            refetch();
+            setTimeout(() => setToast(null), 4000);
+          } else if (job.status === 'failed') {
+            clearInterval(pollInterval);
+            setActiveSearch(null);
+            setToast({ message: `"${activeSearch.keyword}" 搜索失败`, type: 'error' });
+            setTimeout(() => setToast(null), 4000);
+          }
+        }
+      } catch (error) {
+        console.error('Poll failed:', error);
+      }
+    }, 2000);
+    
+    return () => clearInterval(pollInterval);
+  }, [activeSearch, refetch]);
 
   const materialsList = Array.isArray(materials) ? materials : [];
 
@@ -79,9 +159,14 @@ export default function MaterialsPage() {
       if (res.ok) {
         refetch();
         setIsModalOpen(false);
+      } else {
+        setToast({ message: '保存失败，请重试', type: 'error' });
+        setTimeout(() => setToast(null), 3000);
       }
     } catch (error) {
       console.error('Failed to save material:', error);
+      setToast({ message: '保存失败，请检查网络连接', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -93,6 +178,12 @@ export default function MaterialsPage() {
           <p className="text-gray-400">管理你的故事元素、角色和世界观设定</p>
         </div>
         <div className="flex gap-3">
+          <button 
+            onClick={() => setIsSelectionMode(!isSelectionMode)}
+            className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
+          >
+            {isSelectionMode ? '取消选择' : '批量管理'}
+          </button>
           <button 
             onClick={(e) => { e.preventDefault(); setIsSearchModalOpen(true); }}
             className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
@@ -157,7 +248,10 @@ export default function MaterialsPage() {
             <MaterialCard 
               key={material.id} 
               material={material} 
-              onClick={() => handleOpenEdit(material)} 
+              onClick={() => handleOpenEdit(material)}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedIds.has(material.id)}
+              onToggle={() => toggleSelection(material.id)}
             />
           ))}
         </div>
@@ -180,6 +274,11 @@ export default function MaterialsPage() {
           onSave={handleSave}
           initialData={editingMaterial}
           defaultType={activeTab === 'all' ? 'character' : activeTab}
+          novelId={novelId}
+          onToast={(msg, type) => {
+            setToast({ message: msg, type });
+            setTimeout(() => setToast(null), 3000);
+          }}
         />
       )}
 
@@ -191,12 +290,67 @@ export default function MaterialsPage() {
           refetch();
           setIsSearchModalOpen(false);
         }}
+        onSearchStarted={(jobId, keyword) => {
+          setActiveSearch({ jobId, keyword });
+          setToast({ message: `已开始搜索 "${keyword}"`, type: 'info' });
+          setTimeout(() => setToast(null), 3000);
+        }}
       />
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-card px-6 py-3 rounded-2xl flex items-center gap-4 shadow-2xl border border-white/10 animate-slide-up">
+          <span className="text-sm text-gray-300">已选择 {selectedIds.size} 项</span>
+          <button onClick={selectAll} className="text-sm text-emerald-400 hover:underline">全选</button>
+          <button onClick={clearSelection} className="text-sm text-gray-400 hover:underline">取消</button>
+          <button onClick={handleBatchDelete} className="btn-primary px-4 py-2 rounded-xl text-sm flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            删除
+          </button>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${
+          toast.type === 'success' ? 'bg-emerald-600' : 
+          toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+        }`}>
+          {toast.type === 'success' && (
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {toast.type === 'info' && (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          )}
+          <span className="text-white font-medium">{toast.message}</span>
+        </div>
+      )}
+
+      {activeSearch && !toast && (
+        <div className="fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl bg-blue-600 flex items-center gap-3 animate-slide-up">
+          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <span className="text-white font-medium">正在搜索 "{activeSearch.keyword}"...</span>
+        </div>
+      )}
     </div>
   );
 }
 
-function MaterialCard({ material, onClick }: { material: Material; onClick: () => void }) {
+function MaterialCard({ 
+  material, 
+  onClick, 
+  isSelectionMode,
+  isSelected,
+  onToggle 
+}: { 
+  material: Material; 
+  onClick: () => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggle?: () => void;
+}) {
   const getIcon = (type: MaterialType) => {
     switch (type) {
       case 'character': return (
@@ -258,9 +412,22 @@ function MaterialCard({ material, onClick }: { material: Material; onClick: () =
       variant="interactive"
       padding="md"
       hover={true}
-      onClick={onClick}
-      className="relative overflow-hidden"
+      onClick={isSelectionMode ? onToggle : onClick}
+      className={`relative overflow-hidden ${isSelected ? 'ring-2 ring-emerald-500' : ''}`}
     >
+      {isSelectionMode && (
+        <div className="absolute top-3 right-3 z-20">
+          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+            isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-500 bg-transparent'
+          }`}>
+            {isSelected && (
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
       
       <div className="relative z-10">
@@ -290,19 +457,91 @@ function MaterialModal({
   onClose, 
   onSave, 
   initialData, 
-  defaultType 
+  defaultType,
+  novelId,
+  onToast
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   onSave: (data: any) => Promise<void>; 
   initialData: Material | null;
   defaultType: MaterialType;
+  novelId: string;
+  onToast: (msg: string, type: 'info' | 'success' | 'error') => void;
 }) {
   const [type, setType] = useState<MaterialType>(initialData?.type || defaultType);
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.data?.description || '');
   const [attributes, setAttributes] = useState<Record<string, string>>(initialData?.data?.attributes || {});
   const [isSaving, setIsSaving] = useState(false);
+  const [enhancingJobId, setEnhancingJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enhancingJobId) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const jobRes = await fetch(`/api/jobs/${enhancingJobId}`);
+        if (cancelled) return;
+        
+        if (jobRes.ok) {
+          const { job: jobStatus } = await jobRes.json();
+          if (jobStatus.status === 'succeeded') {
+            setEnhancingJobId(null);
+            const result = jobStatus.output;
+            if (result?.description) setDescription(result.description);
+            if (result?.attributes) setAttributes(prev => ({ ...prev, ...result.attributes }));
+          } else if (jobStatus.status === 'failed') {
+            setEnhancingJobId(null);
+            onToast('AI完善失败，请重试', 'error');
+          } else if (!cancelled) {
+            setTimeout(poll, 2000);
+          }
+        } else if (!cancelled) {
+          setTimeout(poll, 2000);
+        }
+      } catch (error) {
+        console.error('Poll enhance job failed:', error);
+        if (!cancelled) setTimeout(poll, 2000);
+      }
+    };
+
+    poll();
+
+    return () => { cancelled = true; };
+  }, [enhancingJobId, onToast]);
+
+  const isEnhancing = enhancingJobId !== null;
+
+  const handleAiEnhance = async () => {
+    if (!name.trim()) {
+      onToast('请先输入素材名称', 'error');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/materials/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          novelId,
+          materialName: name,
+          materialType: type,
+          currentDescription: description,
+          currentAttributes: attributes,
+        }),
+      });
+      
+      if (res.ok) {
+        const { job } = await res.json();
+        setEnhancingJobId(job.id);
+      }
+    } catch (error) {
+      console.error('Enhance failed:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -433,6 +672,26 @@ function MaterialModal({
             className="btn-secondary px-6 py-2.5 rounded-xl text-sm"
           >
             取消
+          </button>
+          <button
+            type="button"
+            onClick={handleAiEnhance}
+            disabled={isEnhancing || !name.trim()}
+            className="btn-secondary px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            {isEnhancing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                AI 完善中...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                AI 完善
+              </>
+            )}
           </button>
           <button
             type="submit"

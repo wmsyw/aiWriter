@@ -368,3 +368,125 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
     searchGroup,
   };
 }
+
+const MATERIAL_ENHANCE_PROMPT = `你是一位专业的小说创作素材研究员。请使用你的网络搜索能力，详细收集关于以下素材的更多信息。
+
+## 素材信息
+名称: {{name}}
+类型: {{type}}
+当前描述: {{description}}
+当前属性: {{attributes}}
+
+## 任务要求
+请搜索关于"{{name}}"的详细信息，然后完善这个素材的描述和属性。
+
+要求：
+1. 保留原有描述中的信息，在此基础上补充
+2. 添加更多有价值的细节和属性
+3. 如果是人物，补充外貌、性格、能力、背景等
+4. 如果是地点，补充地理、文化、历史等
+5. 如果是设定，补充规则、体系、细节等
+
+请详细回答，用自然语言描述。`;
+
+const MATERIAL_ENHANCE_FORMAT_PROMPT = `请将以下关于"{{name}}"的研究结果整理为结构化格式。
+
+## 原始研究结果
+{{raw_content}}
+
+## 当前信息
+描述: {{current_description}}
+属性: {{current_attributes}}
+
+## 任务要求
+基于研究结果，返回完善后的素材信息（JSON格式）：
+
+{
+  "description": "完善后的详细描述（保留原有信息，补充新信息）",
+  "attributes": {
+    "属性名": "属性值"
+  }
+}
+
+只返回JSON，不要有其他文字。`;
+
+export async function handleMaterialEnhance(prisma, job, { jobId, userId, input }) {
+  const { novelId, materialName, materialType, currentDescription, currentAttributes } = input;
+
+  const searchConfig = await getUserSearchConfig(prisma, userId);
+  
+  if (!searchConfig.enabled) {
+    throw new Error('请先在设置中启用网络搜索功能');
+  }
+
+  const { agent } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId: null,
+    agentName: '素材搜索助手',
+    fallbackAgentName: '章节写手',
+    templateName: null,
+  });
+
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+  const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
+
+  const attributesStr = currentAttributes && Object.keys(currentAttributes).length > 0
+    ? JSON.stringify(currentAttributes, null, 2)
+    : '暂无';
+
+  const searchPrompt = renderTemplateString(MATERIAL_ENHANCE_PROMPT, {
+    name: materialName,
+    type: materialType || 'custom',
+    description: currentDescription || '暂无',
+    attributes: attributesStr,
+  });
+
+  const searchOptions = {
+    messages: [{ role: 'user', content: searchPrompt }],
+    model: effectiveModel,
+    temperature: params.temperature || 0.7,
+    maxTokens: 6000,
+    webSearch: true,
+  };
+
+  const searchResponse = await withConcurrencyLimit(() => adapter.generate(config, searchOptions));
+  const rawContent = searchResponse.content;
+
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, searchResponse.usage);
+
+  const formatPrompt = renderTemplateString(MATERIAL_ENHANCE_FORMAT_PROMPT, {
+    name: materialName,
+    raw_content: rawContent,
+    current_description: currentDescription || '',
+    current_attributes: attributesStr,
+  });
+
+  const formatOptions = {
+    messages: [{ role: 'user', content: formatPrompt }],
+    model: effectiveModel,
+    temperature: 0.3,
+    maxTokens: 4000,
+    responseFormat: 'json',
+  };
+
+  const formatResponse = await withConcurrencyLimit(() => adapter.generate(config, formatOptions));
+  let parsed = parseModelJson(formatResponse.content);
+
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, formatResponse.usage);
+
+  if (parsed?.parseError) {
+    return {
+      description: currentDescription,
+      attributes: currentAttributes,
+      rawContent,
+      error: 'AI格式化失败，请查看原始搜索结果',
+    };
+  }
+
+  return {
+    description: parsed.description || currentDescription,
+    attributes: parsed.attributes || currentAttributes,
+    enhanced: true,
+  };
+}

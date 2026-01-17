@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 
 interface MaterialSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   novelId: string;
   onComplete: () => void;
+  onSearchStarted?: (jobId: string, keyword: string) => void;
 }
 
 const SEARCH_CATEGORIES = [
@@ -17,24 +18,10 @@ const SEARCH_CATEGORIES = [
   { id: '设定', label: '其他设定', icon: '⚙️' },
 ];
 
-export default function MaterialSearchModal({ isOpen, onClose, novelId, onComplete }: MaterialSearchModalProps) {
+export default function MaterialSearchModal({ isOpen, onClose, novelId, onComplete, onSearchStarted }: MaterialSearchModalProps) {
   const [keyword, setKeyword] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['评价', '人物', '情节', '世界观']);
   const [status, setStatus] = useState<'idle' | 'searching' | 'succeeded' | 'failed'>('idle');
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const MAX_POLL_TIME = 3 * 60 * 1000;
-
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
 
   const toggleCategory = (id: string) => {
     setSelectedCategories(prev => 
@@ -45,14 +32,7 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
   const handleSearch = async () => {
     if (!keyword.trim() || selectedCategories.length === 0) return;
 
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-
-    setJobId(null);
     setStatus('searching');
-    setLogs([`开始搜索: ${keyword}`]);
 
     try {
       const res = await fetch('/api/materials/search', {
@@ -67,68 +47,18 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
 
       if (res.ok) {
         const { job } = await res.json();
-        setJobId(job.id);
-        setLogs(prev => [...prev, `任务已创建: ${job.id.slice(0, 8)}`]);
-        pollJob(job.id);
+        // Notify parent and close immediately
+        onSearchStarted?.(job.id, keyword);
+        setStatus('idle');
+        onClose();
       } else {
         throw new Error('Failed to start search');
       }
     } catch (error) {
       console.error('Search failed', error);
       setStatus('failed');
-      setLogs(prev => [...prev, '搜索启动失败']);
+      alert('搜索启动失败，请重试');
     }
-  };
-
-  const pollJob = (id: string) => {
-    startTimeRef.current = Date.now();
-    let retryCount = 0;
-
-    pollIntervalRef.current = setInterval(async () => {
-      if (Date.now() - startTimeRef.current > MAX_POLL_TIME) {
-        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-        setStatus('failed');
-        setLogs(prev => [...prev, '搜索超时']);
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/jobs/${id}`);
-        if (res.ok) {
-          const { job } = await res.json();
-          retryCount = 0;
-          
-          if (job.status === 'succeeded') {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            setStatus('succeeded');
-            setLogs(prev => [...prev, '搜索完成，素材已保存']);
-            onComplete();
-          } else if (job.status === 'failed') {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            setStatus('failed');
-            setLogs(prev => [...prev, '搜索失败']);
-          } else if (job.status === 'running') {
-            setLogs(prev => {
-              if (!prev.includes('正在联网搜索...')) {
-                return [...prev, '正在联网搜索...'];
-              }
-              return prev;
-            });
-          }
-        } else {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } catch (error) {
-        console.error('Polling failed', error);
-        retryCount++;
-        const errorMessage = error instanceof Error ? error.message : '未知错误';
-        if (retryCount >= 3) {
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          setStatus('failed');
-          setLogs(prev => [...prev, `连接失败: ${errorMessage}`]);
-        }
-      }
-    }, 2000);
   };
 
   if (!isOpen) return null;
@@ -197,31 +127,17 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
             </div>
           </div>
 
-          {status !== 'idle' && (
+          {status !== 'idle' && status !== 'searching' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-xl border border-white/5">
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full ${
-                    status === 'searching' ? 'bg-yellow-400 animate-pulse' :
-                    status === 'succeeded' ? 'bg-green-400' :
-                    'bg-red-400'
+                    status === 'succeeded' ? 'bg-green-400' : 'bg-red-400'
                   }`} />
                   <span className="text-sm font-medium text-gray-300">
-                    {status === 'searching' ? '正在搜索...' :
-                     status === 'succeeded' ? '搜索完成' : '搜索失败'}
+                    {status === 'succeeded' ? '搜索完成' : '搜索失败'}
                   </span>
                 </div>
-                {jobId && <span className="text-xs text-gray-500">Job: {jobId.slice(0, 8)}</span>}
-              </div>
-
-              <div className="h-32 bg-black/30 rounded-xl p-4 overflow-y-auto custom-scrollbar font-mono text-xs text-gray-400 border border-white/5">
-                {logs.map((log, i) => (
-                  <div key={i} className="mb-1 last:mb-0">
-                    <span className="text-gray-600 mr-2">[{new Date().toLocaleTimeString()}]</span>
-                    {log}
-                  </div>
-                ))}
-                {status === 'searching' && <div className="animate-pulse">_</div>}
               </div>
             </div>
           )}
