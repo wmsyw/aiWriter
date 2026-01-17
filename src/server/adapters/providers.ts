@@ -150,6 +150,7 @@ export interface NormalizedRequest {
   tools?: ToolDefinition[];
   tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
   webSearch?: boolean;
+  responseFormat?: 'text' | 'json';
 }
 
 export interface NormalizedResponse {
@@ -390,6 +391,10 @@ export async function createAdapter(providerType: string, apiKey: string, custom
             max_tokens: req.maxTokens,
           };
           
+          if (req.responseFormat === 'json') {
+            body.response_format = { type: 'json_object' };
+          }
+          
           if (req.tools && req.tools.length > 0) {
             body.tools = req.tools;
             body.tool_choice = req.tool_choice || 'auto';
@@ -525,7 +530,11 @@ export async function createAdapter(providerType: string, apiKey: string, custom
           
           const body: Record<string, unknown> = {
             contents: geminiMessages,
-            generationConfig: { temperature: req.temperature, maxOutputTokens: req.maxTokens },
+            generationConfig: { 
+              temperature: req.temperature, 
+              maxOutputTokens: req.maxTokens,
+              ...(req.responseFormat === 'json' && { responseMimeType: 'application/json' }),
+            },
           };
           
           if (systemMessage) {

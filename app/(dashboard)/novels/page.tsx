@@ -87,7 +87,7 @@ export default function NovelsPage() {
                   >
                     <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-500" />
                     
-                    <CardContent className="h-full p-7 flex flex-col">
+                    <CardContent className="h-full p-7 !pt-7 flex flex-col">
                       <div className="flex justify-between items-start gap-4 mb-4 relative z-10">
                         <h3 className="text-xl font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors line-clamp-1 leading-tight flex-1">
                           {novel.title}

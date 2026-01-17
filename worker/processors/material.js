@@ -38,16 +38,18 @@ const MATERIAL_SEARCH_PROMPT = `你是一位专业的小说创作素材收集助
 {{search_results}}
 
 ## 任务要求
-请根据搜索结果，提取以下类型的素材信息（JSON格式）：
+请根据搜索结果，提取以下类型的素材信息。
 
-\`\`\`json
+**重要：你必须只返回JSON格式，不要有任何其他文字说明。**
+
+返回格式：
 {
   "materials": [
     {
       "type": "character|location|plotPoint|worldbuilding|custom",
       "name": "素材名称",
       "description": "详细描述",
-      "source": "信息来源",
+      "source": "信息来源URL",
       "attributes": {
         "key": "value"
       }
@@ -55,13 +57,56 @@ const MATERIAL_SEARCH_PROMPT = `你是一位专业的小说创作素材收集助
   ],
   "summary": "搜索结果总结"
 }
-\`\`\`
 
 注意：
 1. 只提取与小说创作相关的有价值信息
 2. 根据搜索类别（评价、人物、情节、世界观、设定）决定提取重点
 3. 每条素材都要标注来源URL
-4. 如果搜索结果与创作无关，返回空数组`;
+4. 如果搜索结果与创作无关，返回 {"materials": [], "summary": "未找到相关素材"}`;
+
+const WEB_SEARCH_PROMPT = `你是一位专业的小说创作素材研究员。请使用你的网络搜索能力，详细收集关于以下关键词的创作素材。
+
+## 搜索关键词
+{{keyword}}
+
+## 重点关注类别
+{{categories}}
+
+## 任务要求
+请搜索并详细回答以下问题：
+1. 这个关键词的基本信息和背景
+2. 相关的人物、角色或人设参考
+3. 世界观、设定、体系相关的细节
+4. 情节、剧情、故事发展的参考
+5. 读者评价、口碑、亮点和槽点
+
+请尽可能详细地回答，保留所有有价值的细节和引用来源。不需要格式化为JSON，用自然语言详细描述即可。`;
+
+const FORMAT_EXTRACTION_PROMPT = `请将以下搜索结果整理为结构化的素材JSON格式。
+
+## 原始搜索结果
+{{raw_content}}
+
+## 搜索关键词
+{{keyword}}
+
+## 任务要求
+请从上述内容中提取有价值的创作素材，返回JSON格式：
+
+{
+  "materials": [
+    {
+      "type": "character|location|plotPoint|worldbuilding|custom",
+      "name": "素材名称",
+      "description": "详细描述",
+      "source": "信息来源（如有）",
+      "attributes": {}
+    }
+  ],
+  "summary": "搜索结果总结"
+}
+
+只返回JSON，不要有其他文字。`;
 
 export async function handleMaterialSearch(prisma, job, { jobId, userId, input }) {
   const { novelId, keyword, searchCategories, materialTypeFilter } = input;
@@ -121,35 +166,154 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
   });
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
-
-  const context = {
-    keyword,
-    categories: searchCategories.join('、'),
-    search_results: searchConfig.provider === 'model' 
-      ? `请使用你的网络搜索能力搜索关于"${keyword}"的信息，重点关注：${searchCategories.join('、')}`
-      : formatSearchResultsForContext(searchResults),
-  };
-
-  const promptTemplate = template?.content || MATERIAL_SEARCH_PROMPT;
-  const prompt = renderTemplateString(promptTemplate, context);
-
   const params = agent?.params || {};
   const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  
-  const generateOptions = {
-    messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.5,
-    maxTokens: params.maxTokens || 4000,
-    webSearch: searchConfig.provider === 'model',
-  };
 
-  const response = await withConcurrencyLimit(() => adapter.generate(config, generateOptions));
+  const MIN_SEARCH_TOKENS = 6000;
+  const MIN_FORMAT_TOKENS = 3000;
 
-  const parsed = parseModelJson(response.content);
+  let parsed;
   
-  if (parsed?.parseError) {
-    throw new Error(`AI返回格式错误: ${parsed.parseError}`);
+  if (searchConfig.provider === 'model') {
+    // Step 1: 搜索模式 - 使用 webSearch，不限制 JSON 格式
+    const searchPrompt = renderTemplateString(WEB_SEARCH_PROMPT, {
+      keyword,
+      categories: searchCategories.join('、'),
+    });
+    
+    const searchOptions = {
+      messages: [{ role: 'user', content: searchPrompt }],
+      model: effectiveModel,
+      temperature: params.temperature || 0.7,
+      maxTokens: Math.max(params.maxTokens || 8000, MIN_SEARCH_TOKENS),
+      webSearch: true,
+    };
+    
+    const searchResponse = await withConcurrencyLimit(() => adapter.generate(config, searchOptions));
+    const rawSearchContent = searchResponse.content;
+    
+    // Step 2: 格式化模式 - 禁用搜索，强制 JSON 输出
+    const formatPrompt = renderTemplateString(FORMAT_EXTRACTION_PROMPT, {
+      raw_content: rawSearchContent,
+      keyword,
+    });
+    
+    const formatOptions = {
+      messages: [{ role: 'user', content: formatPrompt }],
+      model: effectiveModel,
+      temperature: 0.3,
+      maxTokens: Math.max(params.maxTokens || 4000, MIN_FORMAT_TOKENS),
+      responseFormat: 'json',
+    };
+    
+    const formatResponse = await withConcurrencyLimit(() => adapter.generate(config, formatOptions));
+    parsed = parseModelJson(formatResponse.content);
+    
+    if (parsed?.parseError) {
+      // 格式化失败，使用新请求重试
+      const retryOptions = {
+        messages: [{ 
+          role: 'user', 
+          content: formatPrompt + '\n\n(上次尝试格式不正确，请确保只返回有效JSON)' 
+        }],
+        model: effectiveModel,
+        temperature: 0.2,
+        maxTokens: Math.max(params.maxTokens || 4000, MIN_FORMAT_TOKENS),
+        responseFormat: 'json',
+      };
+      
+      try {
+        const retryResponse = await withConcurrencyLimit(() => adapter.generate(config, retryOptions));
+        parsed = parseModelJson(retryResponse.content);
+      } catch (retryErr) {
+        console.error(`[MATERIAL_SEARCH] Format retry failed:`, retryErr.message);
+      }
+      
+      if (parsed?.parseError) {
+        const searchGroup = `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        
+        await prisma.material.create({
+          data: {
+            novelId,
+            userId,
+            type: 'custom',
+            name: `搜索结果: ${keyword}`,
+            genre: novel.genre || '通用',
+            searchGroup,
+            data: {
+              description: 'AI搜索完成但格式化失败，已保存原始搜索结果',
+              rawSearchContent,
+              searchKeyword: keyword,
+              searchCategories,
+              parseError: parsed.parseError,
+            },
+          },
+        });
+        
+        return {
+          materials: [],
+          count: 0,
+          summary: 'AI搜索完成但格式化失败，原始结果已保存到素材库',
+          searchGroup,
+          rawContentSaved: true,
+        };
+      }
+    }
+    
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, searchResponse.usage);
+  } else {
+    // 使用外部搜索结果（Tavily/Exa）
+    const context = {
+      keyword,
+      categories: searchCategories.join('、'),
+      search_results: formatSearchResultsForContext(searchResults),
+    };
+
+    const promptTemplate = template?.content || MATERIAL_SEARCH_PROMPT;
+    const prompt = renderTemplateString(promptTemplate, context);
+    
+    const generateOptions = {
+      messages: [{ role: 'user', content: prompt }],
+      model: effectiveModel,
+      temperature: params.temperature || 0.5,
+      maxTokens: params.maxTokens || 4000,
+      responseFormat: 'json',
+    };
+
+    const response = await withConcurrencyLimit(() => adapter.generate(config, generateOptions));
+    parsed = parseModelJson(response.content);
+    
+    if (parsed?.parseError) {
+      // 使用新请求重试，不包含历史
+      const retryOptions = {
+        messages: [{ 
+          role: 'user', 
+          content: prompt + '\n\n(上次尝试格式不正确，请确保只返回有效JSON，不要有任何其他文字)' 
+        }],
+        model: effectiveModel,
+        temperature: 0.3,
+        maxTokens: params.maxTokens || 4000,
+        responseFormat: 'json',
+      };
+      
+      try {
+        const retryResponse = await withConcurrencyLimit(() => adapter.generate(config, retryOptions));
+        parsed = parseModelJson(retryResponse.content);
+      } catch (retryErr) {
+        console.error(`[MATERIAL_SEARCH] Retry failed:`, retryErr.message);
+      }
+      
+      if (parsed?.parseError) {
+        return {
+          materials: [],
+          count: 0,
+          summary: 'AI未能返回有效的JSON格式，请稍后重试',
+          searchGroup: `search_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        };
+      }
+    }
+    
+    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   }
   
   const materials = Array.isArray(parsed?.materials) ? parsed.materials : [];
