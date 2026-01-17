@@ -331,9 +331,15 @@ export default function TemplatesPage() {
       <Card className="flex-1 flex flex-col p-0 relative overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
         {selectedTemplate ? (
           <>
-            <CardHeader className="h-14 p-0 px-4 border-b border-white/5 flex flex-row items-center justify-between space-y-0 bg-zinc-900/30">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-zinc-500 text-xs uppercase tracking-wider font-semibold hidden md:inline-block">模板 /</span>
+            <CardHeader className="h-14 p-0 px-6 border-b border-white/5 flex flex-row items-center justify-between bg-zinc-900/30 gap-6">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="hidden md:flex items-center gap-2 text-zinc-500 select-none flex-shrink-0">
+                  <svg className="w-3.5 h-3.5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <span className="text-[10px] uppercase tracking-widest font-bold opacity-70">模板</span>
+                  <span className="text-zinc-700 font-light">/</span>
+                </div>
                 <Input
                   type="text"
                   value={selectedTemplate.name}
@@ -341,17 +347,24 @@ export default function TemplatesPage() {
                     setSelectedTemplate({ ...selectedTemplate, name: e.target.value });
                     setHasChanges(true);
                   }}
-                  className="text-base font-medium bg-transparent border-transparent hover:border-white/10 focus:border-emerald-500/50 h-8 py-0 px-2 w-full max-w-md text-zinc-200 placeholder:text-zinc-600"
+                  className="text-sm font-medium bg-transparent border-transparent hover:border-white/5 focus:border-emerald-500/50 focus:bg-zinc-900/50 h-9 px-3 w-full max-w-md text-zinc-200 placeholder:text-zinc-600 transition-all duration-200 rounded-lg"
                   placeholder="模板名称"
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <span className={cn(
-                  "text-xs transition-opacity duration-300",
-                  hasChanges ? "text-amber-500 opacity-100" : "opacity-0"
+              <div className="flex items-center gap-5">
+                <div className={cn(
+                  "flex items-center gap-2 text-[10px] font-medium transition-all duration-300",
+                  hasChanges ? "text-amber-500 opacity-100 translate-x-0" : "opacity-0 translate-x-2 pointer-events-none"
                 )}>
-                  ● 未保存
-                </span>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <span>未保存更改</span>
+                </div>
+
+                <div className="h-4 w-px bg-white/5 hidden sm:block" />
+
                 <Button
                   variant="primary"
                   size="sm"
@@ -359,8 +372,10 @@ export default function TemplatesPage() {
                   disabled={!hasChanges || isSaving}
                   isLoading={isSaving}
                   className={cn(
-                    "h-8 text-xs font-medium px-4 shadow-lg shadow-emerald-500/10",
-                    hasChanges ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-zinc-800 text-zinc-500"
+                    "h-8 text-xs font-medium px-5 transition-all duration-200",
+                    hasChanges 
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5" 
+                      : "bg-zinc-800 text-zinc-500 hover:bg-zinc-800 cursor-not-allowed"
                   )}
                 >
                   {isSaving ? '保存中...' : '保存'}

@@ -197,6 +197,16 @@ export default function SettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.defaultModel) {
+      setError('请选择默认模型');
+      return;
+    }
+    if (formData.models.length === 0) {
+      setError('请至少添加一个模型');
+      return;
+    }
+    
     setSaving(true);
     setError('');
 
@@ -706,6 +716,21 @@ export default function SettingsPage() {
                   请先选择服务商，然后选择默认模型
                 </div>
               )}
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-sm">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <strong>模型优先级说明：</strong>
+                    <ul className="mt-1 space-y-0.5 list-disc list-inside text-blue-300/80">
+                      <li>AI 助手配置的模型优先级最高</li>
+                      <li>如果 AI 助手未指定模型，使用此全局默认模型</li>
+                      <li>如果 AI 助手指定了其他服务商，将使用该服务商的默认模型</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

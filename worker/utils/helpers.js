@@ -13,15 +13,20 @@ export async function getProviderAndAdapter(prisma, userId, providerConfigId) {
   let effectiveProviderId = providerConfigId;
   let defaultModel = null;
   
-  if (!effectiveProviderId) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { preferences: true },
-    });
-    const prefs = user?.preferences || {};
-    if (prefs && typeof prefs === 'object' && prefs.defaultProviderId) {
+  // Always fetch user preferences to get the default model
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  const prefs = user?.preferences || {};
+  
+  // Get user's global default model (always available for fallback)
+  if (prefs && typeof prefs === 'object') {
+    defaultModel = prefs.defaultModel || null;
+    
+    // If no provider specified, use user's default provider
+    if (!effectiveProviderId && prefs.defaultProviderId) {
       effectiveProviderId = prefs.defaultProviderId;
-      defaultModel = prefs.defaultModel || null;
       log('DEBUG', 'Using default provider from user preferences', { 
         defaultProviderId: effectiveProviderId, 
         defaultModel 
@@ -46,7 +51,8 @@ export async function getProviderAndAdapter(prisma, userId, providerConfigId) {
   log('DEBUG', 'Provider config found', { 
     configId: config.id, 
     providerType: config.providerType,
-    hasBaseURL: !!config.baseURL 
+    hasBaseURL: !!config.baseURL,
+    defaultModel
   });
   
   const apiKey = decryptApiKey(config.apiKeyCiphertext);
@@ -63,11 +69,15 @@ export async function getProviderAndAdapter(prisma, userId, providerConfigId) {
  * @param {string|null|undefined} agentModel - Model specified by the agent
  * @param {string|null|undefined} userDefaultModel - User's global default model from preferences
  * @param {string|null|undefined} providerDefaultModel - Provider's default model
- * @param {string} [fallback='gpt-4'] - Hardcoded fallback model
  * @returns {string} The resolved model name
+ * @throws {Error} If no model is available in the chain
  */
-export function resolveModel(agentModel, userDefaultModel, providerDefaultModel, fallback = 'gpt-4') {
-  return agentModel || userDefaultModel || providerDefaultModel || fallback;
+export function resolveModel(agentModel, userDefaultModel, providerDefaultModel) {
+  const model = agentModel || userDefaultModel || providerDefaultModel;
+  if (!model) {
+    throw new Error('No model configured. Please configure a model in the agent, set a global default model, or ensure the provider has a default model.');
+  }
+  return model;
 }
 
 export async function resolveAgentAndTemplate(prisma, { userId, agentId, agentName, fallbackAgentName, templateName }) {

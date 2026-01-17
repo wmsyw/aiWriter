@@ -12,8 +12,8 @@ const createSchema = z.object({
   providerType: z.string().min(1),
   baseURL: z.string().url().optional(),
   apiKey: z.string().min(1),
-  defaultModel: z.string().optional(),
-  models: z.array(z.string()).optional(),
+  defaultModel: z.string().min(1, { message: '请选择默认模型' }),
+  models: z.array(z.string()).min(1, { message: '请至少添加一个模型' }),
 });
 
 export async function GET(request: NextRequest) {
