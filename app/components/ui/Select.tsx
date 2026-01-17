@@ -29,7 +29,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'glass-input w-full px-4 py-2.5 flex justify-between items-center cursor-pointer',
+      'glass-input w-full h-10 px-4 py-2 flex justify-between items-center cursor-pointer',
       'hover:border-zinc-500/50 hover:bg-zinc-800/30 transition-all duration-300',
       'focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50',
       'disabled:cursor-not-allowed disabled:opacity-50',

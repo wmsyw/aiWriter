@@ -255,7 +255,7 @@ export default function JobsPage() {
                             variant="ghost"
                             size="sm"
                             onClick={(e) => handleCancel(job.id, e)}
-                            className="h-8 w-8 p-0 text-gray-500 hover:text-red-400"
+                            className="h-9 w-9 p-0 text-gray-500 hover:text-red-400"
                             title="取消任务"
                           >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

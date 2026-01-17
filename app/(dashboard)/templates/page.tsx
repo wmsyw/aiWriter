@@ -232,7 +232,7 @@ export default function TemplatesPage() {
       className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-6"
     >
       <Card className="w-full md:w-72 flex-shrink-0 flex flex-col p-0 overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
-        <CardHeader className="p-4 border-b border-white/5 flex flex-row justify-between items-center space-y-0 bg-zinc-900/30">
+        <CardHeader className="h-14 p-0 px-4 border-b border-white/5 flex flex-row justify-between items-center space-y-0 bg-zinc-900/30">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-emerald-500/10 rounded-lg">
               <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,10 +245,10 @@ export default function TemplatesPage() {
             variant="ghost" 
             size="sm"
             onClick={handleCreateNew}
-            className="h-7 w-7 p-0 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors"
+            className="h-9 w-9 p-0 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors"
             aria-label="新建模板"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -502,9 +502,9 @@ export default function TemplatesPage() {
                             size="sm"
                             onClick={() => insertVariableToContent(variable.name)}
                             title="复制标签"
-                            className="h-7 w-7 p-0 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
+                            className="h-9 w-9 p-0 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                             </svg>
                           </Button>
@@ -513,9 +513,9 @@ export default function TemplatesPage() {
                             size="sm"
                             onClick={() => removeVariable(idx)}
                             title="删除变量"
-                            className="h-7 w-7 p-0 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
+                            className="h-9 w-9 p-0 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </Button>

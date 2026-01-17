@@ -1379,7 +1379,7 @@ function NovelWizardContent() {
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs text-gray-500">预计字数 (万)</label>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                        <div className="grid grid-cols-4 gap-1.5 mt-1.5 mb-2">
                           {[50, 100, 150, 200, 250, 300, 400, 500].map(preset => (
                             <button
                               key={preset}
@@ -1389,7 +1389,7 @@ function NovelWizardContent() {
                                 // Auto-adjust chapter count based on word count (avg 3000 words per chapter)
                                 setField('chapterCount', Math.round(preset * 10000 / 3000));
                               }}
-                              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                              className={`px-2 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
                                 formData.targetWords === preset
                                   ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
                                   : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200'
