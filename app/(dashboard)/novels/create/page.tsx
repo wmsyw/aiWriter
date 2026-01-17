@@ -404,7 +404,7 @@ function NovelWizardContent() {
         if (node.id === id) {
           return { ...node, isExpanded: !node.isExpanded };
         }
-        if (node.children.length > 0) {
+        if (node.children && node.children.length > 0) {
           return { ...node, children: toggleRecursive(node.children) };
         }
         return node;
@@ -419,7 +419,7 @@ function NovelWizardContent() {
         if (node.id === id) {
           return { ...node, children, isExpanded: true, isGenerating: false };
         }
-        if (node.children.length > 0) {
+        if (node.children && node.children.length > 0) {
           return { ...node, children: updateRecursive(node.children) };
         }
         return node;
@@ -434,7 +434,7 @@ function NovelWizardContent() {
         if (node.id === id) {
           return { ...node, isGenerating };
         }
-        if (node.children.length > 0) {
+        if (node.children && node.children.length > 0) {
           return { ...node, children: updateRecursive(node.children) };
         }
         return node;
@@ -449,7 +449,7 @@ function NovelWizardContent() {
         if (node.id === id) {
           return { ...node, content };
         }
-        if (node.children.length > 0) {
+        if (node.children && node.children.length > 0) {
           return { ...node, children: updateRecursive(node.children) };
         }
         return node;
