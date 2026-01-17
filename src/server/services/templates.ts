@@ -2355,7 +2355,13 @@ ID：{{target_id}}
 内容：{{target_content}}
 ID：{{target_id}}
 
-### 上下文
+{% if parent_rough_title %}
+### 所属分卷
+标题：{{parent_rough_title}}
+内容：{{parent_rough_content}}
+{% endif %}
+
+### 全文细纲上下文（其他事件节点）
 {{detailed_outline_context}}
 
 {% if target_word_count %}

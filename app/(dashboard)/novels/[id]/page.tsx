@@ -1344,48 +1344,50 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                     </Card>
                   )}
                   
-                  <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-white mb-1">
-                          {outlineNodes.length > 0 ? '纯文本大纲' : '小说大纲'}
-                        </h3>
-                        <p className="text-sm text-gray-400">
-                          {outlineNodes.length > 0 ? '可在此编辑或查看完整文本' : '规划故事主线与核心节奏'}
-                        </p>
+                  {outlineNodes.length === 0 && (
+                    <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+                      
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-1">
+                            小说大纲
+                          </h3>
+                          <p className="text-sm text-gray-400">
+                            规划故事主线与核心节奏
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {!novel.outline && (
+                            <span className="text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                              需要先创建大纲才能添加章节
+                            </span>
+                          )}
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => setShowOutlineGenerator(true)}
+                            leftIcon={
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                            }
+                            className="shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40"
+                          >
+                            AI 智能生成
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {!novel.outline && outlineNodes.length === 0 && (
-                          <span className="text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-                            需要先创建大纲才能添加章节
-                          </span>
-                        )}
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => setShowOutlineGenerator(true)}
-                          leftIcon={
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                          }
-                          className="shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40"
-                        >
-                          AI 智能生成
-                        </Button>
-                      </div>
-                    </div>
-                    <textarea
-                      className="glass-input w-full px-6 py-5 rounded-2xl h-[500px] resize-none text-gray-200 leading-relaxed font-sans text-lg focus:ring-2 focus:ring-emerald-500/30 transition-all bg-black/20"
-                      placeholder="在这里编写你的小说大纲...&#10;&#10;建议包含：&#10;- 故事主线&#10;- 主要角色&#10;- 章节规划&#10;- 关键情节点"
-                      value={editedOutline}
-                      onChange={(e) => setEditedOutline(e.target.value)}
-                      onBlur={handleUpdateOutline}
-                    />
-                  </Card>
+                      <textarea
+                        className="glass-input w-full px-6 py-5 rounded-2xl h-[500px] resize-none text-gray-200 leading-relaxed font-sans text-lg focus:ring-2 focus:ring-emerald-500/30 transition-all bg-black/20"
+                        placeholder="在这里编写你的小说大纲...&#10;&#10;建议包含：&#10;- 故事主线&#10;- 主要角色&#10;- 章节规划&#10;- 关键情节点"
+                        value={editedOutline}
+                        onChange={(e) => setEditedOutline(e.target.value)}
+                        onBlur={handleUpdateOutline}
+                      />
+                    </Card>
+                  )}
                 </div>
               )}
             </TabsContent>

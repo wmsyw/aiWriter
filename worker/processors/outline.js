@@ -134,32 +134,54 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
   const calculatedParams = calculateOutlineParams(targetWords || 100, chapterCount);
   const effectiveNodesPerVolume = detailedNodeCount || calculatedParams.nodesPerVolume;
 
-  const context = regenerate_single ? {
-    target_id: target_id || '',
-    target_title: target_title || '',
-    target_content: target_content || '',
-    rough_outline_context: rough_outline_context || '',
-    prev_block_title: prev_block_title || '',
-    prev_block_content: prev_block_content || '',
-    next_block_title: next_block_title || '',
-    next_block_content: next_block_content || '',
-    original_node_title: original_node_title || '',
-    regenerate_single: true,
-  } : {
-    rough_outline: roughOutlinePayload,
-    target_words: targetWords || null,
-    chapter_count: chapterCount || calculatedParams.totalChapters,
-    detailed_node_count: effectiveNodesPerVolume,
-    expected_node_words: calculatedParams.expectedNodeWords,
-    chapters_per_node: calculatedParams.chaptersPerNode,
-    prev_block_title: prev_block_title || '',
-    prev_block_content: prev_block_content || '',
-    next_block_title: next_block_title || '',
-    next_block_content: next_block_content || '',
-  };
+  const isSingleBlockMode = target_id && target_title && !roughOutlinePayload;
+  
+  let context;
+  if (regenerate_single) {
+    context = {
+      target_id: target_id || '',
+      target_title: target_title || '',
+      target_content: target_content || '',
+      rough_outline_context: rough_outline_context || '',
+      prev_block_title: prev_block_title || '',
+      prev_block_content: prev_block_content || '',
+      next_block_title: next_block_title || '',
+      next_block_content: next_block_content || '',
+      original_node_title: original_node_title || '',
+      regenerate_single: true,
+    };
+  } else if (isSingleBlockMode) {
+    context = {
+      target_id: target_id || '',
+      target_title: target_title || '',
+      target_content: target_content || '',
+      rough_outline_context: rough_outline_context || '',
+      prev_block_title: prev_block_title || '',
+      prev_block_content: prev_block_content || '',
+      next_block_title: next_block_title || '',
+      next_block_content: next_block_content || '',
+      target_words: targetWords || null,
+      detailed_node_count: effectiveNodesPerVolume,
+      expected_node_words: calculatedParams.expectedNodeWords,
+      chapters_per_node: calculatedParams.chaptersPerNode,
+    };
+  } else {
+    context = {
+      rough_outline: roughOutlinePayload,
+      target_words: targetWords || null,
+      chapter_count: chapterCount || calculatedParams.totalChapters,
+      detailed_node_count: effectiveNodesPerVolume,
+      expected_node_words: calculatedParams.expectedNodeWords,
+      chapters_per_node: calculatedParams.chaptersPerNode,
+      prev_block_title: prev_block_title || '',
+      prev_block_content: prev_block_content || '',
+      next_block_title: next_block_title || '',
+      next_block_content: next_block_content || '',
+    };
+  }
 
-  const fallbackPrompt = regenerate_single
-    ? `请重新生成细纲节点（JSON 输出）：\n当前节点：${target_title || '未知'}\n上下文：${rough_outline_context || '无'}`
+  const fallbackPrompt = regenerate_single || isSingleBlockMode
+    ? `请为以下分卷生成细纲节点（JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n全文大纲背景：${rough_outline_context || '无'}`
     : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
@@ -249,7 +271,15 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     next_chapter_title,
     next_chapter_content,
     original_chapter_title,
+    parent_rough_title,
+    parent_rough_content,
   } = input;
+
+  const detailedPayload = detailedOutline
+    ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
+    : '';
+
+  const isSingleBlockMode = target_id && target_title && !detailedPayload;
 
   const templateName = regenerate_single 
     ? TEMPLATE_NAMES.OUTLINE_CHAPTER_SINGLE 
@@ -265,31 +295,43 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
-  const detailedPayload = detailedOutline
-    ? (typeof detailedOutline === 'string' ? detailedOutline : JSON.stringify(detailedOutline, null, 2))
-    : '';
-
   const calculatedParams = calculateOutlineParams(targetWords || 100, chapterCount);
   const effectiveChaptersPerNode = chaptersPerNode || calculatedParams.chaptersPerNode;
 
-  const context = regenerate_single ? {
-    target_id: target_id || '',
-    target_title: target_title || '',
-    target_content: target_content || '',
-    detailed_outline_context: detailed_outline_context || '',
-    prev_chapter_title: prev_chapter_title || '',
-    prev_chapter_content: prev_chapter_content || '',
-    next_chapter_title: next_chapter_title || '',
-    next_chapter_content: next_chapter_content || '',
-    original_chapter_title: original_chapter_title || '',
-  } : {
-    detailed_outline: detailedPayload,
-    chapters_per_node: effectiveChaptersPerNode,
-    words_per_chapter: calculatedParams.wordsPerChapter,
-  };
+  let context;
+  if (regenerate_single) {
+    context = {
+      target_id: target_id || '',
+      target_title: target_title || '',
+      target_content: target_content || '',
+      detailed_outline_context: detailed_outline_context || '',
+      prev_chapter_title: prev_chapter_title || '',
+      prev_chapter_content: prev_chapter_content || '',
+      next_chapter_title: next_chapter_title || '',
+      next_chapter_content: next_chapter_content || '',
+      original_chapter_title: original_chapter_title || '',
+    };
+  } else if (isSingleBlockMode) {
+    context = {
+      target_id: target_id || '',
+      target_title: target_title || '',
+      target_content: target_content || '',
+      detailed_outline_context: detailed_outline_context || '',
+      parent_rough_title: parent_rough_title || '',
+      parent_rough_content: parent_rough_content || '',
+      chapters_per_node: effectiveChaptersPerNode,
+      words_per_chapter: calculatedParams.wordsPerChapter,
+    };
+  } else {
+    context = {
+      detailed_outline: detailedPayload,
+      chapters_per_node: effectiveChaptersPerNode,
+      words_per_chapter: calculatedParams.wordsPerChapter,
+    };
+  }
 
-  const fallbackPrompt = regenerate_single
-    ? `请重新生成章节大纲（JSON 输出）：\n当前章节：${target_title || '未知'}\n上下文：${detailed_outline_context || '无'}`
+  const fallbackPrompt = (regenerate_single || isSingleBlockMode)
+    ? `请为以下细纲事件生成章节大纲（JSON 输出）：\n事件标题：${target_title || '未知'}\n事件内容：${target_content || '无'}\n所属分卷：${parent_rough_title || '无'}\n全文细纲背景：${detailed_outline_context || '无'}`
     : `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
