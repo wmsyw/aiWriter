@@ -22,7 +22,7 @@ import { handleChapterGenerate, handleChapterGenerateBranches } from './processo
 import { handleOutlineRough, handleOutlineDetailed, handleOutlineChapters, handleOutlineGenerate } from './processors/outline.js';
 import { handleReviewScore, handleConsistencyCheck, handleCanonCheck } from './processors/review.js';
 import { handleCharacterBios, handleCharacterChat, handleWizardCharacters } from './processors/character.js';
-import { handleNovelSeed, handleWizardWorldBuilding, handleWizardInspiration } from './processors/novel.js';
+import { handleNovelSeed, handleWizardWorldBuilding, handleWizardInspiration, handleWizardSynopsis, handleWizardGoldenFinger } from './processors/novel.js';
 import { handleMemoryExtract, handleDeaiRewrite, handleGitBackup } from './processors/utility.js';
 import { 
   handleContextAssemble, 
@@ -57,6 +57,8 @@ const handlers = {
   [JobType.NOVEL_SEED]: handleNovelSeed,
   [JobType.WIZARD_WORLD_BUILDING]: handleWizardWorldBuilding,
   [JobType.WIZARD_INSPIRATION]: handleWizardInspiration,
+  [JobType.WIZARD_SYNOPSIS]: handleWizardSynopsis,
+  [JobType.WIZARD_GOLDEN_FINGER]: handleWizardGoldenFinger,
   [JobType.MEMORY_EXTRACT]: handleMemoryExtract,
   [JobType.DEAI_REWRITE]: handleDeaiRewrite,
   [JobType.GIT_BACKUP]: handleGitBackup,

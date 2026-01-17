@@ -235,3 +235,109 @@ export async function handleWizardInspiration(prisma, job, { jobId, userId, inpu
 
   return result;
 }
+
+export async function handleWizardSynopsis(prisma, job, { jobId, userId, input }) {
+  const { novelId, title, genre, theme, keywords, protagonist, worldSetting, goldenFinger, existingSynopsis, specialRequirements, agentId } = input;
+
+  const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
+  if (!novel) throw new Error('Novel not found');
+
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '简介生成器',
+    templateName: '简介生成',
+  });
+
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+
+  const context = {
+    title: title || novel.title,
+    genre: genre || novel.genre || '',
+    theme: theme || novel.theme || '',
+    keywords: keywords || '',
+    protagonist: protagonist || novel.protagonist || '',
+    world_setting: worldSetting || novel.worldSetting || '',
+    golden_finger: goldenFinger || novel.goldenFinger || '',
+    existing_synopsis: existingSynopsis || '',
+    special_requirements: specialRequirements || '',
+  };
+
+  const fallbackPrompt = `请为小说《${context.title}》生成吸引人的简介（200-350字），返回JSON格式：{"synopsis": "简介内容", "hooks": ["钩子1", "钩子2"], "selling_points": ["卖点1", "卖点2"]}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: effectiveModel,
+    temperature: params.temperature || 0.8,
+    maxTokens: params.maxTokens || 2000,
+  }));
+
+  const result = parseModelJson(response.content, { throwOnError: true });
+
+  if (result.synopsis) {
+    await prisma.novel.update({
+      where: { id: novelId },
+      data: { description: result.synopsis },
+    });
+  }
+
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+
+  return result;
+}
+
+export async function handleWizardGoldenFinger(prisma, job, { jobId, userId, input }) {
+  const { novelId, title, genre, theme, keywords, protagonist, worldSetting, targetWords, existingGoldenFinger, specialRequirements, agentId } = input;
+
+  const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
+  if (!novel) throw new Error('Novel not found');
+
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '金手指生成器',
+    templateName: '金手指生成',
+  });
+
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
+
+  const context = {
+    title: title || novel.title,
+    genre: genre || novel.genre || '',
+    theme: theme || novel.theme || '',
+    keywords: keywords || '',
+    protagonist: protagonist || novel.protagonist || '',
+    world_setting: worldSetting || novel.worldSetting || '',
+    target_words: targetWords || novel.targetWordCount || 100,
+    existing_golden_finger: existingGoldenFinger || '',
+    special_requirements: specialRequirements || '',
+  };
+
+  const fallbackPrompt = `请为小说《${context.title}》设计金手指系统，返回JSON格式：{"golden_finger": "金手指描述", "name": "名称", "core_ability": "核心能力", "growth_stages": [], "limitations": [], "highlight_moments": []}`;
+  const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
+
+  const params = agent?.params || {};
+  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
+  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    messages: [{ role: 'user', content: prompt }],
+    model: effectiveModel,
+    temperature: params.temperature || 0.8,
+    maxTokens: params.maxTokens || 3000,
+  }));
+
+  const result = parseModelJson(response.content, { throwOnError: true });
+
+  if (result.golden_finger) {
+    await prisma.novel.update({
+      where: { id: novelId },
+      data: { goldenFinger: result.golden_finger },
+    });
+  }
+
+  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+
+  return result;
+}

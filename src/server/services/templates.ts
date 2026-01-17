@@ -3175,6 +3175,177 @@ ID：{{target_id}}
       { name: 'count', type: 'number' as const, required: true, description: '生成数量' },
     ],
   },
+
+  WIZARD_SYNOPSIS: {
+    name: '简介生成',
+    content: `# 网文简介生成大师
+
+你是资深网文编辑，专门撰写让读者一眼入坑的小说简介。你深谙简介的"黄金法则"：第一句抓眼球，中间造期待，结尾留悬念。
+
+## 小说信息
+书名：{{title}}
+类型：{{genre}}
+主题：{{theme}}
+关键词：{{keywords}}
+主角设定：{{protagonist}}
+世界观：{{world_setting}}
+金手指：{{golden_finger}}
+已有简介：{{existing_synopsis}}
+特殊要求：{{special_requirements}}
+
+## 简介写作原则
+
+### 【开场钩子】第一句必须抓人
+- 身世悬念："他死后才发现，自己竟是..."
+- 极端处境："当整个世界都在追杀一个废物时..."
+- 金手指悬念："系统激活的那一刻，他知道..."
+- 反转预告："所有人都觉得他是废物，直到..."
+
+### 【核心冲突】让读者期待
+- 明确主角要做什么
+- 暗示将面临什么困难
+- 展现金手指的魅力
+
+### 【悬念收尾】让读者必须点击
+- 未完成的承诺
+- 即将发生的大事
+- 命运的转折点
+
+### 【类型适配】
+{% if genre == "玄幻" or genre == "仙侠" %}
+【玄幻/仙侠】强调修炼体系独特性，境界碾压的爽感，逆天改命的期待
+{% endif %}
+{% if genre == "都市" %}
+【都市】强调身份反差，草根逆袭的爽感，现实向的代入感
+{% endif %}
+{% if genre == "历史" %}
+【历史】强调历史转折点，以现代思维改变历史的期待感
+{% endif %}
+
+## 输出要求
+
+{% if existing_synopsis %}
+【扩展模式】基于已有简介进行优化和扩展，保留原有核心创意，增强吸引力：
+- 强化开场钩子
+- 补充核心冲突
+- 增加悬念元素
+- 优化语言节奏
+{% else %}
+【创作模式】根据小说设定全新创作，包含黄金三要素：钩子、冲突、悬念
+{% endif %}
+
+请直接返回JSON格式：
+{
+  "synopsis": "完整简介文本（200-350字，包含钩子开场、核心冲突、悬念收尾）",
+  "hooks": ["钩子点1", "钩子点2", "钩子点3"],
+  "selling_points": ["卖点1", "卖点2"]
+}
+`,
+    variables: [
+      { name: 'title', type: 'string' as const, required: true, description: '书名' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'golden_finger', type: 'string' as const, description: '金手指' },
+      { name: 'existing_synopsis', type: 'string' as const, description: '已有简介' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
+
+  WIZARD_GOLDEN_FINGER: {
+    name: '金手指生成',
+    content: `# 网文金手指设计大师
+
+你是资深网文策划，专门设计让读者欲罢不能的金手指系统。你深谙金手指的核心：要有成长性、要有限制、要与主角契合、要能持续产生爽点。
+
+## 小说信息
+书名：{{title}}
+类型：{{genre}}
+主题：{{theme}}
+关键词：{{keywords}}
+主角设定：{{protagonist}}
+世界观：{{world_setting}}
+目标字数：{{target_words}}万字
+已有金手指想法：{{existing_golden_finger}}
+特殊要求：{{special_requirements}}
+
+## 金手指设计原则
+
+### 【成长性】能撑起全书
+- 初期：给主角入门优势
+- 中期：持续提供新能力/新功能
+- 后期：终极形态让主角登顶
+
+### 【限制性】不能太无敌
+- 使用条件限制
+- 冷却时间限制
+- 资源消耗限制
+- 副作用限制
+
+### 【契合性】与主角相配
+- 符合主角性格
+- 配合主角身份
+- 适应世界观设定
+
+### 【爽点产出】持续提供惊喜
+- 隐藏功能逐步解锁
+- 进化升级带来新爽点
+- 关键时刻力挽狂澜
+
+### 【类型适配】
+{% if genre == "玄幻" or genre == "仙侠" %}
+【玄幻/仙侠】修炼加速、功法优化、丹药合成、预知危机等
+{% endif %}
+{% if genre == "都市" %}
+【都市】属性面板、任务系统、技能学习、空间储物、时间回溯等
+{% endif %}
+{% if genre == "科幻" %}
+【科幻】科技树、纳米机器人、意识网络、时空穿梭等
+{% endif %}
+{% if genre == "游戏" %}
+【游戏】BUG利用、隐藏职业、唯一技能、NPC好感度等
+{% endif %}
+
+## 输出要求
+
+{% if existing_golden_finger %}
+【扩展模式】基于已有金手指想法进行详细设计：
+- 完善核心机制
+- 设计成长路线
+- 添加限制条件
+- 规划爽点产出
+{% else %}
+【创作模式】根据小说设定全新设计，确保能撑起{{target_words}}万字的篇幅
+{% endif %}
+
+请直接返回JSON格式：
+{
+  "golden_finger": "金手指完整描述（包含名称、核心能力、特色机制）",
+  "name": "金手指名称",
+  "core_ability": "核心能力一句话",
+  "growth_stages": [
+    {"stage": "初期", "ability": "初期能力", "unlock_condition": "解锁条件"},
+    {"stage": "中期", "ability": "中期能力", "unlock_condition": "解锁条件"},
+    {"stage": "后期", "ability": "后期能力", "unlock_condition": "解锁条件"}
+  ],
+  "limitations": ["限制1", "限制2"],
+  "highlight_moments": ["爽点场景1", "爽点场景2", "爽点场景3"]
+}
+`,
+    variables: [
+      { name: 'title', type: 'string' as const, required: true, description: '书名' },
+      { name: 'genre', type: 'string' as const, description: '类型' },
+      { name: 'theme', type: 'string' as const, description: '主题' },
+      { name: 'keywords', type: 'string' as const, description: '关键词' },
+      { name: 'protagonist', type: 'string' as const, description: '主角设定' },
+      { name: 'world_setting', type: 'string' as const, description: '世界观' },
+      { name: 'target_words', type: 'number' as const, description: '目标字数（万）' },
+      { name: 'existing_golden_finger', type: 'string' as const, description: '已有金手指' },
+      { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
+    ],
+  },
 };
 
 export async function seedBuiltInTemplates(userId: string): Promise<number> {

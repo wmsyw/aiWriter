@@ -81,14 +81,18 @@
   }
 
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
   }
 }
 
 @layer utilities {
   .animate-progress-indeterminate {
     animation: progress-indeterminate 1.5s infinite linear;
+  }
+
+  .animate-progress-shimmer {
+    animation: shimmer 1.5s infinite ease-in-out;
   }
 
   /* ═══════════════════════════════════════════════════════════════════

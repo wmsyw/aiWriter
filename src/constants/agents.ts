@@ -169,6 +169,20 @@ export const BUILT_IN_AGENTS: Record<string, BuiltInAgentDefinition> = {
     templateName: '灵感生成',
     defaultParams: { temperature: 0.9, maxTokens: 4000, topP: 0.95 },
   },
+  SYNOPSIS_GENERATOR: {
+    name: '简介生成器',
+    description: '根据小说设定生成吸引读者的简介，包含钩子开场、核心冲突和悬念收尾',
+    category: 'writing',
+    templateName: '简介生成',
+    defaultParams: { temperature: 0.8, maxTokens: 2000, topP: 0.9 },
+  },
+  GOLDEN_FINGER_GENERATOR: {
+    name: '金手指生成器',
+    description: '设计能撑起全书的金手指系统，包含成长路线、限制条件和爽点场景',
+    category: 'writing',
+    templateName: '金手指生成',
+    defaultParams: { temperature: 0.8, maxTokens: 3000, topP: 0.9 },
+  },
 };
 
 export const REVIEW_AGENTS = Object.entries(BUILT_IN_AGENTS)

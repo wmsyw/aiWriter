@@ -271,7 +271,7 @@ const OutlineTreeNode = ({
             </h4>
             <div className="flex items-center gap-2 flex-shrink-0">
               {node.children && node.children.length > 0 && <span className="text-green-400">✓</span>}
-              {node.content && (
+              {(node.content || node.level === 'rough') && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onRegenerate(node); }}
                   disabled={node.isGenerating}
@@ -294,9 +294,9 @@ const OutlineTreeNode = ({
           <div className="relative group">
             <textarea
               className="w-full bg-transparent text-sm text-gray-400 leading-relaxed resize-none focus:outline-none focus:text-gray-200 transition-colors"
-              value={node.content}
+              value={node.content || ''}
               onChange={(e) => onUpdate(node.id, e.target.value)}
-              rows={node.content.length > 100 ? 4 : 2}
+              rows={(node.content?.length || 0) > 100 ? 4 : 2}
             />
           </div>
         </div>
@@ -337,6 +337,8 @@ function NovelWizardContent() {
   const [generatedOutline, setGeneratedOutline] = useState('');
   const [worldBuildingLoading, setWorldBuildingLoading] = useState(false);
   const [characterLoading, setCharacterLoading] = useState(false);
+  const [synopsisLoading, setSynopsisLoading] = useState(false);
+  const [goldenFingerLoading, setGoldenFingerLoading] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [formData, setFormData] = useState({
@@ -726,6 +728,68 @@ function NovelWizardContent() {
       alert(error instanceof Error ? error.message : '生成失败');
     } finally {
       setCharacterLoading(false);
+    }
+  };
+
+  const startSynopsisGeneration = async (overrideId?: string) => {
+    const idToUse = overrideId || novelId;
+    if (!idToUse) return;
+    setSynopsisLoading(true);
+    try {
+      const keywordsArray = formData.keywords.length > 0 
+        ? formData.keywords 
+        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      const output = await runJob('WIZARD_SYNOPSIS', {
+        novelId: idToUse,
+        title: formData.title,
+        theme: formData.theme,
+        genre: formData.genre,
+        keywords: keywordsArray.join(', '),
+        protagonist: formData.protagonist,
+        worldSetting: formData.worldSetting,
+        goldenFinger: formData.goldenFinger,
+        existingSynopsis: formData.description,
+        specialRequirements: formData.specialRequirements,
+      });
+      if (output && output.synopsis) {
+        setField('description', output.synopsis);
+      }
+    } catch (error) {
+      console.error('Failed to generate synopsis', error);
+      alert(error instanceof Error ? error.message : '生成失败');
+    } finally {
+      setSynopsisLoading(false);
+    }
+  };
+
+  const startGoldenFingerGeneration = async (overrideId?: string) => {
+    const idToUse = overrideId || novelId;
+    if (!idToUse) return;
+    setGoldenFingerLoading(true);
+    try {
+      const keywordsArray = formData.keywords.length > 0 
+        ? formData.keywords 
+        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      const output = await runJob('WIZARD_GOLDEN_FINGER', {
+        novelId: idToUse,
+        title: formData.title,
+        theme: formData.theme,
+        genre: formData.genre,
+        keywords: keywordsArray.join(', '),
+        protagonist: formData.protagonist,
+        worldSetting: formData.worldSetting,
+        targetWords: formData.targetWords,
+        existingGoldenFinger: formData.goldenFinger,
+        specialRequirements: formData.specialRequirements,
+      });
+      if (output && output.golden_finger) {
+        setField('goldenFinger', output.golden_finger);
+      }
+    } catch (error) {
+      console.error('Failed to generate golden finger', error);
+      alert(error instanceof Error ? error.message : '生成失败');
+    } finally {
+      setGoldenFingerLoading(false);
     }
   };
 
@@ -1558,17 +1622,28 @@ function NovelWizardContent() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-gray-300">一句话简介</label>
+                  <Button
+                    variant="ai"
+                    size="sm"
+                    onClick={() => startSynopsisGeneration()}
+                    disabled={synopsisLoading || !novelId}
+                    isLoading={synopsisLoading}
+                  >
+                    {synopsisLoading ? '生成中' : '✨ AI 生成'}
+                  </Button>
+                </div>
                 <Textarea
-                  label="一句话简介"
                   className="min-h-[120px]"
                   value={formData.description}
                   onChange={e => setField('description', e.target.value)}
                   placeholder="生成后会自动填充，也可手动编辑"
                 />
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center mb-2">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
                   <label className="text-sm font-medium text-gray-300">世界观核心</label>
                   <Button
                     variant="ai"
@@ -1587,8 +1662,8 @@ function NovelWizardContent() {
                   placeholder="生成后会自动填充，也可手动编辑"
                 />
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center mb-2">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
                   <label className="text-sm font-medium text-gray-300">主角设定</label>
                   <Button
                     variant="ai"
@@ -1607,9 +1682,20 @@ function NovelWizardContent() {
                   placeholder="主角身份、性格、成长路径"
                 />
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-gray-300">金手指</label>
+                  <Button
+                    variant="ai"
+                    size="sm"
+                    onClick={() => startGoldenFingerGeneration()}
+                    disabled={goldenFingerLoading || !novelId}
+                    isLoading={goldenFingerLoading}
+                  >
+                    {goldenFingerLoading ? '生成中' : '✨ AI 生成'}
+                  </Button>
+                </div>
                 <Textarea
-                  label="金手指"
                   className="min-h-[120px]"
                   value={formData.goldenFinger}
                   onChange={e => setField('goldenFinger', e.target.value)}
@@ -1667,7 +1753,17 @@ function NovelWizardContent() {
             </div>
 
             {jobStatus && (
-              <Progress value={undefined} className="h-1" indicatorClassName="animate-progress-indeterminate" />
+              <div role="status" aria-live="polite" aria-label="生成进度" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                    <span className="text-emerald-300 text-sm font-medium">{jobStatus}</span>
+                  </div>
+                </div>
+                <div role="progressbar" aria-valuetext="生成中" className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-progress-shimmer" />
+                </div>
+              </div>
             )}
 
             <div className="flex-1 w-full border border-white/10 bg-black/20 rounded-xl p-6 min-h-[400px] custom-scrollbar overflow-y-auto">

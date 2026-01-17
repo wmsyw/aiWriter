@@ -59,6 +59,8 @@ export const TEMPLATE_NAMES = {
   WIZARD_WORLD_BUILDING: '世界观生成',
   WIZARD_CHARACTERS: '角色生成',
   INSPIRATION_GENERATOR: '灵感生成',
+  WIZARD_SYNOPSIS: '简介生成',
+  WIZARD_GOLDEN_FINGER: '金手指生成',
   
   // Chapter templates
   CHAPTER_GENERATE: '章节写作',
