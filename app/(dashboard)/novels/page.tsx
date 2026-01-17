@@ -87,8 +87,8 @@ export default function NovelsPage() {
                   >
                     <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-500" />
                     
-                    <CardContent className="h-full p-6 flex flex-col">
-                      <div className="flex justify-between items-start gap-3 mb-3 relative z-10">
+                    <CardContent className="h-full p-7 flex flex-col">
+                      <div className="flex justify-between items-start gap-4 mb-4 relative z-10">
                         <h3 className="text-xl font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors line-clamp-1 leading-tight flex-1">
                           {novel.title}
                         </h3>
@@ -98,12 +98,12 @@ export default function NovelsPage() {
                       </div>
                       
                       <div className="flex-grow relative z-10">
-                        <p className="text-sm text-zinc-400/80 line-clamp-3 mb-4 min-h-[4.5em] leading-relaxed">
+                        <p className="text-sm text-zinc-400/80 line-clamp-3 mb-5 min-h-[4.5em] leading-relaxed">
                           {novel.description || '暂无简介，点击开始创作...'}
                         </p>
                         
                         {novel.genre && (
-                          <div className="flex flex-wrap gap-2 mb-4">
+                          <div className="flex flex-wrap gap-2 mb-5">
                             <Badge variant="outline" size="sm" className="text-zinc-500 border-zinc-700/50 group-hover:border-emerald-500/30 group-hover:text-emerald-400/70 transition-colors">
                               {novel.genre}
                             </Badge>
@@ -111,7 +111,7 @@ export default function NovelsPage() {
                         )}
                       </div>
                       
-                      <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto relative z-10">
+                      <div className="pt-5 border-t border-white/5 flex items-center justify-between mt-auto relative z-10">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2 text-xs text-zinc-500 group-hover:text-zinc-400 transition-colors">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -3346,6 +3346,59 @@ ID：{{target_id}}
       { name: 'special_requirements', type: 'string' as const, description: '特殊要求' },
     ],
   },
+
+  MATERIAL_SEARCH: {
+    name: '素材搜索',
+    content: `你是一位专业的小说创作素材收集助手。根据用户搜索的关键词和网络搜索结果，提取并整理有价值的创作素材。
+
+## 用户搜索关键词
+{{keyword}}
+
+## 搜索类别
+{{categories}}
+
+## 网络搜索结果
+{{search_results}}
+
+## 任务要求
+请根据搜索结果，提取以下类型的素材信息（JSON格式）：
+
+\`\`\`json
+{
+  "materials": [
+    {
+      "type": "character|location|plotPoint|worldbuilding|custom",
+      "name": "素材名称",
+      "description": "详细描述",
+      "source": "信息来源URL",
+      "attributes": {
+        "key": "value"
+      }
+    }
+  ],
+  "summary": "搜索结果总结"
+}
+\`\`\`
+
+### 素材类型说明
+- **character**: 人物设定（名字、外貌、性格、背景等）
+- **location**: 地点设定（地名、地理特征、文化特色等）
+- **plotPoint**: 情节点（事件、冲突、转折等）
+- **worldbuilding**: 世界观设定（规则、体系、历史等）
+- **custom**: 其他类型的创作素材
+
+### 注意事项
+1. 只提取与小说创作相关的有价值信息
+2. 根据搜索类别（评价、人物、情节、世界观、设定）决定提取重点
+3. 每条素材都要标注来源URL
+4. 描述要详细具体，便于创作时参考
+5. 如果搜索结果与创作无关，返回空数组`,
+    variables: [
+      { name: 'keyword', type: 'string' as const, description: '搜索关键词' },
+      { name: 'categories', type: 'string' as const, description: '搜索类别' },
+      { name: 'search_results', type: 'string' as const, description: '网络搜索结果' },
+    ],
+  },
 };
 
 export async function seedBuiltInTemplates(userId: string): Promise<number> {

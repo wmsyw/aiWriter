@@ -24,6 +24,7 @@ import { handleReviewScore, handleConsistencyCheck, handleCanonCheck } from './p
 import { handleCharacterBios, handleCharacterChat, handleWizardCharacters } from './processors/character.js';
 import { handleNovelSeed, handleWizardWorldBuilding, handleWizardInspiration, handleWizardSynopsis, handleWizardGoldenFinger } from './processors/novel.js';
 import { handleMemoryExtract, handleDeaiRewrite, handleGitBackup } from './processors/utility.js';
+import { handleMaterialSearch } from './processors/material.js';
 import { 
   handleContextAssemble, 
   handleChapterSummaryGenerate, 
@@ -62,6 +63,7 @@ const handlers = {
   [JobType.MEMORY_EXTRACT]: handleMemoryExtract,
   [JobType.DEAI_REWRITE]: handleDeaiRewrite,
   [JobType.GIT_BACKUP]: handleGitBackup,
+  [JobType.MATERIAL_SEARCH]: handleMaterialSearch,
   [JobType.CONTEXT_ASSEMBLE]: handleContextAssemble,
   [JobType.CHAPTER_SUMMARY_GENERATE]: handleChapterSummaryGenerate,
   [JobType.HOOKS_EXTRACT]: handleHooksExtract,
@@ -78,7 +80,6 @@ const placeholderHandler = async () => ({ status: 'not_implemented' });
 const placeholderTypes = [
   JobType.ARTICLE_ANALYZE,
   JobType.BATCH_ARTICLE_ANALYZE,
-  JobType.MATERIAL_SEARCH,
   JobType.EMBEDDINGS_BUILD,
   JobType.IMAGE_GENERATE,
 ];

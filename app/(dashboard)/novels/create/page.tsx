@@ -1378,31 +1378,30 @@ function NovelWizardContent() {
                         options={GENRES.map(g => ({ value: g, label: g }))}
                         placeholder="选择频道"
                       />
+                    </div>
+                    <Input
+                      label="世界观一句话"
+                      value={formData.worldSetting}
+                      onChange={e => setField('worldSetting', e.target.value)}
+                      placeholder="例如：赛博朋克风格的修仙世界"
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">关键词 (Tags)</label>
                       <Input
-                        label="世界观一句话"
-                        className="md:col-span-2"
-                        value={formData.worldSetting}
-                        onChange={e => setField('worldSetting', e.target.value)}
-                        placeholder="例如：赛博朋克风格的修仙世界"
+                        value={formData.keywordsInput}
+                        onChange={e => setField('keywordsInput', e.target.value)}
+                        onBlur={() => setField('keywords', formData.keywordsInput.split(/[,，、]/).map(item => item.trim()).filter(Boolean))}
+                        placeholder="热血, 系统, 穿越 (用逗号分隔)"
                       />
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">关键词 (Tags)</label>
-                        <Input
-                          value={formData.keywordsInput}
-                          onChange={e => setField('keywordsInput', e.target.value)}
-                          onBlur={() => setField('keywords', formData.keywordsInput.split(/[,，、]/).map(item => item.trim()).filter(Boolean))}
-                          placeholder="热血, 系统, 穿越 (用逗号分隔)"
-                        />
-                        {keywordsDisplay && (
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {formData.keywords.map(k => (
-                              <span key={k} className="px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-300 text-xs border border-emerald-500/30">
-                                #{k}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      {keywordsDisplay && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {formData.keywords.map(k => (
+                            <span key={k} className="px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-300 text-xs border border-emerald-500/30">
+                              #{k}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
