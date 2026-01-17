@@ -186,6 +186,7 @@
 
   .glass-card {
     @apply bg-zinc-900/90 border border-zinc-800 shadow-xl backdrop-blur-sm rounded-xl transition-all duration-200;
+    transform: translateZ(0);
   }
 
   .glass-card:hover {
