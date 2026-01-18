@@ -1,7 +1,7 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
 import { createJob } from '../../src/server/services/jobs.js';
-import { saveVersion, saveBranchVersions } from '../../src/server/services/versioning.js';
+import { saveVersion, saveBranchVersions, deleteUnusedBranches } from '../../src/server/services/versioning.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
 import { decryptApiKey } from '../../src/core/crypto.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
@@ -321,6 +321,8 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
   );
 
   const branches = await Promise.all(branchPromises);
+
+  await deleteUnusedBranches(chapterId, chapter.currentVersionId);
 
   const parentVersion = selectedVersionId || chapter.currentVersionId || null;
   await saveBranchVersions(chapterId, branches, parentVersion);

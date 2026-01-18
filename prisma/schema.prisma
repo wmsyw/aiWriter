@@ -23,65 +23,65 @@ model User {
 }
 
 model ProviderConfig {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name            String
-  providerType    String
-  baseURL         String
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  providerType     String
+  baseURL          String
   apiKeyCiphertext String
-  defaultModel    String?
-  models          Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  defaultModel     String?
+  models           Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@unique([userId, name])
   @@index([userId])
 }
 
 model Novel {
-  id              String          @id @default(cuid())
-  userId          String
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title           String
-  description     String?         @db.Text
-  type            String          @default("short") // "short" or "long"
-  goldenFinger    String?         @db.Text
-  generationStage String          @default("seed") // seed, seeded, rough, detailed, chapters, drafting, completed
-  outline         String?         @db.Text
-  outlineRough    Json?
-  outlineDetailed Json?
-  outlineChapters Json?
-  outlineStage    String          @default("none") // none, rough, detailed, chapters
-  wizardStatus    String          @default("draft") // draft, in_progress, completed
-  wizardStep      Int             @default(0)
-  outlineMode     String          @default("simple")
-  theme           String?
-  genre           String?
-  targetWords     Int?
-  chapterCount    Int?
-  protagonist     String?         @db.Text
-  worldSetting    String?         @db.Text
-  worldTimePeriod String?
-  worldLocation   String?
-  worldAtmosphere String?
-  worldRules      String?         @db.Text
-  keywords        String[]        @default([])
-  specialRequirements String?     @db.Text
-  inspirationData Json?
+  id                    String           @id @default(cuid())
+  userId                String
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String?          @db.Text
+  type                  String           @default("short") // "short" or "long"
+  goldenFinger          String?          @db.Text
+  generationStage       String           @default("seed") // seed, seeded, rough, detailed, chapters, drafting, completed
+  outline               String?          @db.Text
+  outlineRough          Json?
+  outlineDetailed       Json?
+  outlineChapters       Json?
+  outlineStage          String           @default("none") // none, rough, detailed, chapters
+  wizardStatus          String           @default("draft") // draft, in_progress, completed
+  wizardStep            Int              @default(0)
+  outlineMode           String           @default("simple")
+  theme                 String?
+  genre                 String?
+  targetWords           Int?
+  chapterCount          Int?
+  protagonist           String?          @db.Text
+  worldSetting          String?          @db.Text
+  worldTimePeriod       String?
+  worldLocation         String?
+  worldAtmosphere       String?
+  worldRules            String?          @db.Text
+  keywords              String[]         @default([])
+  specialRequirements   String?          @db.Text
+  inspirationData       Json?
   // 工作流配置
-  workflowConfig        Json?               // 工作流配置 (审查阈值等)
-  hookReminderChapters  Int       @default(10)  // 钩子提醒阈值 (N章后提醒)
-  outlineDeviationLimit Float     @default(0.4) // 大纲偏离上限 (40%)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  chapters        Chapter[]
-  materials       Material[]
-  lorebookEntries LorebookEntry[]
-  narrativeHooks  NarrativeHook[]
-  pendingEntities PendingEntity[]
-  actSummaries    ActSummary[]
-  chapterSummaries ChapterSummary[]
+  workflowConfig        Json? // 工作流配置 (审查阈值等)
+  hookReminderChapters  Int              @default(10) // 钩子提醒阈值 (N章后提醒)
+  outlineDeviationLimit Float            @default(0.4) // 大纲偏离上限 (40%)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  chapters              Chapter[]
+  materials             Material[]
+  lorebookEntries       LorebookEntry[]
+  narrativeHooks        NarrativeHook[]
+  pendingEntities       PendingEntity[]
+  actSummaries          ActSummary[]
+  chapterSummaries      ChapterSummary[]
 
   @@index([userId])
 }
@@ -97,11 +97,11 @@ model Chapter {
   generationStage  String           @default("draft") // draft, generating, generated, reviewing, reviewed, approved, rejected, humanizing, humanized, completed
   reviewIterations Int              @default(0)
   // 新增审查相关字段
-  reviewFeedback   Json?            // 结构化审查反馈
-  outlineAdherence Float?           // 大纲符合度分数 (0-1)
+  reviewFeedback   Json? // 结构化审查反馈
+  outlineAdherence Float? // 大纲符合度分数 (0-1)
   pendingReview    Boolean          @default(false) // 是否等待批量审查
-  approvedAt       DateTime?        // 审查通过时间
-  lastReviewAt     DateTime?        // 最后审查时间
+  approvedAt       DateTime? // 审查通过时间
+  lastReviewAt     DateTime? // 最后审查时间
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   versions         ChapterVersion[]
@@ -146,23 +146,23 @@ model LorebookEntry {
 }
 
 model Material {
-  id          String   @id @default(cuid())
-  novelId     String
-  novel       Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  userId      String
-  type        String
-  name        String
-  genre       String   @default("通用")
-  searchGroup String?
-  sourceUrl   String?
-  data        Json
-  aliases     String[] @default([])
+  id                String   @id @default(cuid())
+  novelId           String
+  novel             Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  userId            String
+  type              String
+  name              String
+  genre             String   @default("通用")
+  searchGroup       String?
+  sourceUrl         String?
+  data              Json
+  aliases           String[] @default([])
   lastActiveChapter Int?
   appearanceCount   Int      @default(0)
   codexPriority     Int      @default(50)
   codexMetadata     Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([novelId])
   @@index([userId])
@@ -191,7 +191,7 @@ model AgentDefinition {
   userId           String
   name             String
   description      String?
-  category         String?  // "writing", "review", "utility"
+  category         String? // "writing", "review", "utility"
   templateId       String?
   providerConfigId String?
   model            String?
@@ -243,31 +243,34 @@ model UsageRecord {
 }
 
 model ModelPrice {
-  id                    String   @id @default(cuid())
-  provider              String
-  model                 String
-  promptTokenPrice      Float
-  completionTokenPrice  Float
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  provider             String
+  model                String
+  promptTokenPrice     Float
+  completionTokenPrice Float
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@unique([provider, model])
 }
 
 model Job {
-  id           String   @id @default(cuid())
-  userId       String
-  type         String
-  status       String   @default("queued")
-  input        Json?
-  output       Json?
-  error        String?
-  attemptCount Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                   String             @id @default(cuid())
+  userId               String
+  type                 String
+  status               String             @default("queued")
+  input                Json?
+  output               Json?
+  error                String?
+  attemptCount         Int                @default(0)
+  pipelineExecutionId  String?            @unique
+  pipelineExecution    PipelineExecution? @relation(fields: [pipelineExecutionId], references: [id])
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@index([userId])
   @@index([status])
+  @@index([pipelineExecutionId])
 }
 
 model FileObject {
@@ -286,16 +289,16 @@ model FileObject {
 }
 
 model AuditEvent {
-  id          String   @id @default(cuid())
-  userId      String?
-  action      String
-  resource    String
-  resourceId  String?
-  metadata    Json?
-  ipAddress   String?
-  userAgent   String?
-  success     Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  success    Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([action])
@@ -343,17 +346,17 @@ model NarrativeHook {
   id                   String   @id @default(cuid())
   novelId              String
   novel                Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  type                 String   // foreshadowing, chekhov_gun, mystery, promise, setup
+  type                 String // foreshadowing, chekhov_gun, mystery, promise, setup
   description          String   @db.Text
   plantedInChapter     Int
-  plantedContext       String?  @db.Text  // 埋设时的具体文本
+  plantedContext       String?  @db.Text // 埋设时的具体文本
   referencedInChapters Int[]    @default([])
   resolvedInChapter    Int?
-  resolutionContext    String?  @db.Text  // 解决时的具体文本
+  resolutionContext    String?  @db.Text // 解决时的具体文本
   status               String   @default("planted") // planted, referenced, resolved, abandoned
-  importance           String   @default("minor")   // critical, major, minor
-  expectedResolutionBy Int?     // 预期解决章节
-  reminderThreshold    Int      @default(10)        // N章后提醒
+  importance           String   @default("minor") // critical, major, minor
+  expectedResolutionBy Int? // 预期解决章节
+  reminderThreshold    Int      @default(10) // N章后提醒
   relatedCharacters    String[] @default([])
   relatedOrganizations String[] @default([])
   notes                String?  @db.Text
@@ -397,22 +400,22 @@ model ChapterSummary {
 }
 
 model ActSummary {
-  id                  String   @id @default(cuid())
-  novelId             String
-  novel               Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  actNumber           Int
-  title               String?
-  chapterRange        Json
-  oneLine             String   @db.Text
-  majorEvents         Json     @default("[]")
-  characterArcs       Json     @default("[]")
-  plotProgression     String?  @db.Text
-  thematicElements    Json     @default("[]")
-  unresolvedHooks     Json     @default("[]")
-  resolvedHooks       Json     @default("[]")
-  tensionLevel        Int?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id               String   @id @default(cuid())
+  novelId          String
+  novel            Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  actNumber        Int
+  title            String?
+  chapterRange     Json
+  oneLine          String   @db.Text
+  majorEvents      Json     @default("[]")
+  characterArcs    Json     @default("[]")
+  plotProgression  String?  @db.Text
+  thematicElements Json     @default("[]")
+  unresolvedHooks  Json     @default("[]")
+  resolvedHooks    Json     @default("[]")
+  tensionLevel     Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@unique([novelId, actNumber])
   @@index([novelId])
@@ -422,21 +425,133 @@ model ActSummary {
 // 待确认实体队列 - 管理章节中涌现的新角色/组织
 // ═══════════════════════════════════════════════════════════════
 model PendingEntity {
-  id             String    @id @default(cuid())
-  novelId        String
-  novel          Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  chapterId      String
-  chapterNumber  Int
-  entityType     String    // character, organization
-  name           String
-  extractedData  Json      // 从章节提取的原始数据
-  status         String    @default("pending") // pending, approved, rejected, merged
-  mergedWithId   String?   // 如果与已有实体合并,记录目标Material ID
-  reviewNotes    String?   @db.Text
-  reviewedAt     DateTime?
-  createdAt      DateTime  @default(now())
+  id            String    @id @default(cuid())
+  novelId       String
+  novel         Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapterId     String
+  chapterNumber Int
+  entityType    String // character, organization
+  name          String
+  extractedData Json // 从章节提取的原始数据
+  status        String    @default("pending") // pending, approved, rejected, merged
+  mergedWithId  String? // 如果与已有实体合并,记录目标Material ID
+  reviewNotes   String?   @db.Text
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
 
   @@index([novelId, status])
   @@index([chapterId])
   @@index([novelId, entityType, status])
+}
+
+model PipelineExecution {
+  id             String    @id @default(cuid())
+  novelId        String
+  chapterId      String?
+  userId         String
+  pipelineType   String
+  status         String    @default("pending")
+  currentStageId String
+  stageIndex     Int       @default(0)
+  context        Json?
+  config         Json?
+  error          String?   @db.Text
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  durationMs     Int?
+
+  stageExecutions PipelineStageExecution[]
+  checkpoints     PipelineCheckpoint[]
+  job             Job?
+
+  @@index([novelId])
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([novelId, pipelineType])
+}
+
+model PipelineStageExecution {
+  id          String            @id @default(cuid())
+  executionId String
+  execution   PipelineExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stageId     String
+  stageName   String
+  status      String            @default("pending")
+  input       Json?
+  output      Json?
+  error       String?           @db.Text
+  retryCount  Int               @default(0)
+  metrics     Json?
+  startedAt   DateTime          @default(now())
+  completedAt DateTime?
+  durationMs  Int?
+
+  @@index([executionId])
+  @@index([executionId, stageId])
+}
+
+model PipelineCheckpoint {
+  id            String            @id @default(cuid())
+  executionId   String
+  execution     PipelineExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stageId       String
+  stageIndex    Int
+  state         Json
+  partialOutput Json?
+  recoveryHint  String?
+  createdAt     DateTime          @default(now())
+
+  @@unique([executionId, stageId])
+  @@index([executionId])
+}
+
+model PipelineEventLog {
+  id            String   @id @default(cuid())
+  executionId   String
+  pipelineType  String
+  eventType     String
+  data          Json?
+  timestamp     DateTime @default(now())
+
+  @@index([executionId])
+  @@index([pipelineType, timestamp])
+  @@index([eventType, timestamp])
+}
+
+model PipelineMetrics {
+  id               String   @id @default(cuid())
+  executionId      String   @unique
+  pipelineType     String
+  novelId          String
+  userId           String
+  status           String
+  startedAt        DateTime
+  completedAt      DateTime?
+  totalDurationMs  Int?
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  estimatedCost    Float    @default(0)
+  errorCount       Int      @default(0)
+  retryCount       Int      @default(0)
+  stageMetrics     Json?
+
+  @@index([pipelineType, startedAt])
+  @@index([novelId])
+  @@index([userId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 分布式锁 - 用于多 Worker 环境下的管道执行互斥
+// ═══════════════════════════════════════════════════════════════
+model DistributedLock {
+  id         String   @id
+  resourceId String   @unique
+  ownerId    String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
 }

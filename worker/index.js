@@ -35,6 +35,7 @@ import {
   handlePlotSimulate,
   handlePlotBranchGenerate
 } from './processors/workflow.js';
+import { handlePipelineExecute } from './processors/pipeline.js';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -74,6 +75,7 @@ const handlers = {
   [JobType.ACT_SUMMARY_GENERATE]: handleActSummaryGenerate,
   [JobType.PLOT_SIMULATE]: handlePlotSimulate,
   [JobType.PLOT_BRANCH_GENERATE]: handlePlotBranchGenerate,
+  [JobType.PIPELINE_EXECUTE]: handlePipelineExecute,
 };
 
 const placeholderHandler = async () => ({ status: 'not_implemented' });
@@ -83,6 +85,44 @@ const placeholderTypes = [
   JobType.EMBEDDINGS_BUILD,
   JobType.IMAGE_GENERATE,
 ];
+
+async function cleanupZombieExecutions() {
+  log.info('Cleaning up zombie pipeline executions...');
+  
+  try {
+    const zombieThreshold = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    
+    const updated = await prisma.$executeRaw`
+      UPDATE "PipelineExecution" 
+      SET status = 'failed', 
+          error = 'Worker restart - execution was interrupted',
+          "completedAt" = NOW()
+      WHERE status = 'running' 
+        AND "startedAt" < ${zombieThreshold}
+    `;
+    
+    if (updated > 0) {
+      log.info('Cleaned up zombie executions', { count: updated });
+    }
+    
+    const jobsUpdated = await prisma.job.updateMany({
+      where: {
+        status: 'running',
+        updatedAt: { lt: zombieThreshold },
+      },
+      data: {
+        status: 'failed',
+        error: 'Worker restart - job was interrupted',
+      },
+    });
+    
+    if (jobsUpdated.count > 0) {
+      log.info('Cleaned up zombie jobs', { count: jobsUpdated.count });
+    }
+  } catch (err) {
+    log.warn('Failed to cleanup zombie executions', { error: err.message });
+  }
+}
 
 async function handleJob([job]) {
   if (!job) {
@@ -190,21 +230,71 @@ async function startWorker() {
     log.debug('PgBoss monitor-states', states);
   });
   
+  const setupGracefulShutdown = () => {
+    let isShuttingDown = false;
+    
+    const shutdown = async (signal) => {
+      if (isShuttingDown) return;
+      isShuttingDown = true;
+      
+      log.info(`Received ${signal}, starting graceful shutdown...`);
+      
+      try {
+        await boss.stop({ graceful: true, timeout: 60000 });
+        log.info('PgBoss stopped gracefully');
+        
+        await prisma.$disconnect();
+        log.info('Prisma disconnected');
+        
+        await pool.end();
+        log.info('PostgreSQL pool closed');
+        
+        process.exit(0);
+      } catch (err) {
+        log.error('Error during graceful shutdown', {}, err);
+        process.exit(1);
+      }
+    };
+    
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+  };
+  
   try {
     await boss.start();
     log.info('PgBoss started successfully');
+    setupGracefulShutdown();
   } catch (startErr) {
     log.error('Failed to start PgBoss', {}, startErr);
     process.exit(1);
   }
   
+  await cleanupZombieExecutions();
+  
   const allQueues = Object.values(JobType);
   log.info('Creating queues', { count: allQueues.length });
   
+  const AI_HEAVY_QUEUES = [
+    JobType.CHAPTER_GENERATE,
+    JobType.CHAPTER_GENERATE_BRANCHES,
+    JobType.OUTLINE_GENERATE,
+    JobType.OUTLINE_ROUGH,
+    JobType.OUTLINE_DETAILED,
+    JobType.OUTLINE_CHAPTERS,
+    JobType.DEAI_REWRITE,
+    JobType.PIPELINE_EXECUTE,
+  ];
+  
   for (const queue of allQueues) {
     try {
-      await boss.createQueue(queue);
-      log.debug('Queue created', { queue });
+      const isAIHeavy = AI_HEAVY_QUEUES.includes(queue);
+      await boss.createQueue(queue, {
+        retryLimit: isAIHeavy ? 3 : 2,
+        retryDelay: isAIHeavy ? 30 : 10,
+        retryBackoff: true,
+        expireInSeconds: isAIHeavy ? 7200 : 900,
+      });
+      log.debug('Queue created', { queue, isAIHeavy });
     } catch (queueErr) {
       log.warn('Queue creation issue', { queue, error: queueErr.message });
     }

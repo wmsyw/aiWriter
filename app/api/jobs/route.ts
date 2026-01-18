@@ -317,6 +317,10 @@ export async function GET(req: NextRequest) {
   const session = await getSessionUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const jobs = await listJobs(session.userId);
-  return NextResponse.json(jobs);
+  const searchParams = req.nextUrl.searchParams;
+  const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+  const cursor = searchParams.get('cursor') || undefined;
+
+  const { jobs, nextCursor } = await listJobs(session.userId, { limit, cursor });
+  return NextResponse.json({ jobs, nextCursor, hasMore: nextCursor !== null });
 }

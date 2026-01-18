@@ -4,7 +4,7 @@ import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, t
 
 
 export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
-  const { chapterId, agentId, reviewerModels } = input;
+  const { chapterId, agentId } = input;
 
   const chapter = await prisma.chapter.findUnique({
     where: { id: chapterId },
@@ -25,63 +25,6 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
     ? renderTemplateString(template.content, context)
     : `Review this chapter and provide a score from 1-10:\n\n${chapter.content}`;
 
-  // Multi-model review support
-  if (reviewerModels && reviewerModels.length > 1) {
-    const reviews = await Promise.all(
-      reviewerModels.map(async (reviewer, index) => {
-        const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, reviewer.providerConfigId);
-        
-        let prompt = basePrompt;
-        if (reviewer.persona) {
-          prompt = `你现在扮演的是：${reviewer.persona}\n\n请从你的视角对以下章节进行评审，给出你独特的见解和评分。\n\n${basePrompt}`;
-        }
-        
-        const params = agent?.params || {};
-        const effectiveModel = resolveModel(reviewer.model, defaultModel, config.defaultModel);
-        const response = await withConcurrencyLimit(() => adapter.generate(config, {
-          messages: [{ role: 'user', content: prompt }],
-          model: effectiveModel,
-          temperature: params.temperature || 0.3,
-          maxTokens: params.maxTokens || 4000,
-        }));
-        
-        await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-        
-        const parsedReview = parseModelJson(response.content);
-        
-        return {
-          reviewerIndex: index + 1,
-          persona: reviewer.persona || `读者${index + 1}`,
-          model: reviewer.model,
-          review: parsedReview,
-        };
-      })
-    );
-    
-    // Aggregate scores from all reviewers
-    const validScores = reviews
-      .map(r => r.review?.overall_score)
-      .filter(s => typeof s === 'number');
-    
-    const aggregated = {
-      averageScore: validScores.length > 0 
-        ? Number((validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(2))
-        : null,
-      reviewCount: reviews.length,
-      scoreRange: validScores.length > 0 
-        ? { min: Math.min(...validScores), max: Math.max(...validScores) }
-        : null,
-    };
-
-    await prisma.chapter.update({
-      where: { id: chapterId },
-      data: { generationStage: 'reviewed' },
-    });
-    
-    return { reviews, aggregated, isMultiReview: true };
-  }
-
-  // Single model review (existing logic)
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   const params = agent?.params || {};

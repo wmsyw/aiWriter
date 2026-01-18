@@ -119,9 +119,8 @@ export default function ChapterEditorPage() {
   const [reviewFeedback, setReviewFeedback] = useState('');
   const [mounted, setMounted] = useState(false);
   
-  // Review panel state (moved from renderReviewPanel to fix React Hooks rule violation)
+  // Review panel state
   const [reviewPanelActiveTab, setReviewPanelActiveTab] = useState<'review' | 'consistency'>('review');
-  const [activeReviewIdx, setActiveReviewIdx] = useState(0);
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
@@ -591,7 +590,17 @@ export default function ChapterEditorPage() {
     const hasReview = !!reviewResult;
     const hasConsistency = !!consistencyResult;
 
-    const isMulti = reviewResult?.isMultiReview;
+    const getScoreColor = (score: number) => {
+      if (score >= 8) return 'text-emerald-400';
+      if (score >= 6) return 'text-amber-400';
+      return 'text-red-400';
+    };
+
+    const getScoreBgColor = (score: number) => {
+      if (score >= 8) return 'from-emerald-500/20 to-emerald-900/20 border-emerald-500/30';
+      if (score >= 6) return 'from-amber-500/20 to-amber-900/20 border-amber-500/30';
+      return 'from-red-500/20 to-red-900/20 border-red-500/30';
+    };
 
     return createPortal(
       <AnimatePresence>
@@ -602,17 +611,17 @@ export default function ChapterEditorPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-5xl h-[85vh]"
+              className="w-full max-w-4xl h-[80vh]"
             >
               <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
                 <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
                   <div>
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                       <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
-                      章节评审与检查
+                      章节评审
                     </h2>
                     <p className="text-sm text-gray-400 mt-1">
-                      AI 评审员针对情节、节奏、一致性等维度的专业反馈
+                      AI 对情节、节奏、一致性等维度的专业评审
                     </p>
                   </div>
                   <button 
@@ -644,125 +653,70 @@ export default function ChapterEditorPage() {
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                   {reviewPanelActiveTab === 'review' && reviewResult && (
-                    isMulti ? (
-                    <div className="space-y-8">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Card className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-purple-500/10 border-emerald-500/20">
-                          <div className="text-sm text-gray-400 mb-1">平均评分</div>
-                          <div className="text-3xl font-bold text-white">{reviewResult.aggregated.averageScore}</div>
-                        </Card>
-                        <Card className="p-4 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">最高分</div>
-                          <div className="text-2xl font-bold text-emerald-400">{reviewResult.aggregated.maxScore}</div>
-                        </Card>
-                         <Card className="p-4 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">最低分</div>
-                          <div className="text-2xl font-bold text-orange-400">{reviewResult.aggregated.minScore}</div>
-                        </Card>
-                        <Card className="p-4 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">评审员数量</div>
-                          <div className="text-2xl font-bold text-blue-400">{reviewResult.aggregated.reviewCount}</div>
-                        </Card>
-                      </div>
-
-                      <div className="flex flex-col md:flex-row gap-6">
-                        <div className="w-full md:w-64 flex-shrink-0 space-y-2">
-                           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">评审员观点</h3>
-                           {reviewResult.reviews.map((review: any, idx: number) => (
-                             <button
-                               key={idx}
-                               onClick={() => setActiveReviewIdx(idx)}
-                               className={`w-full text-left p-3 rounded-xl transition-all border ${
-                                 activeReviewIdx === idx
-                                   ? 'bg-emerald-500/20 border-emerald-500/50 text-white shadow-lg shadow-emerald-500/10'
-                                   : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
-                               }`}
-                             >
-                               <div className="flex justify-between items-center mb-1">
-                                 <span className="font-bold text-sm">{review.persona || 'AI Reviewer'}</span>
-                                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                                   review.score >= 8 ? 'bg-green-500/20 text-green-400' :
-                                   review.score >= 6 ? 'bg-yellow-500/20 text-yellow-400' :
-                                   'bg-red-500/20 text-red-400'
-                                 }`}>{review.score}</span>
-                               </div>
-                               <div className="text-xs opacity-70 truncate">{review.model}</div>
-                             </button>
-                           ))}
-                        </div>
-
-                        <Card className="flex-1 bg-black/20 rounded-2xl p-6 border border-white/5">
-                          {reviewResult.reviews[activeReviewIdx] && (
-                            <motion.div 
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              className="space-y-6"
-                            >
-                              <div className="flex items-start gap-4">
-                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                                   {reviewResult.reviews[activeReviewIdx].persona?.[0] || 'A'}
-                                 </div>
-                                 <div>
-                                   <h3 className="text-lg font-bold text-white">
-                                     {reviewResult.reviews[activeReviewIdx].persona || '评审员'}
-                                   </h3>
-                                   <p className="text-sm text-gray-400">
-                                     模型: {reviewResult.reviews[activeReviewIdx].model}
-                                   </p>
-                                 </div>
-                              </div>
-
-                              <div className="prose prose-invert max-w-none text-gray-300 leading-relaxed">
-                                <p className="text-lg font-serif italic border-l-4 border-emerald-500/50 pl-4 py-2 bg-emerald-500/5 rounded-r-lg">
-                                  "{reviewResult.reviews[activeReviewIdx].comment}"
-                                </p>
-                                
-                                {reviewResult.reviews[activeReviewIdx].critique && (
-                                   <div className="mt-6 grid gap-4">
-                                     {Object.entries(reviewResult.reviews[activeReviewIdx].critique).map(([key, value]) => (
-                                       <div key={key} className="bg-white/5 p-4 rounded-xl">
-                                         <h4 className="font-bold text-emerald-300 mb-2 capitalize">{key}</h4>
-                                         <p className="text-sm">{String(value)}</p>
-                                       </div>
-                                     ))}
-                                   </div>
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </Card>
-                      </div>
-                    </div>
-                  ) : (
                     <div className="space-y-6">
-                       <Card className="p-6 rounded-2xl bg-gradient-to-br from-emerald-900/20 to-purple-900/20 border-emerald-500/30">
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-purple-400">
-                              {reviewResult.score || reviewResult.totalScore || 0}
-                              <span className="text-lg text-gray-500 font-normal ml-2">/ 10</span>
+                      <Card className={`p-6 rounded-2xl bg-gradient-to-br border ${getScoreBgColor(reviewResult.overall_score || reviewResult.score || reviewResult.totalScore || 0)}`}>
+                        <div className="flex items-center gap-6 mb-4">
+                          <div className={`text-5xl font-bold ${getScoreColor(reviewResult.overall_score || reviewResult.score || reviewResult.totalScore || 0)}`}>
+                            {reviewResult.overall_score || reviewResult.score || reviewResult.totalScore || 0}
+                            <span className="text-xl text-gray-500 font-normal ml-2">/ 10</span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm text-gray-400 mb-1">综合评分</div>
+                            <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-1000 ${
+                                  (reviewResult.overall_score || reviewResult.score || 0) >= 8 ? 'bg-emerald-500' :
+                                  (reviewResult.overall_score || reviewResult.score || 0) >= 6 ? 'bg-amber-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${(reviewResult.overall_score || reviewResult.score || reviewResult.totalScore || 0) * 10}%` }}
+                              />
                             </div>
                           </div>
-                          <p className="text-lg text-gray-200 font-serif leading-relaxed">
-                            {reviewResult.comment || reviewResult.summary}
-                          </p>
-                       </Card>
+                        </div>
+                        <p className="text-lg text-gray-200 font-serif leading-relaxed">
+                          {reviewResult.comment || reviewResult.summary || reviewResult.overall_comment}
+                        </p>
+                      </Card>
                        
-                       {reviewResult.critique && (
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           {Object.entries(reviewResult.critique).map(([key, value]) => (
-                             <Card key={key} className="p-5 rounded-xl">
-                               <h4 className="font-bold text-emerald-300 mb-2 capitalize border-b border-white/5 pb-2">
-                                 {key.replace(/([A-Z])/g, ' $1').trim()}
-                               </h4>
-                               <p className="text-gray-300 text-sm leading-relaxed">
-                                 {String(value)}
-                               </p>
-                             </Card>
-                           ))}
-                         </div>
-                       )}
+                      {reviewResult.critique && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {Object.entries(reviewResult.critique).map(([key, value]) => (
+                            <Card key={key} className="p-5 rounded-xl hover:bg-white/5 transition-colors">
+                              <h4 className="font-bold text-emerald-300 mb-2 capitalize border-b border-white/5 pb-2">
+                                {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                              </h4>
+                              <p className="text-gray-300 text-sm leading-relaxed">
+                                {String(value)}
+                              </p>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+
+                      {reviewResult.dimensions && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {Object.entries(reviewResult.dimensions).map(([key, dim]: [string, any]) => (
+                            <Card key={key} className="p-4 rounded-xl">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-gray-400 text-sm capitalize">{key.replace(/_/g, ' ')}</span>
+                                <span className={`font-bold ${getScoreColor(dim?.score || 0)}`}>{dim?.score || 0}</span>
+                              </div>
+                              <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                                <div 
+                                  className={`h-full rounded-full transition-all duration-1000 ${
+                                    (dim?.score || 0) >= 8 ? 'bg-emerald-500' :
+                                    (dim?.score || 0) >= 6 ? 'bg-amber-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${(dim?.score || 0) * 10}%` }}
+                                />
+                              </div>
+                              {dim?.comment && <p className="text-xs text-gray-500">{dim.comment}</p>}
+                            </Card>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )}
 
                   {reviewPanelActiveTab === 'consistency' && consistencyResult && (
                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -808,7 +762,7 @@ export default function ChapterEditorPage() {
                       value={reviewFeedback}
                       onChange={(e) => setReviewFeedback(e.target.value)}
                       placeholder="告诉 AI 需要怎么改，比如节奏更快或补充情感描写..."
-                      className="w-full p-3 h-24 text-sm resize-none rounded-lg bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-white placeholder-gray-500 outline-none"
+                      className="w-full p-3 h-20 text-sm resize-none rounded-lg bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-white placeholder-gray-500 outline-none"
                     />
                   </div>
                   <div className="flex justify-end gap-3">

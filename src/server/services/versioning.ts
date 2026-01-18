@@ -96,6 +96,20 @@ export async function getBranches(chapterId: string): Promise<BranchInfo[]> {
   }));
 }
 
+export async function deleteUnusedBranches(chapterId: string, excludeVersionId?: string): Promise<number> {
+  const where: { chapterId: string; isBranch: true; id?: { not: string } } = { 
+    chapterId, 
+    isBranch: true 
+  };
+  
+  if (excludeVersionId) {
+    where.id = { not: excludeVersionId };
+  }
+  
+  const result = await prisma.chapterVersion.deleteMany({ where });
+  return result.count;
+}
+
 export async function selectBranch(chapterId: string, versionId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const branch = await tx.chapterVersion.findUnique({ where: { id: versionId } });

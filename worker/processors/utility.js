@@ -278,11 +278,21 @@ export async function handleMemoryExtract(prisma, job, { jobId, userId, input })
 
   const existingMaterials = await prisma.material.findMany({
     where: { novelId: chapter.novelId },
-    select: { name: true, type: true },
+    select: { id: true, name: true, type: true, metadata: true },
   });
   const existingCharacterNames = existingMaterials.filter(m => m.type === 'character').map(m => m.name);
+  const existingCharacterData = existingMaterials
+    .filter(m => m.type === 'character')
+    .map(m => ({ name: m.name, relationships: m.metadata?.relationships || [] }));
 
-  const enhancedPrompt = `请分析以下章节内容，提取记忆信息。返回JSON格式。
+  const previousSummaries = await prisma.chapterSummary.findMany({
+    where: { novelId: chapter.novelId, chapterNumber: { lt: chapter.order } },
+    orderBy: { chapterNumber: 'desc' },
+    take: 3,
+    select: { chapterNumber: true, oneLine: true, keyEvents: true },
+  });
+
+  const enhancedPrompt = `你是一个专为百万字网文设计的记忆提取系统。从每章精准提取关键信息，确保长篇连载不会出现人设崩塌、设定矛盾、剧情断层。
 
 ## 本章内容
 ${chapter.content || ''}
@@ -293,8 +303,11 @@ ${chapter.content || ''}
 ## 类型
 ${chapter.novel.genre || '通用'}
 
-## 已有角色
-${existingCharacterNames.join(', ') || '（暂无）'}
+## 已有角色及关系
+${existingCharacterData.length > 0 ? existingCharacterData.map(c => `${c.name}: ${JSON.stringify(c.relationships)}`).join('\n') : '（暂无）'}
+
+## 前情提要
+${previousSummaries.length > 0 ? previousSummaries.map(s => `第${s.chapterNumber}章: ${s.oneLine}`).join('\n') : '（暂无）'}
 
 ## 未解决的钩子
 ${existingHooksContext || '（暂无）'}
@@ -311,8 +324,9 @@ ${existingHooksContext || '（暂无）'}
     "mentioned_only": ["仅提及的角色名"]
   },
   "relationships": [
-    {"character1": "角色1", "character2": "角色2", "relationship": "关系类型", "change": "变化"}
+    {"character1": "角色1", "character2": "角色2", "relationship": "关系类型", "change": "变化", "is_new": true}
   ],
+  "relationship_summary": "本章人物关系总结，包括新建立的关系、关系变化、关系强化等",
   "organizations": [
     {"name": "组织名", "type": "类型", "description": "描述", "members": ["成员"], "influence": "影响力"}
   ],
@@ -328,6 +342,14 @@ ${existingHooksContext || '（暂无）'}
     ],
     "resolved": [
       {"hookDescription": "被解决钩子的描述", "resolutionContext": "解决文本"}
+    ]
+  },
+  "memory_merge": {
+    "updated_characters": [
+      {"name": "已有角色名", "new_info": "需要更新的新信息", "merge_reason": "合并原因"}
+    ],
+    "updated_relationships": [
+      {"character1": "角色1", "character2": "角色2", "update": "关系更新内容"}
     ]
   },
   "summary": {
@@ -369,6 +391,7 @@ ${existingHooksContext || '（暂无）'}
   let hooksResult = null;
   let pendingEntitiesResult = null;
   let summaryResult = null;
+  let mergeResult = null;
 
   const materialStats = await prisma.$transaction(async (tx) => {
     await tx.memorySnapshot.deleteMany({ where: { chapterId } });
@@ -379,6 +402,78 @@ ${existingHooksContext || '（暂无）'}
         data: analysis,
       },
     });
+
+    if (analysis.memory_merge?.updated_characters) {
+      const charUpdatePromises = analysis.memory_merge.updated_characters.map(async (update) => {
+        const existingMaterial = existingMaterials.find(m => m.name === update.name && m.type === 'character');
+        if (!existingMaterial) return;
+        
+        const currentMaterial = await tx.material.findUnique({ where: { id: existingMaterial.id } });
+        if (!currentMaterial) return;
+        
+        const existingMeta = currentMaterial.metadata || {};
+        await tx.material.update({
+          where: { id: existingMaterial.id },
+          data: {
+            metadata: {
+              ...existingMeta,
+              chapterUpdates: [
+                ...(existingMeta.chapterUpdates || []),
+                { chapter: chapter.order, info: update.new_info, reason: update.merge_reason }
+              ]
+            }
+          }
+        });
+      });
+      await Promise.all(charUpdatePromises);
+    }
+
+    if (analysis.memory_merge?.updated_relationships || analysis.relationships) {
+      const allRelationships = [
+        ...(analysis.relationships || []),
+        ...(analysis.memory_merge?.updated_relationships || []).map(r => ({
+          character1: r.character1,
+          character2: r.character2,
+          relationship: r.update,
+          is_update: true
+        }))
+      ];
+      
+      const updatesByCharId = new Map();
+      for (const rel of allRelationships) {
+        const char1 = existingMaterials.find(m => m.name === rel.character1 && m.type === 'character');
+        if (!char1) continue;
+        if (!updatesByCharId.has(char1.id)) {
+          updatesByCharId.set(char1.id, []);
+        }
+        updatesByCharId.get(char1.id).push(rel);
+      }
+      
+      const relUpdatePromises = Array.from(updatesByCharId.entries()).map(async ([id, rels]) => {
+        const currentMaterial = await tx.material.findUnique({ where: { id } });
+        if (!currentMaterial) return;
+        
+        const existingMeta = currentMaterial.metadata || {};
+        const existingRels = [...(existingMeta.relationships || [])];
+        
+        for (const rel of rels) {
+          const relIdx = existingRels.findIndex(r => r.target === rel.character2);
+          if (relIdx >= 0) {
+            existingRels[relIdx] = { ...existingRels[relIdx], type: rel.relationship, updatedAt: chapter.order };
+          } else {
+            existingRels.push({ target: rel.character2, type: rel.relationship, since: chapter.order });
+          }
+        }
+        
+        await tx.material.update({
+          where: { id },
+          data: { metadata: { ...existingMeta, relationships: existingRels } }
+        });
+      });
+      
+      await Promise.all(relUpdatePromises);
+      mergeResult = { relationshipsUpdated: allRelationships.length };
+    }
 
     return await syncMaterialsFromAnalysis(prisma, {
       analysis,
@@ -457,6 +552,8 @@ ${existingHooksContext || '（暂无）'}
     hooks: hooksResult,
     pendingEntities: pendingEntitiesResult,
     summary: summaryResult ? { id: summaryResult.id } : null,
+    merge: mergeResult,
+    relationshipSummary: analysis.relationship_summary || null,
   };
 }
 

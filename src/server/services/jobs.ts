@@ -42,6 +42,7 @@ export const JobType = {
   PLOT_BRANCH_GENERATE: 'PLOT_BRANCH_GENERATE',
   MATERIAL_ENHANCE: 'MATERIAL_ENHANCE',
   MATERIAL_DEDUPLICATE: 'MATERIAL_DEDUPLICATE',
+  PIPELINE_EXECUTE: 'PIPELINE_EXECUTE',
 } as const;
 
 export const JobStatus = {
@@ -105,8 +106,26 @@ export async function getJob(id: string) {
   return prisma.job.findUnique({ where: { id } });
 }
 
-export async function listJobs(userId: string) {
-  return prisma.job.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
+export async function listJobs(
+  userId: string,
+  options?: { limit?: number; cursor?: string }
+): Promise<{ jobs: Awaited<ReturnType<typeof prisma.job.findMany>>; nextCursor: string | null }> {
+  const limit = options?.limit ?? 50;
+  
+  const jobs = await prisma.job.findMany({
+    where: {
+      userId,
+      ...(options?.cursor && { id: { lt: options.cursor } }),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit + 1,
+  });
+  
+  const hasMore = jobs.length > limit;
+  const resultJobs = hasMore ? jobs.slice(0, limit) : jobs;
+  const nextCursor = hasMore ? resultJobs[resultJobs.length - 1].id : null;
+  
+  return { jobs: resultJobs, nextCursor };
 }
 
 export async function cancelJob(id: string) {
