@@ -1454,47 +1454,61 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   )}
                   
                   {outlineNodes.length === 0 && (
-                    <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-xl font-bold text-white mb-1">
-                            小说大纲
-                          </h3>
-                          <p className="text-sm text-gray-400">
-                            规划故事主线与核心节奏
-                          </p>
+                    <Card className="p-12 rounded-3xl relative overflow-hidden min-h-[400px] flex flex-col items-center justify-center text-center border border-white/5 bg-white/[0.02]">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-emerald-500/5 opacity-50 pointer-events-none" />
+
+                      <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-500/10 rounded-3xl flex items-center justify-center mb-8 shadow-xl shadow-emerald-500/10 border border-emerald-500/20 relative group">
+                        <div className="absolute inset-0 bg-emerald-500/20 blur-xl opacity-50 group-hover:opacity-100 transition-opacity" />
+                        <svg className="w-10 h-10 text-emerald-400 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+
+                      <h2 className="text-3xl font-bold text-white mb-3 tracking-tight">
+                        开始规划你的故事
+                      </h2>
+                      <p className="text-gray-400 max-w-lg mb-10 text-lg">
+                        采用独特的 <span className="text-emerald-400 font-medium">粗纲 → 细纲 → 章节</span> 三层递进式大纲系统，
+                        帮助你构建严谨而精彩的故事情节。
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 w-full max-w-3xl">
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm hover:bg-white/10 transition-colors">
+                          <div className="text-2xl mb-3">🌳</div>
+                          <h3 className="font-bold text-white mb-1">层级结构</h3>
+                          <p className="text-xs text-gray-400">从宏观架构到微观情节，层层深入细化故事</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          {!novel.outline && (
-                            <span className="text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-                              需要先创建大纲才能添加章节
-                            </span>
-                          )}
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setShowOutlineGenerator(true)}
-                            leftIcon={
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                              </svg>
-                            }
-                            className="shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40"
-                          >
-                            AI 智能生成
-                          </Button>
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm hover:bg-white/10 transition-colors">
+                          <div className="text-2xl mb-3">✨</div>
+                          <h3 className="font-bold text-white mb-1">AI 辅助</h3>
+                          <p className="text-xs text-gray-400">一键生成完整大纲，激发无限创作灵感</p>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm hover:bg-white/10 transition-colors">
+                          <div className="text-2xl mb-3">🔄</div>
+                          <h3 className="font-bold text-white mb-1">灵活编辑</h3>
+                          <p className="text-xs text-gray-400">支持单独重新生成任意节点，精准把控剧情</p>
                         </div>
                       </div>
-                      <textarea
-                        className="glass-input w-full px-6 py-5 rounded-2xl h-[500px] resize-none text-gray-200 leading-relaxed font-sans text-lg focus:ring-2 focus:ring-emerald-500/30 transition-all bg-black/20"
-                        placeholder="在这里编写你的小说大纲...&#10;&#10;建议包含：&#10;- 故事主线&#10;- 主要角色&#10;- 章节规划&#10;- 关键情节点"
-                        value={editedOutline}
-                        onChange={(e) => setEditedOutline(e.target.value)}
-                        onBlur={handleUpdateOutline}
-                      />
+
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        onClick={() => setShowOutlineGenerator(true)}
+                        leftIcon={
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        }
+                        className="px-8 py-6 text-lg shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300"
+                      >
+                        AI 智能生成大纲
+                      </Button>
+
+                      <p className="mt-6 text-xs text-gray-500">
+                        已有大纲？可以在生成后手动修改任意内容
+                      </p>
                     </Card>
                   )}
                 </div>
