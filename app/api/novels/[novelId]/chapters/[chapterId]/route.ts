@@ -21,6 +21,7 @@ export async function GET(
 
   const novel = await prisma.novel.findFirst({
     where: { id: novelId, userId: session.userId },
+    select: { id: true, genre: true },
   });
   if (!novel) return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
 
@@ -30,7 +31,9 @@ export async function GET(
 
   if (!chapter) return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
 
-  return NextResponse.json({ chapter });
+  const isFanfiction = novel.genre?.includes('同人') || false;
+
+  return NextResponse.json({ chapter, novel: { id: novel.id, genre: novel.genre, isFanfiction } });
 }
 
 export async function PATCH(
