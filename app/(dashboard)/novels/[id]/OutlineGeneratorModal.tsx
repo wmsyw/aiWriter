@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { calculateOutlineParams } from '@/src/shared/outline-calculator';
 
 interface OutlineData {
@@ -10,18 +10,33 @@ interface OutlineData {
   outlineChapters?: unknown;
 }
 
+interface NovelData {
+  id: string;
+  title: string;
+  description?: string;
+  genre?: string;
+  theme?: string;
+  protagonist?: string;
+  worldSetting?: string;
+  targetWords?: number;
+  chapterCount?: number;
+  keywords?: string[];
+  specialRequirements?: string;
+}
+
 interface OutlineGeneratorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGenerated: (data: OutlineData) => void;
   novelId: string;
+  novel?: NovelData | null;
 }
 
 const GENRES = [
   '玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'
 ];
 
-export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, novelId }: OutlineGeneratorModalProps) {
+export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, novelId, novel }: OutlineGeneratorModalProps) {
   const [formData, setFormData] = useState({
     genre: '',
     theme: '',
@@ -35,6 +50,23 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
     specialRequirements: '',
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  useEffect(() => {
+    if (isOpen && novel) {
+      setFormData({
+        genre: novel.genre || '',
+        theme: novel.theme || novel.description || '',
+        protagonist: novel.protagonist || '',
+        worldSetting: novel.worldSetting || '',
+        chapterCount: novel.chapterCount ?? 100,
+        targetWords: novel.targetWords ?? 200,
+        detailedNodeCount: 0,
+        chaptersPerNode: 0,
+        keywords: novel.keywords?.join(', ') || '',
+        specialRequirements: novel.specialRequirements || '',
+      });
+    }
+  }, [isOpen, novel]);
   const [generatedOutline, setGeneratedOutline] = useState('');
   const [roughOutline, setRoughOutline] = useState<any>(null);
   const [detailedOutline, setDetailedOutline] = useState<any>(null);

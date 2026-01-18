@@ -326,24 +326,19 @@ export default function ChapterEditorPage() {
             } else if (job.type === 'REVIEW_SCORE') {
               await refreshChapter();
               setReviewResult(job.output);
-              setShowReviewPanel(true);
             } else if (job.type === 'CONSISTENCY_CHECK') {
               setConsistencyResult(job.output);
             } else if (job.type === 'CANON_CHECK') {
               setCanonCheckResult(job.output);
               setCanonCheckError(null);
-              setShowCanonCheckPanel(true);
             } else if (job.type === 'MEMORY_EXTRACT') {
-              // 静默完成，不弹通知
               console.log('Memory extraction completed silently');
             }
           } else if (job.status === 'failed') {
             if (job.type === 'CANON_CHECK') {
               setCanonCheckError(job.error || job.errorMessage || '检测失败，请稍后重试');
               setCanonCheckResult(null);
-              setShowCanonCheckPanel(true);
             }
-            // Optional: show toast error
             console.error(`Job ${job.type} failed`);
           }
         }
@@ -1468,6 +1463,35 @@ export default function ChapterEditorPage() {
               <span className="ml-1.5">完成</span>
             </Button>
           </div>
+          
+          {(reviewResult || consistencyResult || canonCheckResult || canonCheckError) && (
+            <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+              {(reviewResult || consistencyResult) && (
+                <button
+                  onClick={() => setShowReviewPanel(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20"
+                  title="查看审阅结果"
+                >
+                  <Icons.CheckCircle className="w-3.5 h-3.5" />
+                  <span>审阅结果</span>
+                </button>
+              )}
+              {(canonCheckResult || canonCheckError) && (
+                <button
+                  onClick={() => setShowCanonCheckPanel(true)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                    canonCheckError 
+                      ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border-red-500/20' 
+                      : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20'
+                  }`}
+                  title="查看原作符合度结果"
+                >
+                  <Icons.BookOpen className="w-3.5 h-3.5" />
+                  <span>{canonCheckError ? '检测失败' : '符合度结果'}</span>
+                </button>
+              )}
+            </div>
+          )}
           
           <button 
             onClick={() => setFocusMode(!focusMode)}

@@ -107,6 +107,15 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [editedTitle, setEditedTitle] = useState('');
   const [editedDescription, setEditedDescription] = useState('');
   const [editedOutline, setEditedOutline] = useState('');
+  const [editedGenre, setEditedGenre] = useState('');
+  const [editedTheme, setEditedTheme] = useState('');
+  const [editedProtagonist, setEditedProtagonist] = useState('');
+  const [editedWorldSetting, setEditedWorldSetting] = useState('');
+  const [editedTargetWords, setEditedTargetWords] = useState<number>(200);
+  const [editedChapterCount, setEditedChapterCount] = useState<number>(100);
+  const [editedKeywords, setEditedKeywords] = useState('');
+  const [editedSpecialRequirements, setEditedSpecialRequirements] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showOutlineGenerator, setShowOutlineGenerator] = useState(false);
@@ -159,6 +168,14 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setEditedTitle(novelData.title);
           setEditedDescription(novelData.description || '');
           setEditedOutline(novelData.outline || '');
+          setEditedGenre(novelData.genre || '');
+          setEditedTheme(novelData.theme || '');
+          setEditedProtagonist(novelData.protagonist || '');
+          setEditedWorldSetting(novelData.worldSetting || '');
+          setEditedTargetWords(novelData.targetWords ?? 200);
+          setEditedChapterCount(novelData.chapterCount ?? 100);
+          setEditedKeywords(novelData.keywords?.join(', ') || '');
+          setEditedSpecialRequirements(novelData.specialRequirements || '');
           
           if (novelData.outlineRough?.blocks) {
             // Restore level property when loading from database
@@ -273,6 +290,57 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       }
     } catch {
       setError('更新简介失败，请重试');
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (isSavingSettings) return;
+    setIsSavingSettings(true);
+    
+    try {
+      const keywordsArray = editedKeywords
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+      
+      const res = await fetch(`/api/novels/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editedTitle,
+          description: editedDescription,
+          genre: editedGenre,
+          theme: editedTheme,
+          protagonist: editedProtagonist,
+          worldSetting: editedWorldSetting,
+          targetWords: editedTargetWords,
+          chapterCount: editedChapterCount,
+          keywords: keywordsArray,
+          specialRequirements: editedSpecialRequirements,
+        }),
+      });
+
+      if (res.ok) {
+        setNovel(prev => prev ? {
+          ...prev,
+          title: editedTitle,
+          description: editedDescription,
+          genre: editedGenre,
+          theme: editedTheme,
+          protagonist: editedProtagonist,
+          worldSetting: editedWorldSetting,
+          targetWords: editedTargetWords,
+          chapterCount: editedChapterCount,
+          keywords: keywordsArray,
+          specialRequirements: editedSpecialRequirements,
+        } : null);
+      } else {
+        setError('保存设置失败');
+      }
+    } catch {
+      setError('保存设置失败，请重试');
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -1773,12 +1841,12 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             </TabsContent>
 
             <TabsContent value="settings" key="settings">
-              <div className="max-w-3xl mx-auto">
+              <div className="max-w-3xl mx-auto space-y-6">
                 <Card className="p-8 rounded-3xl space-y-8">
                   <div>
                     <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                       <span className="w-1 h-6 bg-emerald-500 rounded-full"/>
-                      常规设置
+                      基本信息
                     </h3>
                     <div className="space-y-6">
                       <div className="space-y-2">
@@ -1797,13 +1865,138 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           placeholder="添加简介..."
                           value={editedDescription}
                           onChange={(e) => setEditedDescription(e.target.value)}
-                          onBlur={handleUpdateDescription}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-400">目标字数（万）</label>
+                          <input 
+                            type="number" 
+                            value={editedTargetWords}
+                            onChange={(e) => setEditedTargetWords(parseInt(e.target.value) || 200)}
+                            min={1}
+                            max={1000}
+                            className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-400">预计章节数</label>
+                          <input 
+                            type="number" 
+                            value={editedChapterCount}
+                            onChange={(e) => setEditedChapterCount(parseInt(e.target.value) || 100)}
+                            min={10}
+                            max={2000}
+                            className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-8 rounded-3xl space-y-8">
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                      <span className="w-1 h-6 bg-purple-500 rounded-full"/>
+                      创作设定
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">小说类型</label>
+                        <div className="flex flex-wrap gap-2">
+                          {['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'].map(g => (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => setEditedGenre(g)}
+                              className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 border ${
+                                editedGenre === g
+                                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                                  : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10'
+                              }`}
+                            >
+                              {g}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">核心主题/卖点</label>
+                        <input 
+                          type="text"
+                          value={editedTheme}
+                          onChange={(e) => setEditedTheme(e.target.value)}
+                          className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
+                          placeholder="例如：废柴逆袭、穿越重生、系统流..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">关键词/灵感</label>
+                        <input 
+                          type="text"
+                          value={editedKeywords}
+                          onChange={(e) => setEditedKeywords(e.target.value)}
+                          className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
+                          placeholder="用逗号分隔多个关键词..."
                         />
                       </div>
                     </div>
                   </div>
+                </Card>
 
-                  <div className="pt-8 border-t border-white/10">
+                <Card className="p-8 rounded-3xl space-y-8">
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                      <span className="w-1 h-6 bg-blue-500 rounded-full"/>
+                      世界观与角色
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">主角设定</label>
+                        <textarea 
+                          value={editedProtagonist}
+                          onChange={(e) => setEditedProtagonist(e.target.value)}
+                          className="glass-input w-full px-4 py-3 rounded-xl h-28 resize-none focus:border-emerald-500/50 transition-colors"
+                          placeholder="主角的背景、性格、金手指..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">世界观设定</label>
+                        <textarea 
+                          value={editedWorldSetting}
+                          onChange={(e) => setEditedWorldSetting(e.target.value)}
+                          className="glass-input w-full px-4 py-3 rounded-xl h-28 resize-none focus:border-emerald-500/50 transition-colors"
+                          placeholder="修炼体系、势力分布、时代背景..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">特殊要求</label>
+                        <textarea 
+                          value={editedSpecialRequirements}
+                          onChange={(e) => setEditedSpecialRequirements(e.target.value)}
+                          className="glass-input w-full px-4 py-3 rounded-xl h-20 resize-none focus:border-emerald-500/50 transition-colors"
+                          placeholder="其他要求或注意事项..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                <div className="flex justify-end">
+                  <Button 
+                    variant="primary"
+                    onClick={handleSaveSettings}
+                    isLoading={isSavingSettings}
+                    disabled={isSavingSettings}
+                    className="px-8"
+                  >
+                    保存设置
+                  </Button>
+                </div>
+
+                <Card className="p-8 rounded-3xl space-y-8">
+                  <div className="pt-0">
                     <h3 className="text-xl font-bold text-red-400 mb-6 flex items-center gap-2">
                       <span className="w-1 h-6 bg-red-500 rounded-full"/>
                       危险区域
@@ -1868,6 +2061,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         isOpen={showOutlineGenerator}
         onClose={() => setShowOutlineGenerator(false)}
         novelId={novel?.id || ''}
+        novel={novel}
         onGenerated={(data) => {
           setNovel(prev => prev ? { 
             ...prev, 
