@@ -36,22 +36,27 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-8 animate-fade-in">
-      <h1 className="text-3xl font-bold text-gradient mb-8">审计日志</h1>
+    <div className="space-y-6 animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">审计日志</h1>
+          <p className="page-subtitle">查看关键操作与审计追踪记录</p>
+        </div>
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-emerald-500/40 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="glass-card rounded-2xl p-6">
+        <div className="content-section">
           <div className="space-y-2">
             {auditEvents.length === 0 ? (
-              <p className="text-gray-400">暂无审计记录</p>
+              <p className="text-zinc-400">暂无审计记录</p>
             ) : (
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-white/10">
+                  <tr className="text-left">
                     <th className="pb-2">时间</th>
                     <th className="pb-2">操作</th>
                     <th className="pb-2">资源</th>
@@ -60,14 +65,14 @@ export default function AdminPage() {
                 </thead>
                 <tbody>
                   {auditEvents.slice(0, 50).map(event => (
-                    <tr key={event.id} className="border-b border-white/5">
-                      <td className="py-2 text-sm text-gray-400">
+                    <tr key={event.id}>
+                      <td className="py-2 text-sm text-zinc-400">
                         {new Date(event.createdAt).toLocaleString('zh-CN')}
                       </td>
                       <td className="py-2 font-mono text-sm">{event.action}</td>
                       <td className="py-2 text-sm">
                         {event.resource}
-                        {event.resourceId && <span className="text-gray-500 ml-1">#{event.resourceId.slice(0, 8)}</span>}
+                        {event.resourceId && <span className="text-zinc-500 ml-1">#{event.resourceId.slice(0, 8)}</span>}
                       </td>
                       <td className="py-2">
                         <span className={`px-2 py-0.5 rounded text-xs ${

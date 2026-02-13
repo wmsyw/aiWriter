@@ -14,14 +14,14 @@ export interface BadgeProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
 const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
   ({ className, variant = 'default', size = 'md', animated, children, ...props }, ref) => {
     const variants = {
-      default: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      default: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35',
       success: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
       warning: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
       error: 'bg-red-500/15 text-red-400 border-red-500/30',
-      info: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+      info: 'bg-blue-500/15 text-sky-300 border-blue-500/30',
       queued: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
       running: 'bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse',
-      outline: 'text-zinc-300 border-zinc-700 bg-transparent',
+      outline: 'text-zinc-300 border-zinc-700/80 bg-transparent',
     };
 
     const sizes = {
@@ -34,7 +34,7 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
       <motion.div
         ref={ref}
         className={cn(
-          'inline-flex items-center rounded-full border font-medium transition-colors',
+          'inline-flex items-center rounded-full border font-medium tracking-wide transition-colors',
           variants[variant],
           sizes[size],
           className

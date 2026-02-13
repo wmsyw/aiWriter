@@ -173,7 +173,7 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
       user_guidance: user_guidance || '',
     };
   } else {
-    // 兼容旧模式
+    // 批量模式：传递完整粗纲，同时确保模板所有变量都有值（避免模板条件失败时显示空）
     context = {
       rough_outline: roughOutlinePayload,
       target_words: targetWords || null,
@@ -185,6 +185,15 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
       prev_block_content: prev_block_content || '',
       next_block_title: next_block_title || '',
       next_block_content: next_block_content || '',
+      // 确保单块模式变量也存在（即使为空），避免模板渲染错误
+      target_id: target_id || '',
+      target_title: target_title || '',
+      target_content: target_content || '',
+      rough_outline_context: rough_outline_context || '',
+      parent_rough_node: parent_rough_node ? JSON.stringify(parent_rough_node) : '',
+      prev_detailed_node: prev_detailed_node ? JSON.stringify(prev_detailed_node) : '',
+      user_guidance: user_guidance || '',
+      regenerate_single: false,
     };
   }
 
@@ -192,17 +201,6 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     ? `请为以下分卷生成细纲节点（JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n全文大纲背景：${rough_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
     : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
-
-  console.log('[OUTLINE_DETAILED] Debug info:', {
-    isSingleBlockMode,
-    regenerate_single,
-    hasTemplate: !!template,
-    target_title,
-    target_content: target_content?.substring(0, 100),
-    rough_outline_context: rough_outline_context?.substring(0, 200),
-    contextKeys: Object.keys(context),
-  });
-  console.log('[OUTLINE_DETAILED] Prompt preview (first 500 chars):', prompt.substring(0, 500));
 
   const params = agent?.params || {};
   const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
@@ -358,6 +356,22 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
       detailed_outline: detailedPayload,
       chapters_per_node: effectiveChaptersPerNode,
       words_per_chapter: calculatedParams.wordsPerChapter,
+      target_id: target_id || '',
+      target_title: target_title || '',
+      target_content: target_content || '',
+      detailed_outline_context: detailed_outline_context || '',
+      parent_rough_title: parent_rough_title || '',
+      parent_rough_content: parent_rough_content || '',
+      prev_chapter_title: prev_chapter_title || '',
+      prev_chapter_content: prev_chapter_content || '',
+      next_chapter_title: next_chapter_title || '',
+      next_chapter_content: next_chapter_content || '',
+      original_chapter_title: original_chapter_title || '',
+      prev_chapters_summary: prev_chapters_summary || '',
+      recent_chapters_content: recent_chapters_content || '',
+      user_guidance: user_guidance || '',
+      parent_detailed_node: parent_detailed_node ? JSON.stringify(parent_detailed_node) : '',
+      regenerate_single: false,
     };
   }
 

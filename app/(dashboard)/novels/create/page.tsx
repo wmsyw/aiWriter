@@ -232,6 +232,7 @@ function NovelWizardContent() {
   const [characterLoading, setCharacterLoading] = useState(false);
   const [synopsisLoading, setSynopsisLoading] = useState(false);
   const [goldenFingerLoading, setGoldenFingerLoading] = useState(false);
+  const [autoGenerating, setAutoGenerating] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [formData, setFormData] = useState({
@@ -290,6 +291,25 @@ function NovelWizardContent() {
 
   const setField = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const getKeywordsArray = () => {
+    return formData.keywords.length > 0
+      ? formData.keywords
+      : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  };
+
+  const patchNovelFields = async (id: string, payload: Record<string, unknown>) => {
+    await fetch(`/api/novels/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  };
+
+  const ensureNovelId = async (): Promise<string | null> => {
+    if (novelId) return novelId;
+    return saveNovel(false);
   };
 
   const applyPreset = (preset: { name: string; theme: string; keywords: string[]; protagonist: string; worldSetting: string }) => {
@@ -482,9 +502,7 @@ function NovelWizardContent() {
     if (!idToUse) return;
     setWorldBuildingLoading(true);
     try {
-      const keywordsArray = formData.keywords.length > 0 
-        ? formData.keywords 
-        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      const keywordsArray = getKeywordsArray();
       const output = await runJob('WIZARD_WORLD_BUILDING', {
         novelId: idToUse,
         theme: formData.theme,
@@ -496,6 +514,7 @@ function NovelWizardContent() {
       });
       if (output && output.world_setting) {
         setField('worldSetting', output.world_setting);
+        await patchNovelFields(idToUse, { worldSetting: output.world_setting });
       }
     } catch (error) {
       console.error('Failed to generate world setting', error);
@@ -510,9 +529,7 @@ function NovelWizardContent() {
     if (!idToUse) return;
     setCharacterLoading(true);
     try {
-      const keywordsArray = formData.keywords.length > 0 
-        ? formData.keywords 
-        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      const keywordsArray = getKeywordsArray();
       const output = await runJob('WIZARD_CHARACTERS', {
         novelId: idToUse,
         theme: formData.theme,
@@ -526,6 +543,7 @@ function NovelWizardContent() {
         const char = output.characters[0];
         const desc = `姓名：${char.name}\n定位：${char.role}\n描述：${char.description}\n性格：${char.traits}\n目标：${char.goals}`;
         setField('protagonist', desc);
+        await patchNovelFields(idToUse, { protagonist: desc });
       }
     } catch (error) {
       console.error('Failed to generate character', error);
@@ -540,9 +558,7 @@ function NovelWizardContent() {
     if (!idToUse) return;
     setSynopsisLoading(true);
     try {
-      const keywordsArray = formData.keywords.length > 0 
-        ? formData.keywords 
-        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      const keywordsArray = getKeywordsArray();
       const output = await runJob('WIZARD_SYNOPSIS', {
         novelId: idToUse,
         title: formData.title,
@@ -557,6 +573,7 @@ function NovelWizardContent() {
       });
       if (output && output.synopsis) {
         setField('description', output.synopsis);
+        await patchNovelFields(idToUse, { description: output.synopsis });
       }
     } catch (error) {
       console.error('Failed to generate synopsis', error);
@@ -571,9 +588,7 @@ function NovelWizardContent() {
     if (!idToUse) return;
     setGoldenFingerLoading(true);
     try {
-      const keywordsArray = formData.keywords.length > 0 
-        ? formData.keywords 
-        : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+      const keywordsArray = getKeywordsArray();
       const output = await runJob('WIZARD_GOLDEN_FINGER', {
         novelId: idToUse,
         title: formData.title,
@@ -588,6 +603,7 @@ function NovelWizardContent() {
       });
       if (output && output.golden_finger) {
         setField('goldenFinger', output.golden_finger);
+        await patchNovelFields(idToUse, { goldenFinger: output.golden_finger });
       }
     } catch (error) {
       console.error('Failed to generate golden finger', error);
@@ -602,7 +618,7 @@ function NovelWizardContent() {
       alert('请先填写书名');
       return;
     }
-    const id = await saveNovel(false);
+    const id = await ensureNovelId();
     if (id) {
       await startWorldBuilding(id);
     }
@@ -613,7 +629,7 @@ function NovelWizardContent() {
       alert('请先填写书名');
       return;
     }
-    const id = await saveNovel(false);
+    const id = await ensureNovelId();
     if (id) {
       await startCharacterGeneration(id);
     }
@@ -624,7 +640,7 @@ function NovelWizardContent() {
       alert('请先填写书名');
       return;
     }
-    const id = await saveNovel(false);
+    const id = await ensureNovelId();
     if (id) {
       await startSynopsisGeneration(id);
     }
@@ -635,19 +651,20 @@ function NovelWizardContent() {
       alert('请先填写书名');
       return;
     }
-    const id = await saveNovel(false);
+    const id = await ensureNovelId();
     if (id) {
       await startGoldenFingerGeneration(id);
     }
   };
 
-  const startNovelSeed = async () => {
-    if (!novelId) return;
+  const startNovelSeed = async (overrideId?: string) => {
+    const idToUse = overrideId || novelId;
+    if (!idToUse) return;
     setJobStatus('生成核心设定中...');
 
     try {
       const output = await runJob('NOVEL_SEED', {
-        novelId,
+        novelId: idToUse,
         title: formData.title,
         theme: formData.theme,
         genre: formData.genre,
@@ -665,10 +682,52 @@ function NovelWizardContent() {
         goldenFinger: output?.golden_finger || prev.goldenFinger,
         worldSetting: world.world_setting || prev.worldSetting,
       }));
+
+      await patchNovelFields(idToUse, {
+        description: output?.synopsis || undefined,
+        protagonist: output?.protagonist || undefined,
+        goldenFinger: output?.golden_finger || undefined,
+        worldSetting: world.world_setting || undefined,
+      });
       setJobStatus('');
+      return output;
     } catch (error) {
       console.error('Failed to generate seed data', error);
       setJobStatus(error instanceof Error ? error.message : '生成失败');
+      throw error;
+    }
+  };
+
+  const handleAutoGenerateCoreSetup = async () => {
+    if (!formData.title.trim()) {
+      alert('请先填写书名');
+      return;
+    }
+
+    let success = false;
+    setAutoGenerating(true);
+    try {
+      const id = await ensureNovelId();
+      if (!id) {
+        throw new Error('创建小说失败，请重试');
+      }
+
+      await startNovelSeed(id);
+
+      setJobStatus('生成主角设定中...');
+      await startCharacterGeneration(id);
+
+      setJobStatus('核心设定生成完成');
+      success = true;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '一键生成失败';
+      setJobStatus(msg);
+      alert(msg);
+    } finally {
+      setAutoGenerating(false);
+      if (success) {
+        setTimeout(() => setJobStatus(''), 1500);
+      }
     }
   };
 
@@ -763,10 +822,21 @@ function NovelWizardContent() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
-                      基础信息
-                    </h3>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
+                        基础信息
+                      </h3>
+                      <Button
+                        variant="ai"
+                        size="sm"
+                        onClick={handleAutoGenerateCoreSetup}
+                        disabled={autoGenerating || isSaving || !formData.title.trim()}
+                        isLoading={autoGenerating}
+                      >
+                        {autoGenerating ? '生成中' : '✨ 一键生成核心设定'}
+                      </Button>
+                    </div>
                     <div className="space-y-4">
                       <Input
                         label="书名"
@@ -1084,4 +1154,3 @@ export default function NovelWizardPage() {
     </Suspense>
   );
 }
-

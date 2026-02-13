@@ -62,9 +62,15 @@ async function resolveProvider(config: PipelineAIConfig): Promise<ResolvedProvid
   let providerConfig;
 
   if (config.providerConfigId) {
-    providerConfig = await prisma.providerConfig.findUnique({
-      where: { id: config.providerConfigId },
+    providerConfig = await prisma.providerConfig.findFirst({
+      where: {
+        id: config.providerConfigId,
+        userId: config.userId,
+      },
     });
+    if (!providerConfig) {
+      throw new Error('Provider configuration not found or access denied.');
+    }
   }
 
   if (!providerConfig) {

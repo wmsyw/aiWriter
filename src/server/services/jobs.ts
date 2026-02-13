@@ -129,5 +129,27 @@ export async function listJobs(
 }
 
 export async function cancelJob(id: string) {
-  return prisma.job.update({ where: { id }, data: { status: JobStatus.CANCELED } });
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.job.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+
+    if (!existing) {
+      throw new Error('Job not found');
+    }
+
+    if (
+      existing.status === JobStatus.SUCCEEDED ||
+      existing.status === JobStatus.FAILED ||
+      existing.status === JobStatus.CANCELED
+    ) {
+      return tx.job.findUnique({ where: { id } });
+    }
+
+    return tx.job.update({
+      where: { id },
+      data: { status: JobStatus.CANCELED, error: null },
+    });
+  });
 }

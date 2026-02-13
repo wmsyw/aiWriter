@@ -150,11 +150,32 @@ async function handleJob([job]) {
   const taskLogger = log.child({ pgBossJobId, jobType, jobId, userId });
   taskLogger.info('Processing job');
 
+  const preflightJob = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { status: true },
+  });
+  if (!preflightJob) {
+    taskLogger.warn('Job record not found before execution');
+    return { status: 'missing' };
+  }
+  if (preflightJob.status === 'canceled') {
+    taskLogger.info('Job already canceled before execution, skipping');
+    return { status: 'canceled' };
+  }
+
   try {
-    await prisma.job.update({
-      where: { id: jobId },
-      data: { status: 'running' },
+    const runningUpdate = await prisma.job.updateMany({
+      where: { id: jobId, status: { in: ['queued', 'running'] } },
+      data: { status: 'running', error: null },
     });
+    if (runningUpdate.count === 0) {
+      const latest = await prisma.job.findUnique({
+        where: { id: jobId },
+        select: { status: true },
+      });
+      taskLogger.info('Skip execution due to non-runnable state', { status: latest?.status });
+      return { status: latest?.status || 'unknown' };
+    }
     taskLogger.info('Job marked as running');
   } catch (updateErr) {
     taskLogger.warn('Failed to mark job as running', {}, updateErr);
@@ -176,6 +197,15 @@ async function handleJob([job]) {
     }
 
     try {
+      const latestBeforeSuccess = await prisma.job.findUnique({
+        where: { id: jobId },
+        select: { status: true },
+      });
+      if (latestBeforeSuccess?.status === 'canceled') {
+        taskLogger.warn('Job was canceled during execution, keeping canceled status');
+        return { status: 'canceled', output: result ?? null };
+      }
+
       await prisma.job.update({
         where: { id: jobId },
         data: { 
@@ -191,6 +221,15 @@ async function handleJob([job]) {
     return result;
   } catch (error) {
     taskLogger.error('Job failed', { errorMessage: error.message }, error);
+
+    const latestBeforeFail = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { status: true },
+    });
+    if (latestBeforeFail?.status === 'canceled') {
+      taskLogger.warn('Job errored after cancellation, keeping canceled status');
+      return { status: 'canceled' };
+    }
     
     try {
       await prisma.job.update({

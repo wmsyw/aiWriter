@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { getJobStatusLabel, getJobStatusClassName, getJobTypeLabel } from '@/app/components/JobStatusBadge';
 
 interface Notification {
@@ -17,6 +17,24 @@ interface UserInfo {
   email: string;
   role: string;
 }
+
+const SIDEBAR_STORAGE_KEY = 'aiwriter.sidebarCollapsed';
+
+const PATH_LABELS: Record<string, string> = {
+  dashboard: '工作台',
+  novels: '作品库',
+  create: '新建作品',
+  templates: '模板管理',
+  agents: 'AI 代理',
+  jobs: '任务中心',
+  settings: '系统设置',
+  admin: '审计日志',
+  materials: '资料库',
+  hooks: '钩子管理',
+  graph: '关系图谱',
+  chapters: '章节',
+  'pending-entities': '待处理实体',
+};
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -45,6 +63,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored === '1') {
+      setSidebarCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, sidebarCollapsed ? '1' : '0');
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false);
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -144,8 +184,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const sidebarWidth = sidebarCollapsed ? 'w-20' : 'w-64';
 
+  const activeNav = useMemo(
+    () => navItems.find(i => pathname === i.href || (i.href !== '/dashboard' && pathname.startsWith(i.href))) || navItems[0],
+    [pathname]
+  );
+
+  const breadcrumb = useMemo(() => {
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return ['工作台'];
+
+    return segments
+      .map((segment) => PATH_LABELS[segment] || '详情')
+      .filter((label, index, arr) => label && (index === 0 || label !== arr[index - 1]));
+  }, [pathname]);
+
   return (
-    <div className="h-screen overflow-hidden bg-zinc-950 flex font-sans">
+    <div className="h-screen overflow-hidden bg-zinc-950 flex font-sans relative">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.08),transparent_40%)]" />
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
@@ -155,11 +210,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <aside 
         ref={sidebarRef}
-        className={`${sidebarWidth} bg-zinc-900 border-r border-zinc-800 flex flex-col fixed top-0 left-0 h-screen z-40 transition-all duration-300 ${
+        className={`${sidebarWidth} bg-zinc-900/90 backdrop-blur-xl border-r border-zinc-800/80 flex flex-col fixed top-0 left-0 h-screen z-40 transition-all duration-300 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
+        aria-label="主导航"
       >
-        <div className={`p-4 ${sidebarCollapsed ? 'px-3' : 'px-5'} border-b border-zinc-800`}>
+        <div className={`p-4 ${sidebarCollapsed ? 'px-3' : 'px-5'} border-b border-zinc-800/80`}>
           <Link href="/dashboard" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-200">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -195,12 +251,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 title={sidebarCollapsed ? item.name : undefined}
                 className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-3'} py-2.5 rounded-lg transition-all duration-200 group relative ${
                   isActive 
-                    ? 'bg-emerald-500/10 text-emerald-400' 
-                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                    ? 'bg-emerald-500/10 text-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]' 
+                    : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
                 }`}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-emerald-500 rounded-r-full"></div>
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-emerald-400 rounded-r-full"></div>
                 )}
                 <span className={isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'}>
                   {item.icon}
@@ -213,7 +269,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className={`p-4 ${sidebarCollapsed ? 'px-2' : 'px-3'} border-t border-zinc-800`}>
+        <div className={`p-4 ${sidebarCollapsed ? 'px-2' : 'px-3'} border-t border-zinc-800/80`}>
           {sidebarCollapsed ? (
             <button  
               onClick={handleLogout}
@@ -248,7 +304,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="hidden lg:flex absolute -right-3 top-20 w-6 h-6 bg-zinc-800 border border-zinc-700 rounded-full items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+          className="hidden lg:flex absolute -right-3 top-20 w-6 h-6 bg-zinc-900 border border-zinc-700/80 rounded-full items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
         >
           <svg className={`w-3 h-3 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -257,25 +314,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-screen relative z-10 overflow-y-auto transition-all duration-300`}>
-        <header className="h-14 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800/50">
-          <div className="flex items-center gap-4">
+        <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-800/60">
+          <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200"
+              className="lg:hidden w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200"
+              aria-label="打开菜单"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="text-zinc-500 text-sm hidden sm:flex items-center gap-2">
-              <span className="text-zinc-600">{navItems.find(i => i.href === pathname)?.name || '工作台'}</span>
+            <div className="min-w-0 hidden sm:block">
+              <div className="text-[11px] uppercase tracking-wider text-zinc-500 truncate">
+                {breadcrumb.join(' / ')}
+              </div>
+              <div className="text-sm font-medium text-zinc-200 truncate">
+                {activeNav.name}
+              </div>
             </div>
           </div>
            
-          <div className="flex items-center gap-2 relative" ref={notificationRef}>
+          <div className="flex items-center gap-2 sm:gap-3 relative" ref={notificationRef}>
+            <Link
+              href="/novels/create"
+              className="hidden md:inline-flex btn-secondary h-9 px-3 text-xs"
+            >
+              新建作品
+            </Link>
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200 relative"
+              className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200 relative"
+              aria-label="通知"
             >
               {unreadCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-zinc-950"></span>
@@ -286,8 +356,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
              
             {showNotifications && (
-              <div className="absolute right-0 top-12 w-80 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
-                <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div className="absolute right-0 top-12 w-80 glass-card border border-zinc-800/80 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
+                <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
                   <h3 className="font-semibold text-zinc-100">通知</h3>
                   <Link href="/jobs" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">
                     查看全部
@@ -323,8 +393,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <div className="flex-1 p-4 lg:p-8 animate-fade-in">
-          <div className="max-w-6xl mx-auto w-full">
+        <div className="flex-1 p-4 lg:p-7 animate-fade-in">
+          <div className="page-shell dashboard-page">
             {children}
           </div>
         </div>

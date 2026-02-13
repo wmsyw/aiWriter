@@ -96,30 +96,30 @@ export const staggerItem: Variants = {
 export const cardHover = {
   rest: { 
     scale: 1, 
-    boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.36)',
+    boxShadow: '0 8px 30px 0 rgba(0, 0, 0, 0.34)',
   },
   hover: { 
-    scale: 1.02, 
-    boxShadow: '0 12px 40px 0 rgba(99, 102, 241, 0.2)',
+    scale: 1.01, 
+    boxShadow: '0 14px 42px 0 rgba(16, 185, 129, 0.16)',
     transition: springTransition,
   },
   tap: { 
-    scale: 0.98,
+    scale: 0.99,
     transition: { duration: 0.1 },
   },
 };
 
 export const buttonHover = {
-  rest: { scale: 1 },
-  hover: { scale: 1.02, transition: springTransition },
-  tap: { scale: 0.98, transition: { duration: 0.1 } },
+  rest: { scale: 1, y: 0 },
+  hover: { scale: 1.01, y: -1, transition: springTransition },
+  tap: { scale: 0.99, y: 0, transition: { duration: 0.1 } },
 };
 
 export const pulseGlow = {
   animate: {
     boxShadow: [
-      '0 0 0 0 rgba(99, 102, 241, 0.4)',
-      '0 0 0 10px rgba(99, 102, 241, 0)',
+      '0 0 0 0 rgba(16, 185, 129, 0.35)',
+      '0 0 0 10px rgba(16, 185, 129, 0)',
     ],
     transition: {
       duration: 1.5,

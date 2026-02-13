@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import AuthShell from '@/app/components/AuthShell';
+import { Input } from '@/app/components/ui/Input';
+import { Button } from '@/app/components/ui/Button';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,85 +40,60 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[var(--color-dark-bg)]">
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px] animate-float"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-teal-600/10 rounded-full blur-[120px] animate-float-delayed"></div>
-      </div>
-
-      <div className="w-full max-w-md glass-card p-10 rounded-2xl animate-slide-up border border-white/10 shadow-2xl">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-emerald-500 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">欢迎回来</h1>
-          <p className="text-gray-400">登录 AI Writer，继续您的创作之旅</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300 ml-1">邮箱地址</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3.5 rounded-xl glass-input outline-none focus:bg-black/40"
-              placeholder="author@example.com"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between items-center ml-1">
-              <label className="text-sm font-medium text-gray-300">密码</label>
-              <Link href="/reset-password" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-                忘记密码？
-              </Link>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3.5 rounded-xl glass-input outline-none focus:bg-black/40"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm animate-fade-in flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl btn-primary font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                登录中...
-              </span>
-            ) : (
-              '立即登录'
-            )}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center text-sm text-gray-400">
+    <AuthShell
+      title="欢迎回来"
+      subtitle="登录 AI Writer，继续你的创作进度"
+      tone="emerald"
+      icon={
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      }
+      footer={
+        <>
           还没有账号？{' '}
-          <Link href="/setup" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors hover:underline underline-offset-4">
+          <Link href="/setup" className="text-emerald-400 hover:text-emerald-300 font-medium">
             注册账号
           </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <Input
+          type="email"
+          label="邮箱地址"
+          placeholder="author@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-medium text-zinc-300">密码</label>
+            <Link href="/reset-password" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
+              忘记密码？
+            </Link>
+          </div>
+          <Input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-      </div>
-    </div>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm animate-fade-in">
+            {error}
+          </div>
+        )}
+
+        <Button type="submit" isLoading={loading} className="w-full h-11 text-base mt-1">
+          {loading ? '登录中...' : '立即登录'}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

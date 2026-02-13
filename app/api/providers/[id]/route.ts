@@ -4,6 +4,7 @@ import { prisma } from '@/src/server/db';
 import { getSessionUser, auditRequest } from '@/src/server/middleware/audit';
 import { encryptApiKey } from '@/src/server/crypto';
 import { AuditActions } from '@/src/server/services/audit';
+import { verifyCsrf } from '@/src/server/middleware/csrf';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -44,6 +45,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
+
   const session = await getSessionUser();
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -99,6 +103,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
+
   const session = await getSessionUser();
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

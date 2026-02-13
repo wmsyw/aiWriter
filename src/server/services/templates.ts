@@ -99,6 +99,10 @@ export async function createTemplate(input: CreateTemplateInput): Promise<Prompt
 }
 
 export async function getTemplate(id: string): Promise<PromptTemplate | null> {
+  const promptTemplateClient = (prisma as unknown as { promptTemplate?: { findUnique?: Function } }).promptTemplate;
+  if (!promptTemplateClient || typeof promptTemplateClient.findUnique !== 'function') {
+    return null;
+  }
   return prisma.promptTemplate.findUnique({ where: { id } }) as unknown as PromptTemplate | null;
 }
 
@@ -130,10 +134,12 @@ export async function deleteTemplate(id: string): Promise<void> {
   await prisma.promptTemplate.delete({ where: { id } });
 }
 
-export async function renderTemplate(templateId: string, context: RenderContext): Promise<string> {
-  const template = await getTemplate(templateId);
-  if (!template) throw new Error('Template not found');
-  return renderTemplateString(template.content, context);
+export async function renderTemplate(templateIdOrContent: string, context: RenderContext): Promise<string> {
+  const template = await getTemplate(templateIdOrContent);
+  if (template) {
+    return renderTemplateString(template.content, context);
+  }
+  return renderTemplateString(templateIdOrContent, context);
 }
 
 export function renderTemplateString(templateContent: string, context: RenderContext): string {

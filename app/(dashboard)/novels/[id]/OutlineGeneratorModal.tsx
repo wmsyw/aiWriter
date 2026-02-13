@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { calculateOutlineParams } from '@/src/shared/outline-calculator';
+import OutlineTree, { OutlineNode } from '@/app/components/OutlineTree';
 
 interface OutlineData {
   outline: string;
@@ -73,7 +74,72 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
   const [chapterOutline, setChapterOutline] = useState<any>(null);
   const [stage, setStage] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
-  
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+
+  const normalizeOutlineData = (data: any, defaultLevel: 'rough' | 'detailed' | 'chapter' = 'rough', parentId = 'root'): OutlineNode[] => {
+    if (!data) return [];
+    
+    const items = Array.isArray(data) ? data : 
+                 (data.blocks || data.children || data.chapters || data.events || data.story_arcs || []);
+    
+    if (!Array.isArray(items)) return [];
+
+    return items.map((item: any, index: number) => {
+      let level = item.level as 'rough' | 'detailed' | 'chapter';
+      
+      if (!level) {
+        if (item.chapters || item.events) level = 'rough';
+        else if (defaultLevel === 'chapter' && !item.children) level = 'chapter';
+        else level = defaultLevel;
+      }
+
+      if (defaultLevel === 'detailed' && (item.children || item.events)) {
+         level = 'rough';
+      }
+      if (defaultLevel === 'chapter') {
+        if (item.children || item.blocks || item.events) level = 'rough';
+      }
+
+      const id = item.id || `${parentId}-${index}`;
+      
+      const childData = item.children || item.blocks || item.events || item.chapters || item.story_arcs;
+      let children: OutlineNode[] | undefined;
+      
+      if (childData) {
+        let childLevel: 'rough' | 'detailed' | 'chapter' = 'detailed';
+        if (level === 'detailed') childLevel = 'chapter';
+        if (level === 'rough') childLevel = 'detailed';
+        
+        children = normalizeOutlineData(childData, childLevel, id);
+      }
+
+      return {
+        id,
+        title: item.title || item.name || item.headline || item.chapter_title || `Node ${index + 1}`,
+        content: item.content || item.description || item.summary || item.text || item.outline || '',
+        level: level || defaultLevel,
+        children,
+        isExpanded: !collapsedNodes.has(id)
+      };
+    });
+  };
+
+  const treeNodes = useMemo(() => {
+    if (chapterOutline) return normalizeOutlineData(chapterOutline, 'chapter');
+    if (detailedOutline) return normalizeOutlineData(detailedOutline, 'detailed');
+    if (roughOutline) return normalizeOutlineData(roughOutline, 'rough');
+    return [];
+  }, [chapterOutline, detailedOutline, roughOutline, collapsedNodes]);
+
+  const handleToggleNode = (id: string) => {
+    setCollapsedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const calculatedParams = useMemo(() => {
     return calculateOutlineParams(formData.targetWords, formData.chapterCount);
   }, [formData.targetWords, formData.chapterCount]);
@@ -229,9 +295,9 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
           </button>
         </div>
 
-        <div className="flex-1 w-full min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 isolate">
-          <div className="lg:col-span-5 min-w-0 lg:h-full lg:overflow-y-auto p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-white/5 custom-scrollbar bg-black/10">
-            <div className="space-y-6">
+        <div className="flex-1 w-full min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+          <div className="lg:col-span-5 min-w-0 lg:h-full overflow-y-auto p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-white/5 custom-scrollbar bg-black/10">
+            <div className="space-y-6 max-w-full">
 
               {hasChapterDensityWarning && (
                 <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
@@ -495,8 +561,8 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
             </div>
           </div>
 
-          <div className="lg:col-span-7 min-w-0 bg-black/20 flex flex-col lg:h-full lg:overflow-hidden min-h-[500px] lg:min-h-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5">
+          <div className="lg:col-span-7 min-w-0 bg-black/20 flex flex-col lg:h-full overflow-hidden min-h-[500px] lg:min-h-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5 shrink-0">
               <span className="text-sm font-medium text-gray-300 flex items-center gap-2">
                 <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -516,7 +582,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
               )}
             </div>
             
-            <div className="flex-1 min-h-0 lg:overflow-y-auto p-6 custom-scrollbar bg-[#0f1117]/50">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 custom-scrollbar bg-[#0f1117]/50">
               {isGenerating ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-6">
                   <div className="relative">
@@ -531,26 +597,14 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   </div>
                 </div>
               ) : generatedOutline ? (
-                <div className="prose prose-invert max-w-none space-y-4">
-                  {roughOutline && (
-                    <details className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <summary className="cursor-pointer text-sm text-emerald-300">粗略大纲</summary>
-                      <pre className="text-gray-200 whitespace-pre-wrap text-xs mt-3">
-                        {JSON.stringify(roughOutline, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                  {detailedOutline && (
-                    <details className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <summary className="cursor-pointer text-sm text-emerald-300">细纲扩展</summary>
-                      <pre className="text-gray-200 whitespace-pre-wrap text-xs mt-3">
-                        {JSON.stringify(detailedOutline, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                  <pre className="text-gray-200 whitespace-pre-wrap font-sans text-base leading-relaxed p-4 rounded-xl border border-white/5 bg-black/20">
-                    {generatedOutline}
-                  </pre>
+                <div className="w-full h-full overflow-hidden flex flex-col">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <OutlineTree 
+                      nodes={treeNodes}
+                      onToggle={handleToggleNode}
+                      readOnly={true}
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">

@@ -9,7 +9,7 @@
     "worker": "APP_MODE=worker npx tsx worker/index.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "tsc --noEmit",
     "test": "vitest",
     "setup": "node scripts/setup-env.js"
   },

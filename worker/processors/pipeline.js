@@ -77,7 +77,7 @@ export async function handlePipelineExecute(prisma, job, { jobId, userId, input 
   }
 
   const jobUpdate = {
-    status: result.success ? 'completed' : 'failed',
+    status: result.success ? 'succeeded' : 'failed',
     output: result.success ? result.output : null,
     error: result.error || null,
     updatedAt: new Date(),

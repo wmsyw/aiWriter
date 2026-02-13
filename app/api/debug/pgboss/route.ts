@@ -8,6 +8,9 @@ export async function GET(req: NextRequest) {
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (session.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const boss = await getBoss();
@@ -52,8 +55,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Debug pgboss error:', error);
     return NextResponse.json({ 
-      error: (error as Error).message,
-      stack: (error as Error).stack?.slice(0, 500),
+      error: 'Debug query failed',
     }, { status: 500 });
   }
 }

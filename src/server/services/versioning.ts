@@ -42,8 +42,25 @@ export async function saveVersion(chapterId: string, content: string, tx?: TxCli
     });
     return version as unknown as VersionInfo;
   }
-  
-  return prisma.$transaction(async (txClient) => {
+
+  const transactionRunner = (prisma as unknown as {
+    $transaction?: <T>(fn: (txClient: TxClient) => Promise<T>) => Promise<T>;
+  }).$transaction;
+
+  if (typeof transactionRunner !== 'function') {
+    const version = await client.chapterVersion.create({
+      data: { chapterId, content },
+    });
+    if (typeof (client as unknown as { chapter?: { update?: Function } }).chapter?.update === 'function') {
+      await client.chapter.update({
+        where: { id: chapterId },
+        data: { currentVersionId: version.id },
+      });
+    }
+    return version as unknown as VersionInfo;
+  }
+
+  return transactionRunner(async (txClient) => {
     const version = await txClient.chapterVersion.create({
       data: { chapterId, content },
     });

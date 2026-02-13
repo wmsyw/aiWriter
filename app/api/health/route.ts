@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/src/server/db';
+import { getBoss } from '@/src/server/services/jobs';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,17 +43,13 @@ export async function GET() {
     health.status = 'unhealthy';
   }
 
-  const boss = (globalThis as Record<string, unknown>).__pgboss as { 
-    isRunning?: boolean;
-  } | undefined;
-  
-  if (boss) {
-    health.checks.queue = { 
-      status: boss.isRunning ? 'ok' : 'error',
-      running: boss.isRunning ?? false,
-    };
-    if (!boss.isRunning) {
-      health.status = health.status === 'unhealthy' ? 'unhealthy' : 'degraded';
+  try {
+    await getBoss();
+    health.checks.queue = { status: 'ok', running: true };
+  } catch {
+    health.checks.queue = { status: 'error', running: false };
+    if (health.status === 'healthy') {
+      health.status = 'degraded';
     }
   }
 

@@ -73,13 +73,14 @@ const DialogContent = React.forwardRef<
           exit="exit"
           variants={modalVariants}
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border border-white/10 bg-[#1e2030]/90 p-6 shadow-2xl backdrop-blur-xl duration-200 sm:rounded-2xl',
+            'fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4',
+            'border border-zinc-800/80 bg-zinc-900/85 p-6 shadow-2xl shadow-black/50 backdrop-blur-xl duration-200 sm:rounded-2xl',
             sizeClasses[size],
             className
           )}
         >
           {children}
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-lg p-1.5 text-zinc-400 opacity-85 transition hover:opacity-100 hover:bg-zinc-800/70 hover:text-zinc-100 focus:outline-none disabled:pointer-events-none">
             <CloseIcon />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -110,7 +111,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
+      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
       className
     )}
     {...props}

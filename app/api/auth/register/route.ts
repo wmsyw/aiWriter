@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/src/server/db';
 import { hashPassword } from '@/src/server/auth/password';
+import { verifyCsrf } from '@/src/server/middleware/csrf';
+import { checkRateLimit, getClientIp } from '@/src/server/middleware/rate-limit';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -9,6 +11,12 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const csrfError = verifyCsrf(request);
+  if (csrfError) return csrfError;
+
+  const rateLimitError = await checkRateLimit(getClientIp(request), 'auth/register');
+  if (rateLimitError) return rateLimitError;
+
   try {
     const body = await request.json();
     const { email, password } = registerSchema.parse(body);

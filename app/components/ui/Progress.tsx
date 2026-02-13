@@ -16,7 +16,7 @@ const Progress = React.forwardRef<
 >(({ className, value, indicatorClassName, label, showValue, ...props }, ref) => (
   <div className="w-full space-y-2">
     {(label || showValue) && (
-      <div className="flex justify-between text-xs text-gray-400 mb-1">
+      <div className="flex justify-between text-xs text-zinc-400 mb-1">
         {label && <span>{label}</span>}
         {showValue && <span>{Math.round(value || 0)}%</span>}
       </div>

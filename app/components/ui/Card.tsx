@@ -12,15 +12,18 @@ export interface CardProps extends HTMLMotionProps<'div'> {
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'default', children, ...props }, ref) => {
     const isInteractive = variant === 'interactive';
+    const variantClass =
+      variant === 'outline'
+        ? 'border border-zinc-800/80 bg-zinc-950/40 backdrop-blur-sm'
+        : 'glass-card';
     
     return (
       <motion.div
         ref={ref}
         className={cn(
           'rounded-xl overflow-hidden',
-          variant === 'outline' 
-            ? 'border border-white/10 bg-transparent' 
-            : 'glass-card',
+          'focus-within:ring-2 focus-within:ring-emerald-500/40 focus-within:ring-offset-2 focus-within:ring-offset-zinc-950',
+          variantClass,
           className
         )}
         variants={isInteractive ? cardHover : undefined}
@@ -42,7 +45,7 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex flex-col space-y-1.5 p-6', className)}
+    className={cn('flex flex-col space-y-2 p-6', className)}
     {...props}
   />
 ));
@@ -55,7 +58,7 @@ const CardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      'text-lg font-semibold leading-none tracking-tight text-white',
+      'text-lg font-semibold leading-snug tracking-tight text-white',
       className
     )}
     {...props}
@@ -69,7 +72,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('text-sm text-gray-400', className)}
+    className={cn('text-sm leading-relaxed text-zinc-400', className)}
     {...props}
   />
 ));

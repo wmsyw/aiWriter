@@ -91,7 +91,7 @@ export default function Modal({
         aria-labelledby={title ? 'modal-title' : undefined}
       >
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between p-6 border-b border-white/10">
+          <div className="flex items-center justify-between p-6 border-b border-zinc-800/80">
             {title && (
               <h2 id="modal-title" className="text-xl font-bold text-white">
                 {title}
@@ -100,7 +100,7 @@ export default function Modal({
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all ml-auto"
+                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all ml-auto"
                 aria-label="Close modal"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -160,18 +160,18 @@ export function ConfirmModal({
 
   const variantStyles = {
     danger: {
-      icon: '⚠️',
-      buttonClass: 'bg-red-600 hover:bg-red-700',
+      iconClass: 'text-red-400 bg-red-500/10 border-red-500/20',
+      buttonClass: 'bg-red-600 hover:bg-red-500 text-white',
       borderClass: 'border-red-500/30',
     },
     warning: {
-      icon: '⚡',
-      buttonClass: 'bg-amber-600 hover:bg-amber-700',
+      iconClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+      buttonClass: 'bg-amber-600 hover:bg-amber-500 text-white',
       borderClass: 'border-amber-500/30',
     },
     info: {
-      icon: 'ℹ️',
-      buttonClass: 'bg-blue-600 hover:bg-blue-700',
+      iconClass: 'text-sky-400 bg-blue-500/10 border-blue-500/20',
+      buttonClass: 'bg-blue-600 hover:bg-blue-500 text-white',
       borderClass: 'border-blue-500/30',
     },
   };
@@ -181,20 +181,24 @@ export function ConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="sm" title="">
       <div className="text-center space-y-4">
-        <div className="text-4xl">{styles.icon}</div>
+        <div className={`w-14 h-14 mx-auto rounded-2xl border flex items-center justify-center ${styles.iconClass}`}>
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M10.29 3.86l-7.2 12.48A2 2 0 004.82 19.5h14.36a2 2 0 001.73-3.16l-7.2-12.48a2 2 0 00-3.46 0z" />
+          </svg>
+        </div>
         <h3 className="text-lg font-bold text-white">{title}</h3>
-        <p className="text-gray-400 text-sm">{message}</p>
+        <p className="text-zinc-400 text-sm">{message}</p>
         
         {requireConfirmation && (
           <div className="space-y-2">
-            <p className="text-xs text-gray-500">
-              请输入 <code className="bg-white/10 px-1 py-0.5 rounded text-amber-400">{requireConfirmation}</code> 以确认
+            <p className="text-xs text-zinc-500">
+              请输入 <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300">{requireConfirmation}</code> 以确认
             </p>
             <input
               type="text"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
-              className={`w-full px-3 py-2 bg-black/30 border rounded-lg text-center text-white focus:outline-none focus:ring-2 ${styles.borderClass}`}
+              className={`w-full px-3 py-2 bg-zinc-950/60 border rounded-lg text-center text-white focus:outline-none focus:ring-2 ${styles.borderClass}`}
               placeholder={requireConfirmation}
               disabled={isLoading}
             />
@@ -208,7 +212,7 @@ export function ConfirmModal({
           <button
             onClick={handleConfirm}
             disabled={isConfirmDisabled || isLoading}
-            className={`px-4 py-2 rounded-lg text-white font-medium transition-all ${styles.buttonClass} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[80px]`}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${styles.buttonClass} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[80px]`}
           >
             {isLoading && (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

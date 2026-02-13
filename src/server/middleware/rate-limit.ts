@@ -11,6 +11,8 @@ const RATE_LIMITS: Record<string, RateLimitConfig> = {
   'auth/forgot-password': { maxRequests: 3, windowMs: 300000 },
   'auth/reset-password': { maxRequests: 5, windowMs: 300000 },
   'auth/register': { maxRequests: 3, windowMs: 300000 },
+  'auth/change-password': { maxRequests: 5, windowMs: 60000 },
+  'auth/logout': { maxRequests: 20, windowMs: 60000 },
   'novels': { maxRequests: 60, windowMs: 60000 },
   'novels/create': { maxRequests: 10, windowMs: 60000 },
   'jobs': { maxRequests: 30, windowMs: 60000 },

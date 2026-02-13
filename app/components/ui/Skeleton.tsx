@@ -21,14 +21,14 @@ const Skeleton = React.forwardRef<HTMLDivElement, SkeletonProps>(
       <motion.div
         ref={ref}
         className={cn(
-          'bg-white/5 relative overflow-hidden',
+          'bg-zinc-800/40 relative overflow-hidden',
           variants[variant],
           className
         )}
         variants={shimmer}
         animate="animate"
         style={{
-          background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%)',
+          background: 'linear-gradient(90deg, rgba(63,63,70,0.35) 25%, rgba(113,113,122,0.55) 50%, rgba(63,63,70,0.35) 75%)',
           backgroundSize: '200% 100%',
         }}
         {...props}

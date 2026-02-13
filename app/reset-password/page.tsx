@@ -1,30 +1,44 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import AuthShell from '@/app/components/AuthShell';
+import { Input } from '@/app/components/ui/Input';
+import { Button } from '@/app/components/ui/Button';
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => router.push('/login'), 1800);
+      return () => clearTimeout(timer);
+    }
+  }, [success, router]);
+
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card p-8 rounded-2xl text-center max-w-md w-full animate-fade-in">
-          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-          </div>
-          <h2 className="text-xl font-bold mb-2">无效的重置链接</h2>
-          <p className="text-gray-400">密码重置链接无效或已过期。</p>
-        </div>
-      </div>
+      <AuthShell
+        title="链接无效"
+        subtitle="密码重置链接无效或已过期，请重新申请。"
+        tone="amber"
+        icon={
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <circle cx="12" cy="12" r="9" strokeWidth={2}></circle>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 9l-6 6m0-6l6 6" />
+          </svg>
+        }
+      >
+        <div className="text-center text-zinc-400 text-sm">请检查邮件中的最新链接后重试。</div>
+      </AuthShell>
     );
   }
 
@@ -52,7 +66,6 @@ function ResetPasswordForm() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.push('/'), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : '重置失败');
     } finally {
@@ -62,85 +75,66 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card p-8 rounded-2xl text-center max-w-md w-full animate-fade-in">
-          <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-          </div>
-          <h2 className="text-xl font-bold mb-2 text-white">密码重置成功！</h2>
-          <p className="text-gray-400 mb-6">你的密码已更新。</p>
-          <div className="w-full bg-white/5 rounded-full h-1 overflow-hidden">
-            <div className="h-full bg-emerald-500 animate-[width_2s_ease-out_forwards]" style={{ width: '100%' }}></div>
-          </div>
-          <p className="text-sm text-gray-500 mt-4">正在跳转至登录页...</p>
+      <AuthShell
+        title="密码已更新"
+        subtitle="即将返回登录页，请使用新密码登录。"
+        tone="emerald"
+        icon={
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        }
+      >
+        <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+          <div className="h-full bg-emerald-500 animate-[shimmer_1.8s_linear_infinite]" />
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px] animate-float"></div>
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-teal-600/20 rounded-full blur-[100px] animate-float" style={{ animationDelay: '2s' }}></div>
-      </div>
+    <AuthShell
+      title="重置密码"
+      subtitle="请输入新密码并确认。"
+      tone="emerald"
+      icon={
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V9a5 5 0 10-10 0v2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+        </svg>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <Input
+          type="password"
+          label="新密码"
+          placeholder="至少 8 位字符"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          minLength={8}
+          required
+        />
 
-      <div className="w-full max-w-md glass-card p-8 rounded-2xl animate-slide-up">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">重置密码</h1>
-          <p className="text-gray-400">在下方输入你的新密码</p>
-        </div>
+        <Input
+          type="password"
+          label="确认密码"
+          placeholder="再次输入新密码"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          minLength={8}
+          required
+        />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300 ml-1">新密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl glass-input outline-none"
-              placeholder="••••••••"
-              required
-              minLength={8}
-            />
+        {error && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm animate-fade-in">
+            {error}
           </div>
+        )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300 ml-1">确认密码</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl glass-input outline-none"
-              placeholder="••••••••"
-              required
-              minLength={8}
-            />
-          </div>
-
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm animate-fade-in">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl btn-primary font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                重置中...
-              </span>
-            ) : (
-              '重置密码'
-            )}
-          </button>
-        </form>
-      </div>
-    </div>
+        <Button type="submit" isLoading={loading} className="w-full h-11 text-base mt-1">
+          {loading ? '重置中...' : '重置密码'}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
@@ -148,7 +142,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+        <div className="w-14 h-14 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
       </div>
     }>
       <ResetPasswordForm />

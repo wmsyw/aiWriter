@@ -20,7 +20,7 @@ export default function RootLayout({
   
   return (
     <html lang={locale}>
-      <body className="font-sans">
+      <body className="font-sans min-h-screen text-zinc-100">
         <MobileBlocker>{children}</MobileBlocker>
       </body>
     </html>

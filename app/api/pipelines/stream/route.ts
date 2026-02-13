@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { prisma } from '@/src/server/db';
 import { Orchestrator, type PipelineType, getPipeline } from '@/src/server/orchestrator';
-import { JobType } from '@/src/server/services/jobs';
+import { JobType, getBoss } from '@/src/server/services/jobs';
 import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -53,25 +53,55 @@ export async function POST(req: NextRequest) {
     return new Response('novelId is required', { status: 400 });
   }
 
+  const novel = await prisma.novel.findFirst({
+    where: { id: novelId, userId: session.userId },
+    select: { id: true },
+  });
+  if (!novel) {
+    return Response.json({ error: 'Novel not found' }, { status: 404 });
+  }
+
+  if (chapterId) {
+    const chapter = await prisma.chapter.findFirst({
+      where: { id: chapterId, novelId },
+      select: { id: true },
+    });
+    if (!chapter) {
+      return Response.json({ error: 'Chapter not found' }, { status: 404 });
+    }
+  }
+
+  const providerConfigId =
+    config && typeof config === 'object' && typeof config.providerConfigId === 'string'
+      ? config.providerConfigId
+      : undefined;
+  if (providerConfigId) {
+    const ownedProvider = await prisma.providerConfig.findFirst({
+      where: { id: providerConfigId, userId: session.userId },
+      select: { id: true },
+    });
+    if (!ownedProvider) {
+      return Response.json({ error: 'Provider config not found' }, { status: 404 });
+    }
+  }
+
   const pipeline = getPipeline(pipelineType);
   if (!pipeline) {
     return new Response(`Pipeline not found: ${pipelineType}`, { status: 400 });
   }
 
-  const boss = (globalThis as Record<string, unknown>).__pgboss as { 
-    publish?: (name: string, data: unknown, options?: Record<string, unknown>) => Promise<string | null>;
-    isRunning?: boolean;
-  } | undefined;
-  
-  if (!boss?.publish || !boss?.isRunning) {
+  let boss: Awaited<ReturnType<typeof getBoss>>;
+  try {
+    boss = await getBoss();
+  } catch {
     return Response.json(
       { error: 'Job queue is not available', code: 'QUEUE_UNAVAILABLE' },
       { status: 503 }
     );
   }
 
-  let job: { id: string };
-  let execution: { id: string };
+  let job: { id: string } | null = null;
+  let execution: { id: string } | null = null;
   let queueJobId: string | null = null;
 
   try {
@@ -106,7 +136,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    queueJobId = await boss.publish(JobType.PIPELINE_EXECUTE, {
+    queueJobId = await boss.send(JobType.PIPELINE_EXECUTE, {
       jobId: job.id,
       userId: session.userId,
       input: {
@@ -140,7 +170,7 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (error) {
-    if (execution!) {
+    if (execution) {
       await prisma.pipelineExecution.update({
         where: { id: execution.id },
         data: { 
@@ -149,7 +179,7 @@ export async function POST(req: NextRequest) {
         },
       }).catch(() => {});
     }
-    if (job!) {
+    if (job) {
       await prisma.job.update({
         where: { id: job.id },
         data: { 

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { prisma } from '@/src/server/db';
 import { verifyPassword, hashPassword } from '@/src/server/auth/password';
+import { verifyCsrf } from '@/src/server/middleware/csrf';
+import { checkRateLimit, getClientIp } from '@/src/server/middleware/rate-limit';
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
@@ -10,6 +12,12 @@ const changePasswordSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
+
+  const rateLimitError = await checkRateLimit(getClientIp(req), 'auth/change-password');
+  if (rateLimitError) return rateLimitError;
+
   const session = await getSessionUser();
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
