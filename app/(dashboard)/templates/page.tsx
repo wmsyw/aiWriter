@@ -229,10 +229,10 @@ export default function TemplatesPage() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      className="h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-6"
+      className="h-[calc(100vh-var(--dashboard-topbar-height)-2rem)] max-h-[calc(100vh-var(--dashboard-topbar-height)-2rem)] flex flex-col md:flex-row gap-6"
     >
       <Card className="w-full md:w-72 flex-shrink-0 flex flex-col p-0 overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
-        <CardHeader className="h-14 p-0 px-4 border-b border-white/5 flex flex-row justify-between items-center space-y-0 bg-zinc-900/30">
+        <CardHeader className="min-h-16 p-0 px-4 border-b border-white/5 flex flex-row justify-between items-center space-y-0 bg-zinc-900/30">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-emerald-500/10 rounded-lg">
               <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,7 +331,7 @@ export default function TemplatesPage() {
       <Card className="flex-1 flex flex-col p-0 relative overflow-hidden bg-zinc-900/50 border-zinc-800/50 backdrop-blur-sm rounded-2xl shadow-xl">
         {selectedTemplate ? (
           <>
-            <CardHeader className="h-14 p-0 px-6 border-b border-white/5 flex flex-row items-center justify-between bg-zinc-900/30 gap-6">
+            <CardHeader className="min-h-16 p-0 px-6 border-b border-white/5 flex flex-row items-center justify-between bg-zinc-900/30 gap-6">
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="hidden md:flex items-center gap-2 text-zinc-500 select-none flex-shrink-0">
                   <svg className="w-3.5 h-3.5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">

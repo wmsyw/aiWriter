@@ -125,6 +125,8 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --dashboard-topbar-height: 4.5rem;
+    --dashboard-sticky-offset: calc(var(--dashboard-topbar-height) + 1rem);
   }
 
   html,
@@ -216,6 +218,10 @@
 
   .dashboard-page tbody td {
     @apply py-3 text-zinc-300;
+  }
+
+  .dashboard-sticky-offset {
+    top: var(--dashboard-sticky-offset);
   }
 
   .auth-shell {
@@ -394,21 +400,25 @@
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap select-none
+           border border-emerald-400/25
+           bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium tracking-[0.01em]
            shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35
            hover:-translate-y-0.5 active:translate-y-0
            transition-all duration-200 rounded-lg;
   }
 
   .btn-secondary {
-    @apply bg-zinc-800/90 text-zinc-200 font-medium
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap select-none
+           bg-zinc-800/90 text-zinc-200 font-medium tracking-[0.01em]
            hover:bg-zinc-700/95 hover:text-white
            border border-zinc-700 hover:border-zinc-600
            transition-all duration-200 rounded-lg;
   }
 
   .btn-ai {
-    @apply relative overflow-hidden
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap select-none
+           relative overflow-hidden
            bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500
            bg-[length:200%_auto] animate-gradient-xy
            text-zinc-900 font-bold
@@ -419,14 +429,33 @@
   }
 
   .btn-ghost {
-    @apply text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap select-none
+           text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60
+           border border-transparent hover:border-zinc-700/70
            transition-colors duration-200 rounded-lg;
   }
 
   .btn-danger {
-    @apply bg-red-500/10 text-red-400 font-medium
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap select-none
+           bg-red-500/10 text-red-400 font-medium tracking-[0.01em]
            hover:bg-red-500/20 border border-red-500/30
            transition-all duration-200 rounded-lg;
+  }
+
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-ghost:focus-visible,
+  .btn-danger:focus-visible,
+  .btn-ai:focus-visible {
+    @apply outline-none ring-2 ring-emerald-500/45 ring-offset-2 ring-offset-zinc-950;
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-ghost:disabled,
+  .btn-danger:disabled,
+  .btn-ai:disabled {
+    @apply opacity-55 pointer-events-none;
   }
 
   .accent-bar {

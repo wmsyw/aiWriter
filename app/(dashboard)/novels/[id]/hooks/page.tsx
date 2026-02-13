@@ -243,7 +243,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
 
       <HookTimeline hooks={hooksList} />
 
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm sticky top-4 z-30 shadow-xl shadow-black/20">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm sticky dashboard-sticky-offset z-20 shadow-xl shadow-black/20">
         <div className="flex overflow-x-auto pb-2 md:pb-0 gap-1 no-scrollbar w-full md:w-auto">
           {STATUS_TABS.map((tab) => (
             <button

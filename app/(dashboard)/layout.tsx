@@ -314,7 +314,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-screen relative z-10 overflow-y-auto transition-all duration-300`}>
-        <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-800/60">
+        <header className="min-h-[var(--dashboard-topbar-height)] py-2 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/88 backdrop-blur-xl border-b border-zinc-800/60">
           <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -356,7 +356,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
              
             {showNotifications && (
-              <div className="absolute right-0 top-12 w-80 glass-card border border-zinc-800/80 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
+              <div className="absolute right-0 top-[calc(var(--dashboard-topbar-height)-0.5rem)] w-80 glass-card border border-zinc-800/80 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
                 <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
                   <h3 className="font-semibold text-zinc-100">通知</h3>
                   <Link href="/jobs" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">

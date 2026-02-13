@@ -26,16 +26,16 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const sizes = {
-      sm: 'h-8 px-3 text-xs',
+      sm: 'h-9 px-3.5 text-xs',
       md: 'h-10 px-4 text-sm',
-      lg: 'h-12 px-6 text-base',
+      lg: 'h-11 px-6 text-base',
     };
 
     return (
       <motion.button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center whitespace-nowrap gap-1.5 font-medium rounded-lg',
+          'inline-flex items-center justify-center whitespace-nowrap leading-none gap-1.5 font-medium rounded-lg',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950',
           'disabled:opacity-50 disabled:pointer-events-none',
           variants[variant],

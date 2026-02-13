@@ -1357,9 +1357,9 @@ export default function ChapterEditorPage() {
       initial="initial"
       animate="animate"
       variants={fadeIn}
-      className={`flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
+      className={`flex flex-col h-[calc(100vh-var(--dashboard-topbar-height))] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
     >
-      <header className={`h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#0f1117]/80 backdrop-blur-md z-10 shrink-0 transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+      <header className={`min-h-16 py-2 border-b border-white/5 flex items-center justify-between px-6 bg-[#0f1117]/80 backdrop-blur-md z-10 shrink-0 transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="text-gray-400 hover:text-white transition-colors hover:bg-white/5 p-1.5 rounded-lg">
             <Icons.ChevronLeft className="w-5 h-5" />
