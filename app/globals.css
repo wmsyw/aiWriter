@@ -186,7 +186,12 @@
   }
 
   .content-section {
-    @apply glass-card rounded-2xl p-5 md:p-6;
+    @apply rounded-2xl p-5 md:p-6 bg-zinc-900/82 border border-zinc-800/80 shadow-xl backdrop-blur-md;
+    background-image: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0) 30%
+    );
   }
 
   .dashboard-page {
@@ -246,7 +251,12 @@
   }
 
   .auth-card {
-    @apply w-full max-w-md glass-card rounded-2xl p-8 md:p-10 shadow-2xl border border-white/10;
+    @apply w-full max-w-md rounded-2xl p-8 md:p-10 shadow-2xl border border-white/10 bg-zinc-900/82 backdrop-blur-md;
+    background-image: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0) 30%
+    );
   }
 }
 

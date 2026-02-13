@@ -7,7 +7,7 @@
     "dev": "next dev --turbopack",
     "dev:all": "node --run dev & node --run worker & wait",
     "worker": "APP_MODE=worker npx tsx worker/index.js",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "vitest",

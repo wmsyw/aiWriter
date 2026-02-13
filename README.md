@@ -1,298 +1,269 @@
-# 🌌 aiWriter - 智能小说创作辅助平台
+# aiWriter
 
-<p align="center">
-  <img src="https://via.placeholder.com/800x200?text=aiWriter+Smart+Novel+Writing+Platform" alt="aiWriter Banner" width="100%">
-</p>
+aiWriter 是一个面向中文长篇创作的 AI 协作平台，提供从设定、纲要、章节生成到评审与资料管理的一体化工作流。
 
-<p align="center">
-  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.1-black?style=for-the-badge&logo=next.js" alt="Next.js"></a>
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19.0-blue?style=for-the-badge&logo=react" alt="React"></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.9-blue?style=for-the-badge&logo=typescript" alt="TypeScript"></a>
-  <a href="https://www.prisma.io/"><img src="https://img.shields.io/badge/Prisma-7.2-2D3748?style=for-the-badge&logo=prisma" alt="Prisma"></a>
-  <a href="https://www.postgresql.org/"><img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql" alt="PostgreSQL"></a>
-</p>
+- 前端：Next.js 16 + React 19 + Tailwind CSS 4
+- 后端：Next.js Route Handlers + Prisma
+- 数据库：PostgreSQL
+- 异步任务：pg-boss + 独立 Worker
 
-<p align="center">
-  <b>打破叙事僵局，重构数字灵感。您的网文创作“数字副驾驶”，跨越卡文鸿沟。</b>
-</p>
+> 当前版本以桌面端为主（小屏设备会被引导使用桌面端）。
 
 ---
 
-## 📖 目录
-- [项目简介](#项目简介)
-- [🛠️ 核心特性](#-核心特性)
-- [🖼️ 界面预览](#️-界面预览)
-- [🤖 支持的 AI 模型](#-支持的-ai-model)
-- [🚀 快速开始](#-快速开始)
-- [⚙️ 配置指南](#️-配置指南)
-- [📡 API 概览](#-api-概览)
-- [🏗️ 系统架构](#️-系统架构)
-- [👨‍💻 开发指南](#-开发指南)
-- [🛣️ 路线图](#️-路线图)
-- [🤝 贡献指南](#-贡献指南)
-- [❓ 常见问题 (FAQ)](#-常见问题-faq)
-- [📄 许可证](#-许可证)
+## 目录
+
+- [功能概览](#功能概览)
+- [快速开始](#快速开始)
+- [环境变量](#环境变量)
+- [常用命令](#常用命令)
+- [项目结构](#项目结构)
+- [系统架构](#系统架构)
+- [API 概览](#api-概览)
+- [运维与排障](#运维与排障)
+- [FAQ](#faq)
+- [贡献与许可](#贡献与许可)
 
 ---
 
-## 项目简介
+## 功能概览
 
-**aiWriter** 是一款专为中文网文创作者打造的 **AI 协作终端**。它深度集成前沿大语言模型，通过数字化的创作流，助力作者在灵感坍缩、章节构建与逻辑校准之间实现跨维度的效率跃迁。
+### 1. 创作工作流
+- 小说创建与分步引导（题材、世界观、角色等）
+- 大纲/细纲生成、章节生成与多分支探索
+- 章节评审与反馈闭环
 
-作为您的**数字副驾驶 (Digital Copilot)**，aiWriter 深度解码网文的**叙事节奏、商业套路与人设演化**，确保护航长篇连贯性，将您的创意从传统的“黑盒”创作模式中解放。
+### 2. Agent 能力
+- 内置写作、评审、工具类 Agent（支持模板与参数配置）
+- 可按服务商/模型配置运行参数（温度、max tokens 等）
 
----
+### 3. 资料与设定管理
+- 材料库（角色、地点、组织、道具等）
+- 钩子（Hooks）与待处理实体（Pending Entities）
+- 关系图谱可视化（Cytoscape）
 
-## ✨ 核心特性
-
-### 🤖 智能 AI Agent 矩阵
-系统部署了八大针对网文叙事深度优化的 AI 算力代理：
-- ✍️ **章节写手 (Chapter Writer)**：基于大纲、前情和设定，自动生成引人入胜的正文。
-- ⚖️ **章节评审 (Reviewer)**：从情节、节奏、人物等 9 个维度进行专业打分和毒点检查。
-- ✨ **去 AI 化润色 (Humanizer)**：消除 AI 腔，提升文笔张力，使内容更具人文气息。
-- 🧠 **记忆提取器 (Memory Extractor)**：自动提取新设定与剧情进展，确保持续连贯。
-- 🔍 **一致性检查 (Consistency Checker)**：严格核对人物、境界等设定，防止逻辑漏洞。
-- 💬 **角色对话 (Character Chat)**：沉浸式扮演小说角色，测试人设，挖掘深度剧情。
-- 🗺️ **大纲生成器 (Outline Generator)**：快速构建包含主线、伏笔、爽点的完整大纲。
-- 🗃️ **素材助手 (Material Assistant)**：负责深度搜索、智能完善与创作素材的精细化归档。
-
-### 🛠️ 职业创作工具
-- **多分支章节生成**：支持同时生成多个不同走向的分支，择优而从。
-- **设定集 (Lorebook) 系统**：关键词触发式设定注入，确保 AI 严格遵循世界观。
-- **角色关系图**：基于 Cytoscape.js 的可视化动态关系图谱。
-- **版本控制与备份**：Git 级自动备份，支持修改差异对比 (Diff) 与一键回滚。
-- **素材管理库 (Material Library)**：多维度管理**角色、地点、组织、道具、情节点及世界观**设定。
-    - 🌐 **AI 联网搜索**：打破创作孤岛，从全网检索并提取核心素材信息。
-    - 🪄 **AI 深度完善**：支持将简略描述一键扩展为具备多维属性的精密角色/世界档案。
-    - 🧩 **AI 智能去重**：自动分析库内实体，智能合并冗余记录（如合并“张三”与“张三（嫌疑人）”），维护设定严谨性。
+### 4. 异步任务与可观测性
+- 通过 pg-boss 处理耗时任务
+- 提供任务列表与 SSE 实时更新
+- 健康检查接口：`/api/health`
 
 ---
 
-## 🖼️ 界面预览
+## 快速开始
 
-> [!TIP]
-> 这里的截图仅为占位符，您可以上传实际的软件界面截图。
+### 方式 A：Docker（推荐）
 
-| 创作中心 (Editor) | 角色关系图 (Graph) |
-| :--- | :--- |
-| ![Editor Placeholder](https://via.placeholder.com/400x250?text=AI+Writing+Interface) | ![Graph Placeholder](https://via.placeholder.com/400x250?text=Character+Relationship+Map) |
+适合快速体验或部署。
 
-**建议添加的截图：**
-- **Dashboard**: 项目全局概览
-- **Lorebook**: 设定集管理界面
-- **Agent Settings**: AI 代理配置页面
-- **Review Report**: 章节评审报告
-
----
-
-## 🤖 支持的 AI 模型
-
-aiWriter 支持多种主流 AI 模型服务商，并针对中文创作进行了特别优化：
-
-| 模型提供商 | 支持型号 | 特色功能 |
-| :--- | :--- | :--- |
-| **OpenAI** | GPT-4, GPT-4o, GPT-3.5 | 极高的逻辑能力，支持 Responses API 联网搜索 |
-| **Anthropic** | Claude 3.5 Sonnet, Claude 3 Opus | 优秀的文学素养，更自然的内容生成 |
-| **Google Gemini** | Gemini 2.0/1.5 Pro/Flash | 极长的上下文支持，内置 Google 搜索增强 |
-| **Azure OpenAI** | 企业级模型部署 | 满足企业级并发与安全需求 |
-| **自定义 API** | 任何兼容 OpenAI 格式的接口 | 支持本地自建模型 (如 DeepSeek, Llama) |
-
----
-
-## 🚀 快速开始
-
-### 📦 推荐部署：Docker (预构建镜像)
-
-使用 GitHub Container Registry 提供的预构建多架构镜像 (AMD64/ARM64)：
+1. 克隆项目
 
 ```bash
-# 克隆仓库获取配置文件
 git clone https://github.com/wmsyw/aiWriter.git
 cd aiWriter
+```
 
-# 生成环境配置
+2. 生成 `.env`
+
+```bash
 npm run setup
-# 或手动复制: cp .env.example .env 并编辑
+```
 
-# 使用预构建镜像启动 (推荐)
+3. 启动服务（数据库 + Web + Worker）
+
+```bash
 docker-compose up -d
-
-# 访问 http://localhost:3000/setup 完成初始化
 ```
 
-**统一镜像架构：**
+4. 首次初始化管理员
 
-aiWriter 使用单一 Docker 镜像同时支持 Web 服务和后台任务处理，通过 `APP_MODE` 环境变量切换：
+- 打开 `http://localhost:<APP_PORT>/setup`（`APP_PORT` 来自 `.env`）
+- 使用 `.env` 里的 `ADMIN_SETUP_TOKEN` 完成初始化
 
-| 模式 | 环境变量 | 说明 |
-| :--- | :--- | :--- |
-| Web 服务 | `APP_MODE=web` | Next.js 服务器 (默认) |
-| 后台 Worker | `APP_MODE=worker` | pg-boss 任务处理 |
-
-```bash
-# 镜像地址
-ghcr.io/wmsyw/aiwriter:latest
-
-# 指定版本
-IMAGE_TAG=v1.0.0 docker-compose up -d
-```
-
-### 🔧 本地构建部署
-
-如需本地构建镜像（开发或自定义修改）：
-
-```bash
-# 使用本地构建的 compose 文件
-docker-compose -f docker-compose.dev.yml up -d --build
-```
-
-### 🛠️ 本地开发
-1. **安装依赖**:
-   ```bash
-   npm install
-   ```
-2. **自动生成环境配置** (推荐):
-   ```bash
-   npm run setup
-   ```
-   脚本会自动生成所有必需的密钥并写入 `.env` 文件，同时格式化输出配置内容。
-   
-   选项: `--force` 覆盖已存在的配置 | `--dry-run` 仅预览不写入 | `--minimal` 只生成必需项
-3. **数据库初始化**:
-   ```bash
-   npx prisma db push
-   ```
-4. **启动服务**:
-   ```bash
-   npm run dev:all
-   ```
+说明：
+- `web` 与 `worker` 使用同一镜像，通过 `APP_MODE` 区分运行模式
+- 容器启动时 `web` 会执行 `prisma db push`
 
 ---
 
-## ⚙️ 配置指南
+### 方式 B：本地开发
 
-### 🔑 环境变量
+### 前置要求
+- Node.js 20+
+- PostgreSQL 16+
+
+### 步骤
+
+1. 安装依赖
+
+```bash
+npm install
+```
+
+2. 生成环境变量
+
+```bash
+npm run setup
+```
+
+3. 启动数据库（任选一种）
+
+- 使用你本地已有 PostgreSQL
+- 或仅启动 compose 的数据库：
+
+```bash
+docker-compose up -d db
+```
+
+4. 同步数据库结构
+
+```bash
+npx prisma db push
+```
+
+5. 启动 Web + Worker
+
+```bash
+npm run dev:all
+```
+
+6. 访问应用
+
+- 默认地址通常为 `http://localhost:<APP_PORT>`（由 `npm run setup` 生成）
+
+---
+
+## 环境变量
+
+`npm run setup` 会自动生成配置，下面是关键项：
+
 | 变量名 | 必填 | 说明 |
-| :--- | :--- | :--- |
-| `DATABASE_URL` | 是 | PostgreSQL 连接字符串 |
-| `APP_ENCRYPTION_KEY_B64` | 是 | 32 字节 Base64 加密密钥，用于加密 AI API Key |
-| `SESSION_SECRET` | 是 | 用于 Session 加密的随机字符串 |
-| `ADMIN_SETUP_TOKEN` | 是 | 首次运行时的安装授权令牌 |
+| --- | --- | --- |
+| `DATABASE_URL` | 是 | PostgreSQL 连接串 |
+| `APP_ENCRYPTION_KEY_B64` | 是 | 32 字节 Base64 密钥（用于敏感信息加密） |
+| `SESSION_SECRET` | 是 | Session 加密密钥 |
+| `ADMIN_SETUP_TOKEN` | 是 | 首次初始化令牌 |
+| `POSTGRES_PORT` | 推荐 | Docker 数据库映射端口 |
+| `APP_PORT` | 推荐 | Web 服务端口 |
+| `POSTGRES_PASSWORD` | 推荐 | Docker 数据库密码 |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | 否 | 用于忘记密码邮件 |
 | `GIT_BACKUP_ENABLED` | 否 | 是否启用 Git 自动备份 |
 
-### 🤖 AI 代理配置
-在 Web 界面中，您可以为每个 AI Agent 单独配置：
-- **模型服务商**: 选择使用的 API。
-- **提示词模板**: 支持使用 [LiquidJS](https://liquidjs.com/) 语法的自定义模板。
-- **模型参数**: 如 Temperature, Top P, Max Tokens 等。
+> 生产环境请务必替换自动生成的密钥，并妥善保存。
 
 ---
 
-## 📡 API 概览
+## 常用命令
 
-aiWriter 为开发者提供了丰富的接口，方便进行自动化集成或二次开发：
+```bash
+# 开发
+npm run dev          # 仅 Web
+npm run worker       # 仅 Worker
+npm run dev:all      # Web + Worker
 
-### 核心接口 (RESTful)
-- `GET /api/novels`: 获取当前用户的所有小说列表。
-- `POST /api/novels/[id]/chapters`: 为指定小说创建新章节。
-- `GET /api/novels/[id]/character-graph`: 获取角色关系图谱数据。
-- `POST /api/agents`: 触发指定的 AI Agent 任务。
-- `GET /api/jobs/[id]`: 查询异步任务状态。
+# 质量
+npm run lint         # TypeScript 类型检查
+npm run test         # Vitest
 
-### 实时流 (SSE)
-- `GET /api/jobs/stream`: 通过服务器发送事件 (SSE) 实时获取任务进度反馈。
+# 构建与运行
+npm run build
+npm run start
+```
 
 ---
 
-## 🏗️ 系统架构
+## 项目结构
 
-aiWriter 采用 Web Server + Worker 的异步架构，确保长篇内容生成时的系统响应速度。
+```text
+app/                 Next.js App Router 页面与 API 路由
+  (dashboard)/       主业务页面
+  api/               后端接口
+  components/        前端组件
+src/
+  server/            服务层、任务编排、适配器、中间件
+  constants/         常量与内置 Agent 定义
+worker/              后台任务处理入口与处理器
+prisma/              数据模型（schema.prisma）
+scripts/             工具脚本（如 setup-env.js）
+tests/               Vitest 测试
+```
+
+---
+
+## 系统架构
 
 ```mermaid
 graph TD
-    User((用户)) --> NextJS[Next.js Web Server]
-    NextJS --> DB[(PostgreSQL)]
-    NextJS --> Queue[pg-boss Job Queue]
-    Queue --> Worker[Job Worker]
-    Worker --> AI[AI Providers: OpenAI/Claude/Gemini]
-    Worker --> Git[Local Git Backup]
-    Worker --> DB
-    NextJS -- SSE Stream --> User
+    U[用户浏览器] --> W[Next.js Web]
+    W --> DB[(PostgreSQL)]
+    W --> Q[pg-boss Queue]
+    Q --> WK[Worker]
+    WK --> AI[LLM Providers]
+    WK --> DB
+    W -- SSE --> U
 ```
 
-- **Web Server**: 负责 UI 渲染、权限管理与 API 路由。
-- **Worker**: 负责耗时的 AI 生成、Git 备份、大文件处理等异步任务。
-- **Job Queue**: 基于 PostgreSQL 的高性能任务队列。
+---
+
+## API 概览
+
+常用接口示例（非完整列表）：
+
+- `GET /api/novels`：获取小说列表
+- `POST /api/novels/[novelId]/chapters`：创建章节
+- `GET /api/jobs`：获取任务列表
+- `GET /api/jobs/stream`：SSE 任务流
+- `GET /api/providers`：获取模型服务商配置
+- `PUT /api/user/preferences`：更新用户偏好
 
 ---
 
-## 👨‍💻 开发指南
+## 运维与排障
 
-### 如何添加新的 AI 代理 (Agent)
-1. 在 `prisma/schema.prisma` 中查看 `AgentDefinition` 模型。
-2. 在 UI 的“代理管理”页面添加新定义，或在 `src/server/services/agents.ts` 中注册内置代理。
-3. 在 `src/server/services/templates.ts` 中定义相应的 Prompt 模板。
+### 健康检查
 
-### 自定义 Prompt 模板
-系统使用 [LiquidJS](https://liquidjs.com/)。您可以在模板中使用以下上下文变量：
-- `{{novel_title}}`: 小说标题
-- `{{previous_summary}}`: 前情提要
-- `{{characters}}`: 注入的角色设定
+```bash
+curl http://localhost:3000/api/health
+```
 
-### 添加新的 AI 服务商
-1. 修改 `src/server/adapters/providers.ts`。
-2. 实现 `ProviderAdapter` 接口中的 `generate` 方法。
-3. 在 `PROVIDER_BASE_URLS` 中添加默认端点。
+返回内容包含：
+- `database`：数据库可用性与延迟
+- `queue`：任务队列状态
+- `pipelines`：近期执行成功/失败情况
 
-### 代码规范
-- 使用 **TypeScript** 进行强类型约束。
-- 前端组件遵循 **React 19** 的最佳实践。
-- 样式使用 **TailwindCSS 4**。
+### 常见问题排查
 
----
+1. 页面空白或初始化失败
+- 检查 `.env` 是否存在且关键字段完整
+- 检查 `DATABASE_URL` 是否可连接
 
-## 🛣️ 路线图
+2. 任务不执行
+- 检查 Worker 是否在运行（`npm run worker` 或 compose `worker` 服务）
+- 检查 `/api/health` 中 `queue` 状态
 
-- [ ] **多用户协作**: 支持工作室模式下的多人共同创作。
-- [ ] **移动端应用**: 适配手机端，随时随地记录灵感。
-- [ ] **插件系统**: 支持第三方插件扩展创作功能。
-- [ ] **多格式导出**: 支持导出为 EPUB, PDF, Word, 以及直接同步至发布平台。
-- [ ] **深度知识库 (RAG)**：支持上传整本参考书作为创作背景。
+3. 忘记密码邮件收不到
+- 检查 SMTP 配置是否完整
+- 检查发件服务是否允许当前账号发送
 
 ---
 
-## 🤝 贡献指南
+## FAQ
 
-我们非常欢迎社区的贡献！
-1. **Fork** 本项目。
-2. **创建特性分支** (`git checkout -b feature/AmazingFeature`)。
-3. **提交更改** (`git commit -m 'Add some AmazingFeature'`)。
-4. **推送到分支** (`git push origin feature/AmazingFeature`)。
-5. **发起 Pull Request**。
+### 支持本地模型或第三方网关吗？
+支持。可使用兼容 OpenAI API 格式的自定义服务。
 
-请确保遵循项目的代码规范，并为新功能编写必要的测试用例。
+### 支持移动端吗？
+当前主要面向桌面创作场景，移动端体验受限。
 
----
-
-## ❓ 常见问题 (FAQ)
-
-**Q: 是否支持本地运行的 LLM (如 DeepSeek)?**
-A: 支持。只要您的本地服务提供兼容 OpenAI 的 API 接口，即可在配置中填写自定义 Base URL 和 API Key 进行使用。
-
-**Q: 创作的数据安全吗？**
-A: 您的作品内容存储在您自己的数据库中，且支持自动 Git 本地备份。AI 接口的 API Key 在数据库中经过 256 位加密存储。
-
-**Q: 需要支付费用吗？**
-A: 本系统本身是开源免费的，但使用闭源 AI 模型（如 GPT-4）需要您自行承担模型服务商收取的 API 费用。
+### 初始化令牌在哪看？
+查看 `.env` 中的 `ADMIN_SETUP_TOKEN`。
 
 ---
 
-## 📄 许可证
+## 贡献与许可
 
-本项目遵循 [MIT License](LICENSE) 协议。
+欢迎提交 Issue / PR 改进项目。
 
----
+- 建议流程：Fork -> 新分支 -> 提交 -> PR
+- 提交前建议执行：`npm run lint && npm run test`
 
-<p align="center">
-  Made with ❤️ for Writers
-</p>
+本项目基于 [MIT License](LICENSE)。
