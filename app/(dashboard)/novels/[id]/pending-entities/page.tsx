@@ -3,7 +3,8 @@
 import { useState, useMemo, use } from 'react';
 import Link from 'next/link';
 import GlassCard from '@/app/components/ui/GlassCard';
-import Modal from '@/app/components/ui/Modal';
+import Modal, { ModalFooter } from '@/app/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
 import { useFetch } from '@/src/hooks/useFetch';
 
 type EntityType = 'character' | 'organization';
@@ -111,13 +112,13 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
   const pendingCount = summary?.pendingCount || (Array.isArray(entities) ? entities.filter(e => e.status === 'pending').length : 0);
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in min-h-screen">
+    <div className="space-y-8 animate-fade-in pb-8">
       <div className="flex flex-col gap-6">
         <Link 
           href={`/novels/${novelId}`}
-          className="text-gray-400 hover:text-white flex items-center gap-2 w-fit transition-colors group text-sm font-medium"
+          className="inline-flex items-center gap-2 w-fit text-gray-400 hover:text-white transition-colors group text-sm font-medium"
         >
-          <span className="bg-white/5 p-1.5 rounded-lg group-hover:bg-white/10 transition-colors">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] group-hover:bg-white/10 transition-colors">
             <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -163,12 +164,14 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
             </p>
           </div>
           <div className="self-center">
-            <button 
+            <Button
+              variant="danger"
+              size="sm"
+              className="px-6 whitespace-nowrap"
               onClick={() => setActiveTab('pending')}
-              className="px-6 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 font-medium whitespace-nowrap"
             >
               立即处理
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -209,17 +212,20 @@ export default function PendingEntitiesPage({ params }: { params: Promise<{ id: 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm sticky dashboard-sticky-offset z-20 shadow-xl shadow-black/20">
         <div className="flex overflow-x-auto pb-2 md:pb-0 gap-1 no-scrollbar w-full md:w-auto">
           {STATUS_TABS.map((tab) => (
-            <button
+            <Button
               key={tab.id}
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+              className={`h-9 min-w-[84px] rounded-xl border whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'border-emerald-500/35 bg-emerald-500/20 text-white shadow-lg shadow-emerald-500/20'
+                  : 'border-white/10 bg-white/[0.03] text-gray-400 hover:text-white hover:bg-white/10'
               }`}
             >
               {tab.label}
-            </button>
+            </Button>
           ))}
         </div>
         
@@ -456,12 +462,14 @@ function EntityDetailModal({
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{suggestion.matchReason}</p>
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => onMerge(suggestion.matchedMaterialId)}
-                        className="text-xs px-4 py-2 bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-all shadow-lg hover:shadow-purple-500/20 whitespace-nowrap"
+                        className="h-8 px-4 border border-purple-500/25 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/35 whitespace-nowrap"
                       >
                         合并至此素材
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -482,43 +490,58 @@ function EntityDetailModal({
                   placeholder="为什么拒绝这个实体..."
                   autoFocus
                 />
-                <div className="flex gap-3 justify-end">
-                  <button
+                <ModalFooter className="justify-end border-t-0 pt-0">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={() => setShowRejectForm(false)}
-                    className="btn-secondary px-4 py-2 rounded-lg text-sm"
+                    className="px-4"
                   >
                     取消
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
                     onClick={() => onReject(rejectNotes)}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm shadow-lg shadow-red-500/30"
+                    className="px-4"
                   >
                     确认拒绝
-                  </button>
-                </div>
+                  </Button>
+                </ModalFooter>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                <button
+              <ModalFooter className="border-t-0 pt-0">
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
                   onClick={() => setShowRejectForm(true)}
-                  className="px-5 py-2.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-colors text-sm hover:shadow-lg hover:shadow-red-500/10"
+                  className="px-5"
                 >
                   拒绝
-                </button>
+                </Button>
                 <div className="w-px h-8 bg-white/10 mx-2 hidden md:block"></div>
-                <button
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => onApprove(false)}
-                  className="px-5 py-2.5 bg-white/5 text-gray-300 border border-white/10 rounded-xl hover:bg-white/10 transition-colors text-sm"
+                  className="px-5"
                 >
                   仅批准 (不创建素材)
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
                   onClick={() => onApprove(true)}
-                  className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5 transition-all"
+                  className="px-6"
                 >
                   批准并创建素材
-                </button>
-              </div>
+                </Button>
+              </ModalFooter>
             )}
           </div>
         )}

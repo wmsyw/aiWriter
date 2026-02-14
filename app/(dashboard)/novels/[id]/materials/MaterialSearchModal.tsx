@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Modal, { ModalFooter } from '@/app/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
 
 interface MaterialSearchModalProps {
   isOpen: boolean;
@@ -66,34 +68,16 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => {
-          if (status !== 'searching') onClose();
-        }}
-      />
-      
-      <div className="glass-card w-full max-w-2xl p-8 rounded-2xl relative z-10 animate-slide-up">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            AI 联网搜索素材
-          </h2>
-          <button
-            onClick={onClose}
-            disabled={status === 'searching'}
-            className={`text-gray-400 hover:text-white ${status === 'searching' ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="space-y-6">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="AI 联网搜索素材"
+      size="2xl"
+      closeOnBackdrop={status !== 'searching'}
+      closeOnEscape={status !== 'searching'}
+      showCloseButton={status !== 'searching'}
+    >
+      <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">搜索关键词</label>
             <input
@@ -111,20 +95,22 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
             <label className="text-sm font-medium text-gray-300">搜索内容类型</label>
             <div className="flex flex-wrap gap-2">
               {SEARCH_CATEGORIES.map(cat => (
-                <button
+                <Button
                   key={cat.id}
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => toggleCategory(cat.id)}
                   disabled={status === 'searching'}
-                  className={`px-4 py-2 rounded-xl text-sm transition-all flex items-center gap-2 ${
+                  className={`h-9 rounded-xl border px-3 text-sm transition-all ${
                     selectedCategories.includes(cat.id)
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      ? 'border-emerald-500/35 bg-emerald-500/20 text-white hover:bg-emerald-500/24'
+                      : 'border-white/10 bg-white/[0.03] text-gray-400 hover:bg-white/10'
                   }`}
                 >
                   <span>{cat.icon}</span>
                   {cat.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -144,38 +130,36 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-            <button
+          <ModalFooter>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onClose}
               disabled={status === 'searching'}
-              className={`btn-secondary px-6 py-2.5 rounded-xl ${status === 'searching' ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {status === 'succeeded' ? '完成' : '取消'}
-            </button>
+            </Button>
             {status !== 'succeeded' && (
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleSearch}
                 disabled={status === 'searching' || !keyword.trim() || selectedCategories.length === 0}
-                className="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2 disabled:opacity-50"
+                isLoading={status === 'searching'}
+                className="px-6"
               >
-                {status === 'searching' ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    搜索中...
-                  </>
-                ) : (
+                {status !== 'searching' && (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    开始搜索
                   </>
                 )}
-              </button>
+                {status === 'searching' ? '搜索中...' : '开始搜索'}
+              </Button>
             )}
-          </div>
-        </div>
+          </ModalFooter>
       </div>
-    </div>
+    </Modal>
   );
 }

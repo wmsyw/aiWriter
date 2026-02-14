@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Button } from '@/app/components/ui/Button';
 
 interface AuditEvent {
   id: string;
@@ -36,12 +37,26 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="page-header">
+    <div className="space-y-6 animate-fade-in pb-8">
+      <div className="page-header items-start gap-4">
         <div>
           <h1 className="page-title">审计日志</h1>
-          <p className="page-subtitle">查看关键操作与审计追踪记录</p>
+          <p className="page-subtitle">查看关键操作与审计追踪记录（显示最近 50 条）</p>
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="min-w-[96px]"
+          onClick={loadData}
+          isLoading={loading}
+          leftIcon={
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-14.837-2m14.837 2H15" />
+            </svg>
+          }
+        >
+          刷新
+        </Button>
       </div>
 
       {loading ? (
@@ -54,18 +69,18 @@ export default function AdminPage() {
             {auditEvents.length === 0 ? (
               <p className="text-zinc-400">暂无审计记录</p>
             ) : (
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left">
-                    <th className="pb-2">时间</th>
-                    <th className="pb-2">操作</th>
-                    <th className="pb-2">资源</th>
-                    <th className="pb-2">状态</th>
+                  <tr className="border-b border-zinc-800/80 text-left text-zinc-400">
+                    <th className="pb-3 font-medium">时间</th>
+                    <th className="pb-3 font-medium">操作</th>
+                    <th className="pb-3 font-medium">资源</th>
+                    <th className="pb-3 font-medium">状态</th>
                   </tr>
                 </thead>
                 <tbody>
                   {auditEvents.slice(0, 50).map(event => (
-                    <tr key={event.id}>
+                    <tr key={event.id} className="border-b border-zinc-800/40 last:border-b-0 hover:bg-white/[0.02] transition-colors">
                       <td className="py-2 text-sm text-zinc-400">
                         {new Date(event.createdAt).toLocaleString('zh-CN')}
                       </td>

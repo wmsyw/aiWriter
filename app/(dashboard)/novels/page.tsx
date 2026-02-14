@@ -36,16 +36,18 @@ export default function NovelsPage() {
   const novels = data?.novels || [];
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 pb-8">
+      <div className="page-header items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-1 tracking-tight text-zinc-100">我的小说</h1>
-          <p className="text-zinc-500">管理和创作你的杰作</p>
+          <h1 className="page-title">我的小说</h1>
+          <p className="page-subtitle">管理和创作你的杰作</p>
         </div>
         <Button
+          size="sm"
+          className="min-w-[108px]"
           onClick={() => router.push('/novels/create')}
           leftIcon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           }
@@ -124,7 +126,7 @@ export default function NovelsPage() {
                           </span>
                         </div>
                         
-                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-zinc-950 transition-all duration-300 transform group-hover:scale-110 shadow-lg shadow-transparent group-hover:shadow-emerald-500/25">
+                        <div className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-zinc-400 group-hover:border-emerald-500/40 group-hover:bg-emerald-500/90 group-hover:text-zinc-950 transition-all duration-300 transform group-hover:scale-110 shadow-lg shadow-transparent group-hover:shadow-emerald-500/25">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                           </svg>
@@ -151,6 +153,11 @@ export default function NovelsPage() {
           <Button
             onClick={() => router.push('/novels/create')}
             size="lg"
+            leftIcon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            }
           >
             创建第一本小说
           </Button>

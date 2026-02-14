@@ -16,7 +16,7 @@ import { Badge } from '@/app/components/ui/Badge';
 import { Input, Textarea } from '@/app/components/ui/Input';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/app/components/ui/Tabs';
-import Modal from '@/app/components/ui/Modal';
+import Modal, { ModalFooter } from '@/app/components/ui/Modal';
 import { 
   staggerContainer, 
   staggerItem, 
@@ -437,13 +437,13 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 pb-8">
+      <div className="page-header items-start gap-4">
         <div>
           <motion.h1 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-3xl font-bold mb-1 tracking-tight text-zinc-100"
+            className="page-title"
           >
             AI 助手
           </motion.h1>
@@ -451,16 +451,18 @@ export default function AgentsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="text-zinc-500"
+            className="page-subtitle"
           >
             管理您的 AI 写作助手及其配置
           </motion.p>
         </div>
         <Button 
           variant="primary"
+          size="sm"
+          className="min-w-[108px]"
           onClick={() => handleOpenModal()}
           leftIcon={
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           }
@@ -568,15 +570,17 @@ export default function AgentsPage() {
             <label className="text-sm font-medium text-gray-300 mb-3 block">从内置模板创建</label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
               {Object.entries(BUILT_IN_AGENTS).map(([key, template]) => (
-                <button
+                <Button
                   key={key}
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => handleSelectBuiltInTemplate(key)}
-                  className="p-3 rounded-lg bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/30 transition-all text-left"
+                  className="h-auto w-full justify-start rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3 text-left hover:bg-emerald-500/18 hover:border-emerald-500/35"
                 >
                   <div className="text-sm font-medium text-white truncate">{template.name}</div>
                   <div className="text-xs text-gray-500 truncate">{template.description}</div>
-                </button>
+                </Button>
               ))}
             </div>
             <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -726,9 +730,10 @@ export default function AgentsPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 mt-8">
+          <ModalFooter className="mt-8">
             <Button
               variant="secondary"
+              size="sm"
               type="button"
               onClick={() => setIsModalOpen(false)}
             >
@@ -736,13 +741,14 @@ export default function AgentsPage() {
             </Button>
             <Button
               variant="primary"
+              size="sm"
               type="submit"
               disabled={saving}
               isLoading={saving}
             >
               保存助手
             </Button>
-          </div>
+          </ModalFooter>
         </form>
       </Modal>
 
@@ -812,9 +818,10 @@ export default function AgentsPage() {
               )}
             </div>
             
-            <div className="flex justify-end pt-2">
+            <ModalFooter className="border-t-0 pt-2">
               <Button
                 variant="primary"
+                size="sm"
                 onClick={() => {
                   setViewingAgentKey(null);
                   if (viewingAgentKey) handleCreateInstance(viewingAgentKey);
@@ -822,7 +829,7 @@ export default function AgentsPage() {
               >
                 使用此模板创建
               </Button>
-            </div>
+            </ModalFooter>
           </div>
         )}
       </Modal>

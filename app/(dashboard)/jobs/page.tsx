@@ -13,6 +13,7 @@ import {
   Badge, 
   Skeleton 
 } from '@/app/components/ui';
+import { ModalFooter } from '@/app/components/ui/Modal';
 import { staggerContainer, staggerItem, fadeIn } from '@/app/lib/animations';
 
 interface Job {
@@ -157,7 +158,7 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="relative min-h-[calc(100vh-8rem)]">
+    <div className="relative min-h-[calc(100vh-var(--dashboard-topbar-height)-2rem)]">
       <motion.div 
         className="space-y-6"
         initial="hidden"
@@ -174,7 +175,7 @@ export default function JobsPage() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
+              className="glass-input h-9 rounded-xl px-3 text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
             >
               <option value="all" className="bg-gray-900">全部状态</option>
               <option value="queued" className="bg-gray-900">排队中</option>
@@ -187,7 +188,7 @@ export default function JobsPage() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="glass-input px-3 py-2 rounded-lg text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
+              className="glass-input h-9 rounded-xl px-3 text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
             >
               <option value="all" className="bg-gray-900">全部类型</option>
               {uniqueTypes.map(type => (
@@ -208,7 +209,7 @@ export default function JobsPage() {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="text-center py-12 text-gray-500 bg-white/5 rounded-xl border border-white/5"
+                className="text-center py-12 text-zinc-500 bg-zinc-900/55 rounded-2xl border border-white/10"
               >
                 没有符合筛选条件的任务
               </motion.div>
@@ -255,7 +256,7 @@ export default function JobsPage() {
                             variant="ghost"
                             size="sm"
                             onClick={(e) => handleCancel(job.id, e)}
-                            className="h-9 w-9 p-0 text-gray-500 hover:text-red-400"
+                            className="h-9 w-9 p-0 rounded-xl border border-transparent text-gray-500 hover:text-red-400 hover:bg-red-500/12 hover:border-red-500/35"
                             title="取消任务"
                           >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -280,7 +281,7 @@ export default function JobsPage() {
       </motion.div>
 
       <div 
-        className={`fixed top-0 right-0 bottom-0 w-full md:w-[600px] border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out z-[100] bg-[#0f1115] ${
+        className={`fixed top-0 right-0 bottom-0 w-full md:w-[620px] border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out z-[100] bg-[#0d111a]/98 backdrop-blur-xl ${
           isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         role="dialog"
@@ -289,17 +290,20 @@ export default function JobsPage() {
         aria-hidden={!isDrawerOpen}
       >
         <div className="h-full flex flex-col">
-          <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-md">
+          <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
             <h2 id="job-drawer-title" className="text-xl font-bold text-white">任务详情</h2>
-            <button 
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setIsDrawerOpen(false)}
               aria-label="关闭"
-              className="text-gray-400 hover:text-white transition-colors"
+              className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.03] p-0 text-zinc-400 hover:bg-white/10 hover:text-white"
             >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </button>
+            </Button>
           </div>
 
           {selectedJob && (
@@ -322,7 +326,7 @@ export default function JobsPage() {
               </div>
 
               <div className="space-y-4">
-                <Card className="bg-black/20 border-white/5">
+                <Card className="bg-zinc-900/65 border-white/10">
                   <CardContent className="p-4">
                     <h3 className="text-sm font-bold text-gray-300 mb-2 border-b border-white/5 pb-2">输入数据</h3>
                     <pre className="text-xs font-mono text-gray-400 overflow-x-auto whitespace-pre-wrap">
@@ -332,7 +336,7 @@ export default function JobsPage() {
                 </Card>
 
                 {selectedJob.output && (
-                  <Card className="bg-black/20 border-white/5">
+                  <Card className="bg-zinc-900/65 border-white/10">
                     <CardContent className="p-4">
                       <h3 className="text-sm font-bold text-green-400 mb-2 border-b border-white/5 pb-2">输出结果</h3>
                       <pre className="text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap">
@@ -343,7 +347,7 @@ export default function JobsPage() {
                 )}
 
                 {selectedJob.error && (
-                  <Card className="bg-red-500/10 border-red-500/20">
+                  <Card className="bg-red-500/12 border-red-500/25">
                     <CardContent className="p-4">
                       <h3 className="text-sm font-bold text-red-400 mb-2 border-b border-red-500/20 pb-2">错误信息</h3>
                       <pre className="text-xs font-mono text-red-300 overflow-x-auto whitespace-pre-wrap">
@@ -356,21 +360,22 @@ export default function JobsPage() {
             </div>
           )}
           
-          <div className="p-4 border-t border-white/10 bg-white/5">
+          <ModalFooter className="bg-zinc-900/75 px-4 py-4">
              <Button
                variant="secondary"
+               size="sm"
                onClick={() => setIsDrawerOpen(false)}
-               className="w-full"
+               className="w-full min-w-0"
              >
                关闭
              </Button>
-          </div>
+          </ModalFooter>
         </div>
       </div>
       
       {isDrawerOpen && (
         <motion.div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90]"
+          className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[90]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

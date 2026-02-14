@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculateOutlineParams } from '@/src/shared/outline-calculator';
 import OutlineTree, { OutlineNode } from '@/app/components/OutlineTree';
+import { Button } from '@/app/components/ui/Button';
 
 interface OutlineData {
   outline: string;
@@ -285,14 +286,19 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
               <p className="text-sm text-gray-400">基于深度学习模型，一键生成完整小说大纲</p>
             </div>
           </div>
-          <button 
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             onClick={onClose} 
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200 group"
+            className="h-10 w-10 rounded-xl border border-white/10 bg-white/[0.03] px-0 text-gray-400 group hover:bg-white/10 hover:text-white"
+            aria-label="关闭大纲生成器"
+            title="关闭"
           >
             <svg className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
+          </Button>
         </div>
 
         <div className="flex-1 w-full min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
@@ -323,18 +329,20 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {GENRES.map(g => (
-                    <button
+                    <Button
                       key={g}
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setFormData(prev => ({ ...prev, genre: g }))}
-                      className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 border ${
+                      className={`h-auto rounded-full px-4 py-2 text-xs font-medium transition-all duration-300 ${
                         formData.genre === g
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                          : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10'
+                          ? 'border border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:bg-emerald-500/24'
+                          : 'border border-transparent bg-white/5 text-gray-400 hover:bg-white/10 hover:border-white/10 hover:text-zinc-200'
                       }`}
                     >
                       {g}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -520,10 +528,13 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
               </div>
 
               <div className="pt-4 pb-2 space-y-3">
-                <button
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
                   onClick={handleGenerate}
                   disabled={isGenerating || !formData.genre}
-                  className="btn-primary w-full py-4 rounded-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group transition-all duration-300 shadow-lg shadow-emerald-500/20"
+                  className="group w-full rounded-xl py-4 shadow-lg shadow-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isGenerating ? (
                     <>
@@ -538,7 +549,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                       <span className="font-semibold text-lg">开始生成大纲</span>
                     </>
                   )}
-                </button>
+                </Button>
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>粗纲 → 细纲 → 章节纲</span>
                   {isGenerating && stageLabel && <span className="text-emerald-300">当前阶段：{stageLabel}</span>}
@@ -570,15 +581,18 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                 生成结果
               </span>
               {generatedOutline && (
-                <button
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
                   onClick={handleApply}
-                  className="btn-primary px-4 py-1.5 rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                  className="h-8 rounded-lg border-emerald-500/35 bg-emerald-500/85 px-4 text-sm shadow-lg shadow-emerald-500/20 hover:bg-emerald-500"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   应用大纲
-                </button>
+                </Button>
               )}
             </div>
             

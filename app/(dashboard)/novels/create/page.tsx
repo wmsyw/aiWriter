@@ -734,7 +734,7 @@ function NovelWizardContent() {
 // Outline generation logic removed as it's now handled in the workbench
 
   return (
-    <div className="min-h-screen p-6 md:p-12 max-w-7xl mx-auto space-y-12">
+    <div className="min-h-[calc(100vh-var(--dashboard-topbar-height)-3rem)] space-y-10 pb-10">
       <ConfirmModal
         isOpen={confirmModalState.isOpen}
         onClose={closeConfirmModal}
@@ -754,7 +754,7 @@ function NovelWizardContent() {
       />
       
       {/* Header */}
-      <div className="flex items-end justify-between border-b border-white/5 pb-6">
+      <div className="page-header items-start gap-4 border-b border-white/5 pb-6">
         <div>
           <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-500">
             {novelId ? '完善你的故事' : '开启新篇章'}
@@ -762,12 +762,14 @@ function NovelWizardContent() {
           <p className="text-gray-400 mt-2">AI 辅助创作向导，从灵感到大纲只需几步</p>
         </div>
         {novelId && (
-          <button
-            className="btn-secondary px-4 py-2 text-sm"
+          <Button
+            variant="secondary"
+            size="sm"
+            className="px-4"
             onClick={() => router.push(`/novels/${novelId}`)}
           >
             退出向导
-          </button>
+          </Button>
         )}
       </div>
 
@@ -784,7 +786,18 @@ function NovelWizardContent() {
             const isActive = index === step;
             const isCompleted = index < step;
             return (
-              <div key={label} className="flex flex-col items-center gap-2 cursor-pointer z-10" onClick={() => index < step && setStep(index)}>
+              <Button
+                key={label}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={`z-10 h-auto min-h-0 flex-col items-center gap-2 rounded-none border-0 bg-transparent p-0 text-current shadow-none transition-colors hover:bg-transparent ${
+                  index < step ? 'cursor-pointer' : 'cursor-default'
+                } disabled:opacity-100 disabled:pointer-events-none`}
+                onClick={() => index < step && setStep(index)}
+                disabled={index >= step}
+                aria-current={isActive ? 'step' : undefined}
+              >
                 <motion.div 
                   className={`
                     w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2
@@ -802,7 +815,7 @@ function NovelWizardContent() {
                 <span className={`text-xs font-medium transition-colors duration-300 ${isActive ? 'text-white' : isCompleted ? 'text-emerald-200' : 'text-gray-600'}`}>
                   {label}
                 </span>
-              </div>
+              </Button>
             );
           })}
         </div>
@@ -1000,22 +1013,24 @@ function NovelWizardContent() {
                         <label className="text-xs text-gray-500">预计字数 (万)</label>
                         <div className="grid grid-cols-4 gap-2 mt-2 mb-3">
                           {[50, 100, 150, 200, 250, 300, 400, 500].map(preset => (
-                            <button
+                            <Button
                               key={preset}
                               type="button"
+                              variant="ghost"
+                              size="sm"
                               onClick={() => {
                                 setField('targetWords', preset);
                                 // Auto-adjust chapter count based on word count (avg 3000 words per chapter)
                                 setField('chapterCount', Math.round(preset * 10000 / 3000));
                               }}
-                              className={`px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap ${
+                              className={`h-9 rounded-lg border whitespace-nowrap transition-all duration-200 ${
                                 formData.targetWords === preset
-                                  ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-                                  : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200'
+                                  ? 'border-emerald-500/45 bg-emerald-500/25 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                                  : 'border-white/10 bg-white/[0.03] text-gray-400 hover:bg-white/10 hover:text-gray-200'
                               }`}
                             >
                               {preset}万
-                            </button>
+                            </Button>
                           ))}
                         </div>
                         <Input
@@ -1072,10 +1087,13 @@ function NovelWizardContent() {
                     ) : (
                       <div className="grid grid-cols-1 gap-3">
                         {currentGenrePresets.map(preset => (
-                          <button
+                          <Button
                             key={preset.name}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => applyPreset(preset)}
-                            className="group relative overflow-hidden glass-panel p-4 rounded-xl text-left hover:border-emerald-500/50 transition-all duration-300 hover:-translate-y-1"
+                            className="group relative h-auto w-full justify-start overflow-hidden glass-panel rounded-xl border border-white/10 p-4 text-left hover:-translate-y-1 hover:border-emerald-500/50"
                           >
                             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 to-purple-500/0 group-hover:from-emerald-500/10 group-hover:to-purple-500/10 transition-all duration-500"/>
                             <div className="relative z-10">
@@ -1091,7 +1109,7 @@ function NovelWizardContent() {
                                 ))}
                               </div>
                             </div>
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     )}
@@ -1102,7 +1120,8 @@ function NovelWizardContent() {
               <div className="flex justify-end pt-6 border-t border-white/5">
                 <Button
                   variant="primary"
-                  className="px-8 py-3 text-lg shadow-emerald-500/20"
+                  size="lg"
+                  className="px-8 shadow-emerald-500/20"
                   disabled={isSaving}
                   isLoading={isSaving}
                   onClick={handleSaveBasicInfo}

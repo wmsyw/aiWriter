@@ -72,15 +72,17 @@ export default function DashboardPage() {
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
-      className="space-y-8"
+      className="space-y-8 pb-8"
     >
-      <motion.div variants={staggerItem} className="flex justify-between items-end">
+      <motion.div variants={staggerItem} className="page-header items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-1 tracking-tight text-zinc-100">{getGreeting()}</h1>
-          <p className="text-zinc-500">开启创作的一天</p>
+          <h1 className="page-title">{getGreeting()}</h1>
+          <p className="page-subtitle">开启创作的一天</p>
         </div>
-        <div className="hidden md:block">
+        <div className="hidden md:flex">
           <Button 
+            size="sm"
+            className="min-w-[108px]"
             onClick={() => router.push('/novels/create')}
             leftIcon={
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -294,15 +296,18 @@ function ActionCard({ title, description, icon, color, onClick }: {
   onClick: () => void;
 }) {
   const colors = {
-    emerald: 'group-hover:text-emerald-400 group-hover:border-emerald-500/30 group-hover:bg-emerald-500/5',
-    blue: 'group-hover:text-blue-400 group-hover:border-blue-500/30 group-hover:bg-blue-500/5',
-    amber: 'group-hover:text-amber-400 group-hover:border-amber-500/30 group-hover:bg-amber-500/5',
+    emerald: 'hover:text-emerald-300 hover:border-emerald-500/30 hover:bg-emerald-500/8',
+    blue: 'hover:text-blue-300 hover:border-blue-500/30 hover:bg-blue-500/8',
+    amber: 'hover:text-amber-300 hover:border-amber-500/30 hover:bg-amber-500/8',
   };
 
   return (
-    <button 
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
       onClick={onClick}
-      className={`group w-full p-4 rounded-lg bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-all text-left ${colors[color]}`}
+      className={`group h-auto w-full justify-start rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-4 text-left transition-all ${colors[color]}`}
     >
       <div className="flex items-center gap-3">
         <div className="text-zinc-500 group-hover:text-current transition-colors">
@@ -313,7 +318,7 @@ function ActionCard({ title, description, icon, color, onClick }: {
           <p className="text-xs text-zinc-500">{description}</p>
         </div>
       </div>
-    </button>
+    </Button>
   );
 }
 

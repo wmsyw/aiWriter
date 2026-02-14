@@ -1,8 +1,9 @@
 'use client';
 
-import { ReactNode, useEffect, useCallback, useState } from 'react';
+import { ReactNode, useEffect, useCallback, useState, HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
+import { cn } from '@/app/lib/utils';
 
 interface ModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ interface ConfirmModalProps {
   variant?: 'danger' | 'warning' | 'info';
   requireConfirmation?: string;
 }
+
+interface ModalFooterProps extends HTMLAttributes<HTMLDivElement> {}
 
 const SIZE_CLASSES = {
   sm: 'max-w-sm',
@@ -77,21 +80,21 @@ export default function Modal({
   if (!isOpen || !mounted) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-black/72 backdrop-blur-lg animate-fade-in"
         onClick={closeOnBackdrop ? onClose : undefined}
         aria-hidden="true"
       />
 
       <div
-        className={`glass-card w-full ${SIZE_CLASSES[size]} rounded-2xl relative z-10 animate-slide-up max-h-[90vh] overflow-y-auto custom-scrollbar ${className}`}
+        className={`w-full ${SIZE_CLASSES[size]} relative z-10 animate-slide-up max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[26px] border border-white/10 bg-[#0d111a]/96 shadow-[0_30px_100px_-30px_rgba(0,0,0,0.85)] backdrop-blur-xl ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
       >
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between p-6 border-b border-zinc-800/80">
+          <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
             {title && (
               <h2 id="modal-title" className="text-xl font-bold text-white">
                 {title}
@@ -100,10 +103,10 @@ export default function Modal({
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all ml-auto"
+                className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] p-0 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
                 aria-label="Close modal"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -119,6 +122,20 @@ export default function Modal({
   );
 
   return createPortal(modalContent, document.body);
+}
+
+export function ModalFooter({ className, ...props }: ModalFooterProps) {
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center justify-end gap-3 border-t border-white/10 pt-4',
+        '[&>.inline-flex]:h-9 [&>.inline-flex]:min-w-[88px] [&>.inline-flex]:px-5 [&>.inline-flex]:text-xs',
+        '[&>.inline-flex_svg]:h-4 [&>.inline-flex_svg]:w-4',
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
 export function ConfirmModal({
@@ -161,17 +178,17 @@ export function ConfirmModal({
   const variantStyles = {
     danger: {
       iconClass: 'text-red-400 bg-red-500/10 border-red-500/20',
-      buttonClass: 'bg-red-600 hover:bg-red-500 text-white',
+      confirmClass: 'border-red-500/35 bg-red-500/20 text-red-100 hover:bg-red-500/30',
       borderClass: 'border-red-500/30',
     },
     warning: {
       iconClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-      buttonClass: 'bg-amber-600 hover:bg-amber-500 text-white',
+      confirmClass: 'border-amber-500/35 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30',
       borderClass: 'border-amber-500/30',
     },
     info: {
       iconClass: 'text-sky-400 bg-blue-500/10 border-blue-500/20',
-      buttonClass: 'bg-blue-600 hover:bg-blue-500 text-white',
+      confirmClass: 'border-blue-500/35 bg-blue-500/20 text-blue-100 hover:bg-blue-500/30',
       borderClass: 'border-blue-500/30',
     },
   };
@@ -179,7 +196,7 @@ export function ConfirmModal({
   const styles = variantStyles[variant];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm" title="">
+    <Modal isOpen={isOpen} onClose={onClose} size="sm" title="" showCloseButton={false}>
       <div className="text-center space-y-4">
         <div className={`w-14 h-14 mx-auto rounded-2xl border flex items-center justify-center ${styles.iconClass}`}>
           <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -205,21 +222,21 @@ export function ConfirmModal({
           </div>
         )}
         
-        <div className="flex gap-3 justify-center pt-2">
-          <Button variant="secondary" onClick={onClose} disabled={isLoading}>
+        <ModalFooter className="justify-center border-t-0 pt-2 [&>.inline-flex]:min-w-[96px]">
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
             {cancelText}
           </Button>
-          <button
+          <Button
+            variant="secondary"
             onClick={handleConfirm}
+            isLoading={isLoading}
             disabled={isConfirmDisabled || isLoading}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${styles.buttonClass} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[80px]`}
+            size="sm"
+            className={`min-w-[96px] border ${styles.confirmClass} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {isLoading && (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            )}
             {confirmText}
-          </button>
-        </div>
+          </Button>
+        </ModalFooter>
       </div>
     </Modal>
   );

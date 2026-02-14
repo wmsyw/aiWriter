@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import * as Diff from 'diff';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogTrigger, Skeleton, Progress, Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/app/components/ui';
+import { ModalFooter } from '@/app/components/ui/Modal';
 import { fadeIn, slideUp, scaleIn, staggerContainer } from '@/app/lib/animations';
 
 const Icons = {
@@ -528,6 +529,48 @@ export default function ChapterEditorPage() {
   const canDeai = hasContent;
   const canComplete = hasContent;
   const canCanonCheck = hasContent && novel?.isFanfiction;
+  const hasReviewArtifacts = !!(reviewResult || consistencyResult || canonCheckResult || canonCheckError);
+  const runningJobCount = activeJobs.length;
+
+  const stageLabelMap: Record<string, string> = {
+    draft: '草稿',
+    generated: '已生成',
+    reviewed: '已审阅',
+    humanized: '已润色',
+    approved: '已通过',
+    completed: '已完成',
+  };
+
+  const stageToneMap: Record<string, string> = {
+    draft: 'badge-neutral',
+    generated: 'badge-info',
+    reviewed: 'badge-warning',
+    humanized: 'badge-info',
+    approved: 'badge-success',
+    completed: 'badge-success',
+  };
+
+  const stageKey = chapter?.generationStage || 'draft';
+  const stageLabel = stageLabelMap[stageKey] || stageKey;
+  const stageTone = stageToneMap[stageKey] || 'badge-neutral';
+
+  const saveStatusTone = saveStatus === 'saved'
+    ? 'text-emerald-300 bg-emerald-500/12 border-emerald-500/30'
+    : saveStatus === 'saving'
+      ? 'text-amber-300 bg-amber-500/12 border-amber-500/30'
+      : 'text-red-300 bg-red-500/12 border-red-500/30';
+  const saveStatusDot = saveStatus === 'saved'
+    ? 'bg-emerald-400'
+    : saveStatus === 'saving'
+      ? 'bg-amber-400 animate-pulse'
+      : 'bg-red-400';
+  const saveStatusLabel = saveStatus === 'saved'
+    ? '已保存'
+    : saveStatus === 'saving'
+      ? '保存中'
+      : '待保存';
+  const modalCloseButtonClass = 'w-9 rounded-xl border border-white/10 bg-white/[0.03] px-0 text-zinc-400 hover:bg-white/10 hover:text-white';
+  const modalPanelClass = 'w-full h-full flex flex-col rounded-[26px] overflow-hidden shadow-2xl border border-white/10 bg-[#0d111a]/96';
 
   const renderBranchPanel = () => {
     if (!mounted) return null;
@@ -536,45 +579,49 @@ export default function ChapterEditorPage() {
     return createPortal(
       <AnimatePresence>
         {showBranchPanel && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-8">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-lg p-4 md:p-8">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-6xl h-[85vh]"
+              className="w-full max-w-6xl h-[88vh]"
             >
-              <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <Card className={modalPanelClass}>
+                <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
                   <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <h2 className="flex items-center gap-2 text-xl font-bold text-white">
                       <Icons.GitBranch className="w-5 h-5 text-emerald-400" />
                       分支迭代生成
-                      <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      <span className="rounded-full border border-emerald-500/35 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-200">
                         第 {iterationRound} 轮
                       </span>
                     </h2>
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="mt-1 text-sm text-zinc-400">
                       选择一个满意的分支应用到正文，或者基于它进行下一轮迭代
                     </p>
                   </div>
-                  <button 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setShowBranchPanel(false)}
-                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                    className={modalCloseButtonClass}
+                    aria-label="关闭分支面板"
+                    title="关闭"
                   >
-                    <Icons.X className="w-6 h-6" />
-                  </button>
+                    <Icons.X className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 <div className="flex-1 flex overflow-hidden">
-                  <div className={`${selectedBranch ? 'w-1/3' : 'w-full'} p-6 overflow-y-auto custom-scrollbar transition-all duration-300 grid grid-cols-1 ${!selectedBranch ? 'md:grid-cols-3' : ''} gap-4`}>
+                  <div className={`${selectedBranch ? 'w-[36%]' : 'w-full'} p-6 overflow-y-auto custom-scrollbar transition-all duration-300 grid grid-cols-1 ${!selectedBranch ? 'md:grid-cols-3' : ''} gap-4`}>
                     {isLoading ? (
-                      <div className="col-span-full flex flex-col items-center justify-center h-full text-gray-400">
+                      <div className="col-span-full flex h-full flex-col items-center justify-center text-zinc-400">
                         <Icons.Loader2 className="w-12 h-12 animate-spin text-emerald-500 mb-4" />
                         <p className="animate-pulse">AI 正在疯狂构思中...</p>
                       </div>
                     ) : branches.length === 0 ? (
-                      <div className="col-span-full text-center py-20 text-gray-500">
+                      <div className="col-span-full rounded-2xl border border-white/10 bg-zinc-900/40 py-20 text-center text-zinc-500">
                         暂无生成的分支，请点击"生成分支"开始
                       </div>
                     ) : (
@@ -583,17 +630,17 @@ export default function ChapterEditorPage() {
                           key={branch.id}
                           onClick={() => setSelectedBranch(branch)}
                           className={`
-                            group relative p-5 rounded-xl border transition-all cursor-pointer hover:-translate-y-1 hover:shadow-xl
+                            group relative cursor-pointer rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-xl
                             ${selectedBranch?.id === branch.id 
-                              ? 'bg-emerald-500/10 border-emerald-500/50 shadow-emerald-500/20' 
-                              : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'}
+                              ? 'border-emerald-500/45 bg-emerald-500/12 shadow-emerald-500/20' 
+                              : 'border-white/10 bg-zinc-900/55 hover:border-white/25 hover:bg-zinc-900/80'}
                           `}
                         >
-                          <div className="flex justify-between items-center mb-3">
-                            <span className="font-mono text-xs text-gray-500 uppercase tracking-wider">选项 {idx + 1}</span>
-                            <span className="text-xs text-gray-600">{new Date(branch.createdAt).toLocaleTimeString()}</span>
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="font-mono text-xs uppercase tracking-wider text-zinc-500">选项 {idx + 1}</span>
+                            <span className="text-xs text-zinc-600">{new Date(branch.createdAt).toLocaleTimeString()}</span>
                           </div>
-                          <div className="text-sm text-gray-300 line-clamp-6 leading-relaxed font-serif opacity-80 group-hover:opacity-100">
+                          <div className="line-clamp-6 font-serif text-sm leading-relaxed text-zinc-300 opacity-85 group-hover:opacity-100">
                             {branch.content}
                           </div>
                         </Card>
@@ -605,10 +652,10 @@ export default function ChapterEditorPage() {
                     <motion.div 
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="w-2/3 border-l border-white/10 flex flex-col bg-[#0f1117]/50"
+                      className="w-[64%] border-l border-white/10 flex flex-col bg-[#0f1117]/65"
                     >
                       <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                        <div className="prose prose-invert max-w-none font-serif text-lg text-gray-200">
+                        <div className="prose prose-invert max-w-none font-serif text-lg text-zinc-200">
                            {selectedBranch.content.split('\n').map((paragraph, i) => (
                              paragraph.trim() && (
                                <p key={i} className="indent-[2em] mb-2 text-justify leading-loose">
@@ -619,34 +666,36 @@ export default function ChapterEditorPage() {
                         </div>
                       </div>
                       
-                      <div className="p-6 border-t border-white/10 bg-white/5 backdrop-blur-xl space-y-4">
+                      <div className="space-y-4 border-t border-white/10 bg-zinc-900/75 p-6 backdrop-blur-xl">
                         <div>
-                          <label className="text-xs font-medium text-gray-400 mb-2 block">迭代反馈 (告诉 AI 如何改进此版本)</label>
+                          <label className="mb-2 block text-xs font-medium text-zinc-400">迭代反馈 (告诉 AI 如何改进此版本)</label>
                           <textarea 
                             value={feedback}
                             onChange={(e) => setFeedback(e.target.value)}
                             placeholder="例如：稍微增加一些环境描写，或者让主角的语气更强硬一点..."
-                            className="w-full p-3 h-24 text-sm resize-none rounded-lg bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-white placeholder-gray-500 outline-none"
+                            className="glass-input h-24 w-full resize-none p-3 text-sm text-white placeholder-zinc-500"
                           />
                         </div>
                         
-                        <div className="flex gap-4">
+                        <ModalFooter className="justify-stretch border-t-0 pt-0 [&>.inline-flex]:flex-1 [&>.inline-flex]:min-w-[160px]">
                           <Button 
                             variant="primary" 
-                            className="flex-1 py-3"
+                            size="sm"
+                            className="flex-1"
                             onClick={() => handleApplyBranch(selectedBranch)}
                           >
                             <Icons.CheckCircle className="w-4 h-4" /> 采用此版本
                           </Button>
                           <Button 
                             variant="secondary" 
-                            className="flex-1 py-3"
+                            size="sm"
+                            className="flex-1"
                             onClick={handleIterate}
                             isLoading={isLoading}
                           >
                             <Icons.RotateCcw className="w-4 h-4" /> 基于反馈迭代
                           </Button>
-                        </div>
+                        </ModalFooter>
                       </div>
                     </motion.div>
                   )}
@@ -749,57 +798,77 @@ export default function ChapterEditorPage() {
     return createPortal(
       <AnimatePresence>
         {showReviewPanel && (hasReview || hasConsistency) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-lg p-4 md:p-6">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-6xl h-[85vh]"
+              className="w-full max-w-6xl h-[88vh]"
             >
-              <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <Card className={modalPanelClass}>
+                <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
                   <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <h2 className="flex items-center gap-2 text-xl font-bold text-white">
                       <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
                       章节评审报告
                     </h2>
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="mt-1 text-sm text-zinc-400">
                       AI 对情节、节奏、人物等多维度的专业质量评审
                     </p>
                   </div>
-                  <button 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setShowReviewPanel(false)}
-                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                    className={modalCloseButtonClass}
+                    aria-label="关闭评审报告"
+                    title="关闭"
                   >
-                    <Icons.X className="w-6 h-6" />
-                  </button>
+                    <Icons.X className="h-4 w-4" />
+                  </Button>
                 </div>
 
-                <div className="flex border-b border-white/10 px-6">
-                  {hasReview && (
-                    <button 
-                      onClick={() => setReviewPanelActiveTab('review')}
-                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${reviewPanelActiveTab === 'review' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-                    >
-                      质量评审
-                    </button>
-                  )}
-                  {hasConsistency && (
-                    <button 
-                      onClick={() => setReviewPanelActiveTab('consistency')}
-                      className={`py-4 px-4 text-sm font-medium border-b-2 transition-colors ${reviewPanelActiveTab === 'consistency' ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-                    >
-                      一致性检查
-                    </button>
-                  )}
+                <div className="border-b border-white/10 px-6 py-3">
+                  <div className="inline-flex rounded-xl border border-white/10 bg-zinc-900/70 p-1">
+                    {hasReview && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setReviewPanelActiveTab('review')}
+                        className={`h-9 rounded-lg border px-4 text-sm font-medium transition-colors ${
+                          reviewPanelActiveTab === 'review'
+                            ? 'border-emerald-500/30 bg-emerald-500/18 text-emerald-200'
+                            : 'border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        质量评审
+                      </Button>
+                    )}
+                    {hasConsistency && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setReviewPanelActiveTab('consistency')}
+                        className={`h-9 rounded-lg border px-4 text-sm font-medium transition-colors ${
+                          reviewPanelActiveTab === 'consistency'
+                            ? 'border-emerald-500/30 bg-emerald-500/18 text-emerald-200'
+                            : 'border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        一致性检查
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                   {reviewPanelActiveTab === 'review' && reviewResult && (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <Card className="md:col-span-1 p-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-purple-500/10 border-emerald-500/20 flex flex-col items-center justify-center text-center">
+                        <Card className="md:col-span-1 p-6 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/12 to-sky-500/10 flex flex-col items-center justify-center text-center">
                           <div className="text-sm text-gray-400 mb-2 uppercase tracking-wider font-bold">综合得分</div>
                           <div className={`text-5xl font-bold mb-2 ${getScoreColor(normalized.avgScore)}`}>
                             {normalized.avgScore}<span className="text-xl text-gray-500">/10</span>
@@ -811,7 +880,7 @@ export default function ChapterEditorPage() {
 
                         <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {normalized.dimensions.map((dim) => (
-                            <Card key={dim.key} className="p-4 rounded-xl flex flex-col justify-center">
+                            <Card key={dim.key} className="p-4 rounded-xl border border-white/10 bg-zinc-900/55 flex flex-col justify-center">
                               <div className="flex justify-between items-end mb-2">
                                 <span className="text-gray-400 text-sm">{dim.label}</span>
                                 <span className={`font-bold ${getScoreColor(dim.score)}`}>
@@ -832,14 +901,14 @@ export default function ChapterEditorPage() {
 
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-6">
-                          <Card className="p-6 rounded-2xl border border-white/5">
+                          <Card className="p-6 rounded-2xl border border-white/10 bg-zinc-900/60">
                             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                               <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
                               评审详情与修改建议
                             </h3>
                             
                             {normalized.summary && (
-                              <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/5 text-gray-300 leading-relaxed text-sm">
+                              <div className="mb-6 p-4 rounded-xl bg-zinc-900/65 border border-white/10 text-zinc-300 leading-relaxed text-sm">
                                 {normalized.summary}
                               </div>
                             )}
@@ -870,7 +939,7 @@ export default function ChapterEditorPage() {
                             {normalized.suggestions.length > 0 ? (
                               <div className="space-y-3">
                                 {normalized.suggestions.map((suggestion, idx) => (
-                                  <details key={idx} className="group glass-card border border-white/5 bg-white/[0.02] rounded-xl overflow-hidden open:bg-white/[0.04] transition-colors">
+                                  <details key={idx} className="group rounded-xl border border-white/10 bg-zinc-900/55 overflow-hidden open:bg-zinc-900/80 transition-colors">
                                     <summary className="flex items-start gap-3 p-4 cursor-pointer select-none">
                                       <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
                                         suggestion.priority === 'high' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
@@ -909,7 +978,7 @@ export default function ChapterEditorPage() {
                             ) : Object.keys(normalized.critique).filter(k => !['weakest_aspect', 'strongest_aspect', 'priority_fix'].includes(k)).length > 0 ? (
                               <div className="space-y-3">
                                 {Object.entries(normalized.critique).filter(([k]) => !['weakest_aspect', 'strongest_aspect', 'priority_fix'].includes(k)).map(([key, value]) => (
-                                  <div key={key} className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                  <div key={key} className="bg-zinc-900/55 p-4 rounded-xl border border-white/10">
                                     <h4 className="font-bold text-emerald-300 mb-2 text-sm">
                                       {REVIEW_DIMENSION_LABELS[key] || key.replace(/_/g, ' ')}
                                     </h4>
@@ -927,7 +996,7 @@ export default function ChapterEditorPage() {
                         </div>
 
                         <div className="space-y-6">
-                          <Card className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                          <Card className="p-6 rounded-2xl bg-zinc-900/55 border border-white/10">
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">AI 修改方向</h3>
                             <div className="space-y-4">
                               {normalized.revisionDirection ? (
@@ -970,7 +1039,7 @@ export default function ChapterEditorPage() {
 
                   {reviewPanelActiveTab === 'consistency' && consistencyResult && (
                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                       <Card className="p-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/10 to-purple-900/10">
+                       <Card className="p-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/14 to-sky-900/12">
                          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                            <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
                            一致性检查报告
@@ -1005,39 +1074,40 @@ export default function ChapterEditorPage() {
                   )}
                 </div>
                 
-                <div className="p-4 border-t border-white/10 bg-white/5 space-y-4">
+                <div className="space-y-4 border-t border-white/10 bg-zinc-900/75 p-4">
                   <div className="flex gap-4">
                     <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-400 mb-2 block">补充修改意见（可选）</label>
+                      <label className="mb-2 block text-xs font-medium text-zinc-400">补充修改意见（可选）</label>
                       <textarea
                         value={reviewFeedback}
                         onChange={(e) => setReviewFeedback(e.target.value)}
                         placeholder="补充您的修改意见，将与 AI 建议一起作为迭代方向..."
-                        className="w-full p-3 h-20 text-sm resize-none rounded-lg bg-white/5 border border-white/10 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all text-white placeholder-gray-500 outline-none"
+                        className="glass-input h-20 w-full resize-none p-3 text-sm text-white placeholder-zinc-500"
                         disabled={isIterating}
                       />
                     </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="text-xs text-gray-500">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-xs text-zinc-500">
                       {normalized.suggestions.length > 0 && `将采用 ${normalized.suggestions.length} 条 AI 修改建议`}
                       {reviewFeedback.trim() && normalized.suggestions.length > 0 && ' + '}
                       {reviewFeedback.trim() && '您的补充意见'}
                     </div>
-                    <div className="flex gap-3">
-                      <Button variant="secondary" onClick={() => setShowReviewPanel(false)} disabled={isIterating}>关闭</Button>
+                    <ModalFooter className="border-t-0 pt-0 sm:justify-end">
+                      <Button variant="secondary" size="sm" onClick={() => setShowReviewPanel(false)} disabled={isIterating}>关闭</Button>
                       <Button 
                         variant="primary" 
+                        size="sm"
                         onClick={handleOneClickIterate}
                         disabled={(!normalized.suggestions.length && !reviewFeedback.trim()) || isIterating}
                         isLoading={isIterating}
                       >
                         <Icons.RotateCcw className="w-4 h-4" /> 一键迭代优化
                       </Button>
-                      <Button variant="ghost" onClick={handleAcceptReview} disabled={isIterating}>
+                      <Button variant="ghost" size="sm" className="border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10" onClick={handleAcceptReview} disabled={isIterating}>
                         <Icons.CheckCircle className="w-4 h-4" /> 接受评审
                       </Button>
-                    </div>
+                    </ModalFooter>
                   </div>
                 </div>
               </Card>
@@ -1082,23 +1152,24 @@ export default function ChapterEditorPage() {
       <AnimatePresence>
         {showCanonCheckPanel && (canonCheckResult || canonCheckError) && (
           canonCheckError ? (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-lg p-4 md:p-6">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="w-full max-w-lg"
               >
-                <Card className="w-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 p-8 text-center">
+                <Card className="w-full flex flex-col rounded-[26px] overflow-hidden shadow-2xl border border-white/10 bg-[#0d111a]/96 p-8 text-center">
                   <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/20">
                     <Icons.X className="w-8 h-8 text-red-500" />
                   </div>
                   <h2 className="text-xl font-bold text-white mb-2">检测失败</h2>
-                  <p className="text-gray-400 mb-8">{canonCheckError}</p>
-                  <div className="flex gap-4 justify-center">
-                    <Button variant="ghost" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
+                  <p className="text-zinc-400 mb-8">{canonCheckError}</p>
+                  <ModalFooter className="justify-center border-t-0 pt-0 [&>.inline-flex]:min-w-[108px]">
+                    <Button variant="secondary" size="sm" onClick={() => setShowCanonCheckPanel(false)}>关闭</Button>
                     <Button 
                       variant="primary" 
+                      size="sm"
                       onClick={() => {
                         setCanonCheckError(null);
                         createJob('CANON_CHECK');
@@ -1106,46 +1177,50 @@ export default function ChapterEditorPage() {
                     >
                       <Icons.RotateCcw className="w-4 h-4" /> 重试
                     </Button>
-                  </div>
+                  </ModalFooter>
                 </Card>
               </motion.div>
             </div>
           ) : (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-lg p-4 md:p-6">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="w-full max-w-6xl h-[85vh]"
+                className="w-full max-w-6xl h-[88vh]"
               >
-                <Card className="w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-                  <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <Card className={modalPanelClass}>
+                  <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-amber-500/14 via-sky-500/8 to-transparent px-6 py-4">
                     <div>
-                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <h2 className="flex items-center gap-2 text-xl font-bold text-white">
                         <Icons.BookOpen className="w-5 h-5 text-amber-400" />
                         原作符合度检查
                       </h2>
-                      <p className="text-sm text-gray-400 mt-1">
+                      <p className="mt-1 text-sm text-zinc-400">
                         基于设定集(Lorebook)的深度一致性分析报告
                       </p>
                     </div>
-                    <button 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setShowCanonCheckPanel(false)}
-                      className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                      className={modalCloseButtonClass}
+                      aria-label="关闭原作符合度面板"
+                      title="关闭"
                     >
-                      <Icons.X className="w-6 h-6" />
-                    </button>
+                      <Icons.X className="h-4 w-4" />
+                    </Button>
                   </div>
 
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                      <Card className="md:col-span-1 p-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-purple-500/10 border-emerald-500/20 flex flex-col items-center justify-center text-center">
-                        <div className="text-sm text-gray-400 mb-2 uppercase tracking-wider font-bold">综合得分</div>
+                      <Card className="md:col-span-1 p-6 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/12 to-sky-500/10 flex flex-col items-center justify-center text-center">
+                        <div className="text-sm text-zinc-400 mb-2 uppercase tracking-wider font-bold">综合得分</div>
                         <div className={`text-5xl font-bold mb-2 ${getScoreColor(avgScore)}`}>
-                          {avgScore}<span className="text-xl text-gray-500">/10</span>
+                          {avgScore}<span className="text-xl text-zinc-500">/10</span>
                         </div>
-                        <div className="px-3 py-1 rounded-full bg-white/5 text-xs text-gray-300 border border-white/10">
+                        <div className="px-3 py-1 rounded-full bg-white/5 text-xs text-zinc-300 border border-white/10">
                           {overallGrade}
                         </div>
                       </Card>
@@ -1156,7 +1231,7 @@ export default function ChapterEditorPage() {
                            const comment = value?.comment;
                             const label = CANON_DIMENSION_LABELS[key] || key.replace(/_/g, ' ');
                            return (
-                             <Card key={key} className="p-4 rounded-xl flex flex-col justify-center">
+                             <Card key={key} className="p-4 rounded-xl border border-white/10 bg-zinc-900/55 flex flex-col justify-center">
                                <div className="flex justify-between items-end mb-2">
                                  <span className="text-gray-400 text-sm">{label}</span>
                                  <span className={`font-bold ${getScoreColor(score)}`}>
@@ -1178,7 +1253,7 @@ export default function ChapterEditorPage() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <div className="lg:col-span-2 space-y-6">
-                        <Card className="p-6 rounded-2xl border border-white/5">
+                        <Card className="p-6 rounded-2xl border border-white/10 bg-zinc-900/60">
                           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                             <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
                             检测详情与建议
@@ -1188,7 +1263,7 @@ export default function ChapterEditorPage() {
                           {(summaryText || summaryObj) && (
                             <div className="mb-6 space-y-3">
                               {summaryText && (
-                                <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-gray-300 leading-relaxed text-sm">
+                                <div className="p-4 rounded-xl bg-zinc-900/65 border border-white/10 text-zinc-300 leading-relaxed text-sm">
                                   {summaryText}
                                 </div>
                               )}
@@ -1222,7 +1297,7 @@ export default function ChapterEditorPage() {
                           {canonCheckResult.issues && canonCheckResult.issues.length > 0 ? (
                             <div className="space-y-3">
                               {canonCheckResult.issues.map((issue: any, idx: number) => (
-                                <details key={idx} className="group glass-card border border-white/5 bg-white/[0.02] rounded-xl overflow-hidden open:bg-white/[0.04] transition-colors">
+                                <details key={idx} className="group rounded-xl border border-white/10 bg-zinc-900/55 overflow-hidden open:bg-zinc-900/80 transition-colors">
                                   <summary className="flex items-start gap-3 p-4 cursor-pointer select-none">
                                     <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
                                       issue.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
@@ -1268,8 +1343,8 @@ export default function ChapterEditorPage() {
                       </div>
 
                       <div className="space-y-6">
-                        <Card className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
-                           <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">AI 分析</h3>
+                        <Card className="p-6 rounded-2xl bg-zinc-900/55 border border-white/10">
+                           <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">AI 分析</h3>
                            <div className="space-y-4">
                              <div className="bg-black/20 p-3 rounded-xl border border-white/5">
                                <div className="text-xs text-gray-500 mb-1">叙事节奏</div>
@@ -1304,37 +1379,37 @@ export default function ChapterEditorPage() {
     return createPortal(
       <AnimatePresence>
         {showDiff && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-lg p-4 md:p-8">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-5xl h-[80vh]"
+              className="w-full max-w-5xl h-[84vh]"
             >
-              <Card className="w-full h-full flex flex-col overflow-hidden rounded-2xl border border-white/10">
-                <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
+              <Card className={modalPanelClass}>
+                <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-sky-500/14 via-emerald-500/10 to-transparent p-6">
                   <div>
                     <h3 className="text-xl font-bold text-white">版本对比</h3>
-                    <p className="text-sm text-gray-400">对比 {new Date(showDiff.createdAt).toLocaleString()} 的版本与当前版本</p>
+                    <p className="text-sm text-zinc-400">对比 {new Date(showDiff.createdAt).toLocaleString()} 的版本与当前版本</p>
                   </div>
                   <div className="flex gap-3">
-                    <Button variant="secondary" onClick={() => setShowDiff(null)}>关闭</Button>
-                    <Button variant="primary" onClick={() => handleRestore(showDiff.id)}>
+                    <Button variant="secondary" size="sm" onClick={() => setShowDiff(null)}>关闭</Button>
+                    <Button variant="primary" size="sm" onClick={() => handleRestore(showDiff.id)}>
                       <Icons.RotateCcw className="w-4 h-4" /> 恢复此版本
                     </Button>
                   </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto p-6 font-mono text-sm leading-relaxed">
+                <div className="flex-1 overflow-auto p-6 font-mono text-sm leading-relaxed bg-zinc-950/35">
                   {Diff.diffLines(showDiff.content || '', content || '').map((part, index) => (
                     <div 
                       key={index}
                       className={`
-                        ${part.added ? 'bg-green-500/20 text-green-200 border-l-2 border-green-500' : ''}
-                        ${part.removed ? 'bg-red-500/20 text-red-200 border-l-2 border-red-500 decoration-line-through opacity-70' : ''}
-                        ${!part.added && !part.removed ? 'text-gray-300' : ''}
-                        px-4 py-1 whitespace-pre-wrap
+                        ${part.added ? 'bg-emerald-500/15 text-emerald-200 border-l-2 border-emerald-400' : ''}
+                        ${part.removed ? 'bg-red-500/18 text-red-200 border-l-2 border-red-400 decoration-line-through opacity-80' : ''}
+                        ${!part.added && !part.removed ? 'text-zinc-300' : ''}
+                        px-4 py-1.5 whitespace-pre-wrap
                       `}
                     >
                       {part.value}
@@ -1353,283 +1428,371 @@ export default function ChapterEditorPage() {
   if (!chapter) return <div className="flex items-center justify-center h-screen bg-[var(--color-dark-bg)]"><Icons.Loader2 className="animate-spin w-8 h-8 text-emerald-500" /></div>;
 
   return (
-    <motion.div 
+    <motion.div
       initial="initial"
       animate="animate"
       variants={fadeIn}
       className={`flex flex-col h-[calc(100vh-var(--dashboard-topbar-height))] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
     >
-      <header className={`min-h-16 py-2 border-b border-white/5 flex items-center justify-between px-6 bg-[#0f1117]/80 backdrop-blur-md z-10 shrink-0 transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="text-gray-400 hover:text-white transition-colors hover:bg-white/5 p-1.5 rounded-lg">
-            <Icons.ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <span>小说列表</span>
-              <span>/</span>
-              <span className="truncate max-w-[150px]">{title}</span>
-            </div>
-            <div className="flex items-center gap-2">
-               <h1 className="text-sm font-bold text-white truncate max-w-[300px]">{title}</h1>
-               <div className={`w-1.5 h-1.5 rounded-full ${saveStatus === 'saved' ? 'bg-green-500' : saveStatus === 'saving' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></div>
-            </div>
-          </div>
-        </div>
+      <header className={`z-20 shrink-0 border-b border-white/10 bg-[#0d1017]/90 backdrop-blur-md transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+        <div className="mx-auto flex w-full flex-col gap-3 px-4 py-3 lg:px-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-start gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.back()}
+                className="mt-0.5 w-9 rounded-xl border border-white/10 bg-white/5 px-0 text-gray-300 hover:bg-white/10 hover:text-white"
+                aria-label="返回"
+                title="返回"
+              >
+                <Icons.ChevronLeft className="h-4 w-4" />
+              </Button>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 mr-4 bg-white/5 p-1 rounded-xl border border-white/5 shadow-inner">
-            <Button 
-              variant="ghost" 
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={() => createJob('CHAPTER_GENERATE')}
-              isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
-              disabled={!canGenerate}
-            >
-              <Icons.Sparkles className="w-3.5 h-3.5 text-emerald-400" /> 
-              <span className="ml-1.5">生成</span>
-            </Button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button 
-              variant="ghost" 
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
-              isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
-              disabled={!canGenerateBranches}
-            >
-              <Icons.GitBranch className="w-3.5 h-3.5 text-blue-400" /> 
-              <span className="ml-1.5">生成分支</span>
-            </Button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button 
-              variant="ghost" 
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={() => {
-                createJob('REVIEW_SCORE');
-                createJob('CONSISTENCY_CHECK');
-              }}
-              isLoading={activeJobs.some(j => j.type === 'REVIEW_SCORE' || j.type === 'CONSISTENCY_CHECK')}
-              disabled={!canReview}
-            >
-              <Icons.CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> 
-              <span className="ml-1.5">审阅</span>
-            </Button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button 
-              variant="ghost" 
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={() => createJob('DEAI_REWRITE')}
-              isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
-              disabled={!canDeai}
-            >
-              <Icons.Wand2 className="w-3.5 h-3.5 text-purple-400" /> 
-              <span className="ml-1.5">润色</span>
-            </Button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button 
-              variant="ghost" 
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={handleMemoryExtract}
-              isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
-              disabled={saveStatus !== 'saved'}
-              title="提取记忆到设定集"
-            >
-              <Icons.Brain className="w-3.5 h-3.5 text-pink-400" /> 
-              <span className="ml-1.5">提取记忆</span>
-            </Button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button 
-              variant="ghost" 
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={() => {
-                setCanonCheckError(null);
-                createJob('CANON_CHECK');
-              }}
-              isLoading={activeJobs.some(j => j.type === 'CANON_CHECK')}
-              disabled={!canCanonCheck || saveStatus !== 'saved'}
-              title="检查章节内容是否符合原作设定（同人文专用）"
-            >
-              <Icons.BookOpen className="w-3.5 h-3.5 text-amber-400" /> 
-              <span className="ml-1.5">原作符合度</span>
-            </Button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button
-              variant="ghost"
-              className="text-xs py-1.5 h-8 px-3 rounded-lg"
-              onClick={handleCompleteChapter}
-              disabled={!canComplete}
-            >
-              <Icons.CheckCircle className="w-3.5 h-3.5 text-green-400" />
-              <span className="ml-1.5">完成</span>
-            </Button>
-          </div>
-          
-          {(reviewResult || consistencyResult || canonCheckResult || canonCheckError) && (
-            <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
-              {(reviewResult || consistencyResult) && (
-                <button
-                  onClick={() => setShowReviewPanel(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20"
-                  title="查看审阅结果"
-                >
-                  <Icons.CheckCircle className="w-3.5 h-3.5" />
-                  <span>审阅结果</span>
-                </button>
-              )}
-              {(canonCheckResult || canonCheckError) && (
-                <button
-                  onClick={() => setShowCanonCheckPanel(true)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                    canonCheckError 
-                      ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border-red-500/20' 
-                      : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20'
-                  }`}
-                  title="查看原作符合度结果"
-                >
-                  <Icons.BookOpen className="w-3.5 h-3.5" />
-                  <span>{canonCheckError ? '检测失败' : '符合度结果'}</span>
-                </button>
-              )}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>小说列表</span>
+                  <span>/</span>
+                  <span className="truncate max-w-[180px]">章节编辑</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="max-w-[420px] truncate text-base font-semibold text-zinc-100 sm:text-lg">
+                    {title || '未命名章节'}
+                  </h1>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${saveStatusTone}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${saveStatusDot}`} />
+                    {saveStatusLabel}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${stageTone}`}>
+                    {stageLabel}
+                  </span>
+                  {runningJobCount > 0 && (
+                    <span className="inline-flex items-center rounded-full border border-sky-500/30 bg-sky-500/12 px-2.5 py-1 text-[11px] font-medium text-sky-300">
+                      {runningJobCount} 个任务执行中
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
-          
-          <button 
-            onClick={() => setFocusMode(!focusMode)}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-            title={focusMode ? "退出专注模式" : "专注模式"}
-          >
-            {focusMode ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
-          </button>
-          
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`p-2 rounded-lg transition-colors ${isSidebarOpen ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-          >
-            <Icons.PanelRight className="w-5 h-5" />
-          </button>
+
+            <div className="flex items-center gap-2 self-end md:self-start">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFocusMode(!focusMode)}
+                className="w-9 rounded-xl border border-white/10 bg-white/5 px-0 text-gray-300 hover:bg-white/10 hover:text-white"
+                title={focusMode ? '退出专注模式' : '进入专注模式'}
+                aria-label={focusMode ? '退出专注模式' : '进入专注模式'}
+              >
+                {focusMode ? <Icons.Minimize className="h-4 w-4" /> : <Icons.Maximize className="h-4 w-4" />}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`w-9 rounded-xl border px-0 transition-colors ${
+                  isSidebarOpen
+                    ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-200 shadow-lg shadow-emerald-500/20'
+                    : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={isSidebarOpen ? '隐藏版本历史' : '显示版本历史'}
+                aria-label={isSidebarOpen ? '隐藏版本历史' : '显示版本历史'}
+              >
+                <Icons.PanelRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/65 p-2 shadow-inner shadow-black/20">
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-[88px]"
+                onClick={() => createJob('CHAPTER_GENERATE')}
+                isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
+                disabled={!canGenerate}
+              >
+                <Icons.Sparkles className="h-3.5 w-3.5" />
+                生成
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-[98px]"
+                onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
+                isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
+                disabled={!canGenerateBranches}
+              >
+                <Icons.GitBranch className="h-3.5 w-3.5 text-sky-300" />
+                生成分支
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-[84px]"
+                onClick={() => {
+                  createJob('REVIEW_SCORE');
+                  createJob('CONSISTENCY_CHECK');
+                }}
+                isLoading={activeJobs.some(j => j.type === 'REVIEW_SCORE' || j.type === 'CONSISTENCY_CHECK')}
+                disabled={!canReview}
+              >
+                <Icons.CheckCircle className="h-3.5 w-3.5 text-emerald-300" />
+                审阅
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-w-[84px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                onClick={() => createJob('DEAI_REWRITE')}
+                isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
+                disabled={!canDeai}
+              >
+                <Icons.Wand2 className="h-3.5 w-3.5 text-violet-300" />
+                润色
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-w-[96px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                onClick={handleMemoryExtract}
+                isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
+                disabled={saveStatus !== 'saved'}
+                title="提取记忆到设定集"
+              >
+                <Icons.Brain className="h-3.5 w-3.5 text-pink-300" />
+                提取记忆
+              </Button>
+              {novel?.isFanfiction && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-w-[110px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                  onClick={() => {
+                    setCanonCheckError(null);
+                    createJob('CANON_CHECK');
+                  }}
+                  isLoading={activeJobs.some(j => j.type === 'CANON_CHECK')}
+                  disabled={!canCanonCheck || saveStatus !== 'saved'}
+                  title="检查章节内容是否符合原作设定（同人文专用）"
+                >
+                  <Icons.BookOpen className="h-3.5 w-3.5 text-amber-300" />
+                  原作符合度
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-[88px] from-emerald-500 to-teal-500"
+                onClick={handleCompleteChapter}
+                disabled={!canComplete}
+              >
+                <Icons.CheckCircle className="h-3.5 w-3.5" />
+                完成章节
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {hasReviewArtifacts && (
+                <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/60 px-2 py-2">
+                  {(reviewResult || consistencyResult) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="border border-emerald-500/30 bg-emerald-500/12 text-emerald-200 hover:bg-emerald-500/22"
+                      onClick={() => setShowReviewPanel(true)}
+                      title="查看审阅结果"
+                    >
+                      <Icons.CheckCircle className="h-3.5 w-3.5" />
+                      审阅结果
+                    </Button>
+                  )}
+                  {(canonCheckResult || canonCheckError) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={canonCheckError
+                        ? 'border border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/22'
+                        : 'border border-amber-500/30 bg-amber-500/12 text-amber-200 hover:bg-amber-500/22'}
+                      onClick={() => setShowCanonCheckPanel(true)}
+                      title="查看原作符合度结果"
+                    >
+                      <Icons.BookOpen className="h-3.5 w-3.5" />
+                      {canonCheckError ? '检测失败' : '符合度结果'}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <div className="inline-flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-[11px] text-zinc-400">
+                <span className="font-mono">{wordCount} 字</span>
+                <span className="h-3 w-px bg-white/10" />
+                <span className="font-mono">{charCount} 字符</span>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative">
-        <motion.main 
+      <div className="relative flex flex-1 overflow-hidden">
+        <motion.main
           layout
-          className="flex-1 relative flex flex-col h-full bg-[#0f1117] transition-all duration-300"
+          className="relative flex h-full flex-1 flex-col bg-[#0f1117] transition-all duration-300"
         >
           {focusMode && (
-            <div className="absolute top-4 right-4 z-50">
-               <button 
+            <div className="absolute right-4 top-4 z-50">
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setFocusMode(false)}
-                className="p-2 rounded-full bg-black/50 text-white/70 hover:text-white backdrop-blur-md border border-white/10 hover:bg-black/70 transition-all"
+                className="w-9 rounded-full border border-white/15 bg-black/55 px-0 text-white/80 backdrop-blur-md hover:bg-black/70 hover:text-white"
                 title="退出专注模式"
-               >
-                 <Icons.Minimize className="w-5 h-5" />
-               </button>
+                aria-label="退出专注模式"
+              >
+                <Icons.Minimize className="h-4 w-4" />
+              </Button>
             </div>
           )}
-          
-          <div className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth">
-            <div className={`mx-auto py-16 px-12 min-h-full transition-all duration-500 ${focusMode ? 'max-w-4xl' : 'max-w-3xl'}`}>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  setSaveStatus('unsaved');
-                  if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-                  saveTimeoutRef.current = setTimeout(() => saveContent(content, e.target.value), 2000);
-                }}
-                className="w-full bg-transparent text-4xl font-serif font-bold text-white mb-8 border-none focus:outline-none focus:ring-0 placeholder-gray-700 tracking-tight"
-                placeholder="章节标题"
-              />
-              <textarea
-                value={content}
-                onChange={handleContentChange}
-                onBlur={handleBlur}
-                className="w-full min-h-[calc(100vh-300px)] bg-transparent text-xl text-gray-300 leading-loose resize-none border-none focus:outline-none focus:ring-0 placeholder-gray-800 selection:bg-emerald-500/30 font-serif tracking-wide"
-                placeholder="开始创作你的杰作..."
-                spellCheck={false}
-              />
+
+          <div className="custom-scrollbar flex-1 overflow-y-auto scroll-smooth">
+            <div className={`mx-auto w-full px-4 pb-24 pt-6 transition-all duration-500 md:px-8 lg:px-10 ${focusMode ? 'max-w-5xl' : 'max-w-[920px]'}`}>
+              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
+                <div className="border-b border-white/10 bg-gradient-to-r from-emerald-500/10 via-sky-500/8 to-transparent px-6 py-5 md:px-8">
+                  <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
+                    Chapter Workspace
+                  </div>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      setSaveStatus('unsaved');
+                      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                      saveTimeoutRef.current = setTimeout(() => saveContent(content, e.target.value), 2000);
+                    }}
+                    className="w-full border-none bg-transparent font-serif text-3xl font-bold tracking-tight text-white placeholder-zinc-600 focus:outline-none focus:ring-0 md:text-[2.15rem]"
+                    placeholder="章节标题"
+                  />
+                  <div className="mt-2 text-xs text-zinc-500">
+                    最后更新：{new Date(chapter.updatedAt).toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="px-6 pb-8 pt-6 md:px-8">
+                  <textarea
+                    value={content}
+                    onChange={handleContentChange}
+                    onBlur={handleBlur}
+                    className="w-full min-h-[calc(100vh-420px)] resize-none border-none bg-transparent font-serif text-lg leading-9 tracking-[0.01em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-xl"
+                    placeholder="开始创作你的杰作..."
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div className={`absolute bottom-0 left-0 right-0 h-10 bg-[#0f1117]/90 backdrop-blur border-t border-white/5 flex items-center justify-between px-6 text-xs text-gray-500 select-none transition-all duration-300 ${focusMode ? 'translate-y-full' : 'translate-y-0'}`}>
-            <div className="flex gap-6 font-mono">
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-600"></span>
+
+          <div className={`absolute bottom-0 left-0 right-0 flex h-11 items-center justify-between border-t border-white/10 bg-[#0f1117]/92 px-4 text-xs text-zinc-500 backdrop-blur-md transition-all duration-300 sm:px-6 ${focusMode ? 'translate-y-full' : 'translate-y-0'}`}>
+            <div className="flex items-center gap-4 font-mono sm:gap-6">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
                 {wordCount} 字
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-600"></span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
                 {charCount} 字符
               </span>
             </div>
-            <div>
+
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${saveStatusTone}`}>
               {saveStatus === 'saved' ? (
-                  <span className="text-green-500/70 flex items-center gap-1.5">
-                      <Icons.CheckCircle className="w-3 h-3" /> 所有更改已保存
-                  </span>
+                <>
+                  <Icons.CheckCircle className="h-3 w-3" />
+                  所有更改已保存
+                </>
               ) : saveStatus === 'saving' ? (
-                  <span className="text-yellow-500/70 flex items-center gap-1.5">
-                      <Icons.Loader2 className="w-3 h-3 animate-spin" /> 保存中...
-                  </span>
+                <>
+                  <Icons.Loader2 className="h-3 w-3 animate-spin" />
+                  保存中...
+                </>
               ) : (
-                  <span className="text-red-500/70 flex items-center gap-1.5">
-                      <Icons.X className="w-3 h-3" /> 未保存
-                  </span>
+                <>
+                  <Icons.X className="h-3 w-3" />
+                  等待保存
+                </>
               )}
-            </div>
+            </span>
           </div>
         </motion.main>
 
-        <motion.aside 
+        <motion.aside
           initial={false}
-          animate={{ 
-            width: isSidebarOpen && !focusMode ? 320 : 0,
-            opacity: isSidebarOpen && !focusMode ? 1 : 0
+          animate={{
+            width: isSidebarOpen && !focusMode ? 340 : 0,
+            opacity: isSidebarOpen && !focusMode ? 1 : 0,
           }}
-          transition={{ ease: "easeInOut", duration: 0.3 }}
-          className="border-l border-white/5 bg-[#13141f] shadow-2xl flex flex-col z-20 overflow-hidden"
+          transition={{ ease: 'easeInOut', duration: 0.3 }}
+          className="z-20 flex flex-col overflow-hidden border-l border-white/10 bg-[#121521]/95 shadow-2xl"
         >
-          <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02] min-w-[320px]">
-            <h2 className="font-semibold text-white flex items-center gap-2 text-sm tracking-wide">
-              <Icons.History className="w-4 h-4 text-emerald-400" /> 版本历史
-            </h2>
+          <div className="min-w-[340px] border-b border-white/10 bg-white/[0.02] px-4 py-4">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-zinc-100">
+                <Icons.History className="h-4 w-4 text-emerald-300" />
+                版本历史
+              </h2>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
+                {versions.length}
+              </span>
+            </div>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar min-w-[320px]">
+
+          <div className="custom-scrollbar min-w-[340px] flex-1 space-y-3 overflow-y-auto p-4">
             {versions.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-600">
-                    <Icons.History className="w-6 h-6" />
+              <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-10 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-zinc-600">
+                  <Icons.History className="h-6 w-6" />
                 </div>
-                <div className="text-gray-500 text-sm">暂无历史版本</div>
-                <div className="text-gray-600 text-xs mt-1">系统会自动保存您的写作进度</div>
+                <div className="text-sm text-zinc-500">暂无历史版本</div>
+                <div className="mt-1 text-xs text-zinc-600">系统会自动保存你的写作进度</div>
               </div>
             ) : (
               versions.map((version) => (
-                <Card key={version.id} className="group p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all cursor-pointer relative overflow-hidden">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-mono text-gray-400 group-hover:text-emerald-300 transition-colors">{new Date(version.createdAt).toLocaleString()}</span>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-[#1e1f2b] rounded-lg p-0.5 shadow-lg border border-white/10">
-                      <button 
+                <Card key={version.id} className="group rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <span className="block text-[11px] font-mono text-zinc-400">
+                        {new Date(version.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-[#1a1d28] p-1 shadow-lg">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={(e) => { e.stopPropagation(); setShowDiff(version); }}
-                        className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white transition-colors"
+                        className="h-8 w-8 rounded-md px-0 text-zinc-400 hover:bg-white/10 hover:text-white"
                         title="查看变更"
+                        aria-label="查看变更"
                       >
-                        <Icons.Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <div className="w-px bg-white/10 my-0.5"></div>
-                      <button 
+                        <Icons.Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={(e) => { e.stopPropagation(); handleRestore(version.id); }}
-                        className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white transition-colors"
-                        title="恢复"
+                        className="h-8 w-8 rounded-md px-0 text-zinc-400 hover:bg-white/10 hover:text-white"
+                        title="恢复版本"
+                        aria-label="恢复版本"
                       >
-                        <Icons.RotateCcw className="w-3.5 h-3.5" />
-                      </button>
+                        <Icons.RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500 line-clamp-2 font-serif leading-relaxed">
-                    {version.content.substring(0, 100)}...
+                  <div className="line-clamp-3 text-xs leading-relaxed text-zinc-500">
+                    {version.content.substring(0, 140)}
                   </div>
                 </Card>
               ))

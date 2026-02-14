@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import MaterialSearchModal from './MaterialSearchModal';
-import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
+import Modal, { ConfirmModal, ModalFooter } from '@/app/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
 import GlassCard from '@/app/components/ui/GlassCard';
 import { useFetch } from '@/src/hooks/useFetch';
 
@@ -252,10 +253,11 @@ export default function MaterialsPage() {
           <div className="flex items-center gap-2 mb-2">
             <Link 
               href={`/novels/${novelId}`}
-              className="p-2 -ml-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
               title="返回小说详情"
+              aria-label="返回小说详情"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
@@ -263,62 +265,69 @@ export default function MaterialsPage() {
           </div>
           <p className="text-gray-400 pl-1">管理你的故事元素、角色和世界观设定</p>
         </div>
-        <div className="flex gap-3">
-          <button 
+        <div className="flex flex-wrap gap-2.5">
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setIsSelectionMode(!isSelectionMode)}
-            className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
+            className="min-w-[96px]"
           >
             {isSelectionMode ? '取消选择' : '批量管理'}
-          </button>
-          <button 
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleDeduplicate}
-            disabled={isDeduplicating}
-            className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
+            isLoading={isDeduplicating}
+            className="min-w-[116px]"
           >
-            {isDeduplicating ? (
-              <div className="w-4 h-4 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            )}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
             AI 汇总去重
-          </button>
-          <button 
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={(e) => { e.preventDefault(); setIsSearchModalOpen(true); }}
-            className="btn-secondary px-5 py-2.5 rounded-xl flex items-center gap-2"
+            className="min-w-[112px]"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             AI 联网搜索
-          </button>
-          <button 
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={(e) => { e.preventDefault(); handleOpenCreate(); }}
-            className="btn-primary px-6 py-2.5 rounded-xl flex items-center gap-2"
+            className="min-w-[96px]"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             添加素材
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm">
         <div className="flex overflow-x-auto pb-2 md:pb-0 gap-1 no-scrollbar w-full md:w-auto">
           {TABS.map((tab) => (
-            <button
+            <Button
               key={tab.id}
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+              className={`h-9 rounded-xl px-4 text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-500' 
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
               {tab.label}
-            </button>
+            </Button>
           ))}
         </div>
         
@@ -410,14 +419,14 @@ export default function MaterialsPage() {
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-card px-6 py-3 rounded-2xl flex items-center gap-4 shadow-2xl border border-white/10 animate-slide-up">
           <span className="text-sm text-gray-300">已选择 {selectedIds.size} 项</span>
-          <button onClick={selectAll} className="text-sm text-emerald-400 hover:underline">全选</button>
-          <button onClick={clearSelection} className="text-sm text-gray-400 hover:underline">取消</button>
-          <button onClick={handleBatchDelete} className="btn-primary px-4 py-2 rounded-xl text-sm flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="h-8 px-3 border border-white/10 bg-white/[0.03] text-emerald-300 hover:bg-white/10" onClick={selectAll}>全选</Button>
+          <Button variant="ghost" size="sm" className="h-8 px-3 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10" onClick={clearSelection}>取消</Button>
+          <Button variant="primary" size="sm" className="h-8 px-4" onClick={handleBatchDelete}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             删除
-          </button>
+          </Button>
         </div>
       )}
 
@@ -760,16 +769,18 @@ function MaterialModal({
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-gray-300">属性</label>
             {!isAddingAttr && (
-              <button 
-                type="button" 
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setIsAddingAttr(true)}
-                className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                className="h-7 px-3 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 添加属性
-              </button>
+              </Button>
             )}
           </div>
           
@@ -778,15 +789,18 @@ function MaterialModal({
               <div key={key} className="glass-input p-3 rounded-xl relative group">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs font-semibold text-emerald-400 uppercase">{key}</span>
-                  <button 
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => removeAttribute(key)}
-                    className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-7 w-7 rounded-lg border border-transparent bg-transparent px-0 text-gray-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 opacity-0 group-hover:opacity-100 transition-all"
+                    aria-label={`删除属性 ${key}`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
                 <input
                   type="text"
@@ -820,24 +834,30 @@ function MaterialModal({
                       }
                     }}
                   />
-                  <button 
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={confirmAddAttribute}
-                    className="text-emerald-400 hover:text-emerald-300"
+                    className="h-7 w-7 rounded-lg border border-transparent px-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                    aria-label="确认新增属性"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                  </button>
-                  <button 
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={cancelAddAttribute}
-                    className="text-gray-500 hover:text-gray-300"
+                    className="h-7 w-7 rounded-lg border border-transparent px-0 text-gray-500 hover:text-gray-300 hover:bg-white/10"
+                    aria-label="取消新增属性"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -858,42 +878,28 @@ function MaterialModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-secondary px-6 py-2.5 rounded-xl text-sm"
-          >
+        <ModalFooter>
+          <Button type="button" variant="secondary" size="sm" className="px-6" onClick={onClose}>
             取消
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={handleAiEnhance}
             disabled={isEnhancing || !name.trim()}
-            className="btn-secondary px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 disabled:opacity-50"
+            isLoading={isEnhancing}
+            className="px-4"
           >
-            {isEnhancing ? (
-              <>
-                <div className="w-4 h-4 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
-                AI 完善中...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                AI 完善
-              </>
-            )}
-          </button>
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="btn-primary px-6 py-2.5 rounded-xl text-sm flex items-center gap-2"
-          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {isEnhancing ? 'AI 完善中...' : 'AI 完善'}
+          </Button>
+          <Button type="submit" variant="primary" size="sm" disabled={isSaving} className="px-6">
             {isSaving ? '保存中...' : initialData ? '更新素材' : '创建素材'}
-          </button>
-        </div>
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   );

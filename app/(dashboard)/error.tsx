@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { Button } from '@/app/components/ui/Button';
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -35,18 +36,24 @@ export default function DashboardError({ error, reset }: ErrorProps) {
         )}
 
         <div className="flex gap-3 justify-center">
-          <button
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
             onClick={reset}
-            className="btn-primary px-6 py-2.5"
+            className="px-6"
           >
             重试
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => window.history.back()}
-            className="btn-secondary px-6 py-2.5"
+            className="px-6"
           >
             返回
-          </button>
+          </Button>
         </div>
       </div>
     </div>

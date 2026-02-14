@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getJobStatusLabel, getJobStatusClassName, getJobTypeLabel } from '@/app/components/JobStatusBadge';
+import { Button } from '@/app/components/ui/Button';
 
 interface Notification {
   id: string;
@@ -271,15 +272,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className={`p-4 ${sidebarCollapsed ? 'px-2' : 'px-3'} border-t border-zinc-800/80`}>
           {sidebarCollapsed ? (
-            <button  
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={handleLogout}
-              className="w-full p-2.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center justify-center"
+              className="h-9 w-full rounded-xl border border-zinc-700/70 bg-zinc-900/70 px-0 text-zinc-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
               title="退出登录"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-            </button>
+            </Button>
           ) : (
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center font-medium text-sm text-zinc-300 border border-zinc-700">
@@ -289,42 +293,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="text-sm font-medium text-zinc-200 truncate">{userInfo?.email?.split('@')[0] || '加载中...'}</div>
                 <div className="text-xs text-zinc-500 truncate">{userInfo?.email || ''}</div>
               </div>
-              <button  
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={handleLogout}
-                className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                className="h-9 w-9 rounded-xl border border-zinc-700/70 bg-zinc-900/70 px-0 text-zinc-500 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
                 title="退出登录"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="hidden lg:flex absolute -right-3 top-20 w-6 h-6 bg-zinc-900 border border-zinc-700/80 rounded-full items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          className="hidden lg:flex absolute -right-3 top-20 h-6 w-6 min-w-0 rounded-full border border-zinc-700/80 bg-zinc-900 px-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
           aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
         >
           <svg className={`w-3 h-3 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-        </button>
+        </Button>
       </aside>
 
       <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-screen relative z-10 overflow-y-auto transition-all duration-300`}>
-        <header className="min-h-[var(--dashboard-topbar-height)] py-2 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/88 backdrop-blur-xl border-b border-zinc-800/60">
+        <header className="h-[var(--dashboard-topbar-height)] min-h-[var(--dashboard-topbar-height)] flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/88 backdrop-blur-xl border-b border-zinc-800/60">
           <div className="flex items-center gap-4 min-w-0">
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200"
+              className="lg:hidden h-9 w-9 rounded-xl border border-zinc-700/70 bg-zinc-900/70 px-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
               aria-label="打开菜单"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-            </button>
+            </Button>
             <div className="min-w-0 hidden sm:block">
               <div className="text-[11px] uppercase tracking-wider text-zinc-500 truncate">
                 {breadcrumb.join(' / ')}
@@ -342,9 +355,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               新建作品
             </Link>
-            <button 
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setShowNotifications(!showNotifications)}
-              className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-200 relative"
+              className="relative h-9 w-9 rounded-xl border border-zinc-700/70 bg-zinc-900/70 px-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
               aria-label="通知"
             >
               {unreadCount > 0 && (
@@ -353,7 +369,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-            </button>
+            </Button>
              
             {showNotifications && (
               <div className="absolute right-0 top-[calc(var(--dashboard-topbar-height)-0.5rem)] w-80 glass-card border border-zinc-800/80 rounded-xl shadow-2xl overflow-hidden animate-fade-in">

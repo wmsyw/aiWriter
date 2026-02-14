@@ -125,7 +125,7 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --dashboard-topbar-height: 4.5rem;
+    --dashboard-topbar-height: 4rem;
     --dashboard-sticky-offset: calc(var(--dashboard-topbar-height) + 1rem);
   }
 

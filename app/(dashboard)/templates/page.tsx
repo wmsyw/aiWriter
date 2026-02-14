@@ -241,11 +241,11 @@ export default function TemplatesPage() {
             </div>
             <CardTitle className="text-sm font-semibold tracking-wide text-zinc-100">所有模板</CardTitle>
           </div>
-            <Button 
+          <Button 
             variant="ghost" 
             size="sm"
             onClick={handleCreateNew}
-            className="h-9 w-9 p-0 rounded-full hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors"
+            className="h-9 w-9 p-0 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/35 transition-colors"
             aria-label="新建模板"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -372,7 +372,7 @@ export default function TemplatesPage() {
                   disabled={!hasChanges || isSaving}
                   isLoading={isSaving}
                   className={cn(
-                    "h-8 text-xs font-medium px-5 transition-all duration-200",
+                    "h-9 text-xs font-medium px-5 transition-all duration-200",
                     hasChanges 
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5" 
                       : "bg-zinc-800 text-zinc-500 hover:bg-zinc-800 cursor-not-allowed"
@@ -462,7 +462,7 @@ export default function TemplatesPage() {
                   variant="ghost" 
                   size="sm"
                   onClick={addVariable}
-                  className="h-6 px-2 text-xs text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                  className="h-7 px-2.5 text-xs border border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/18"
                 >
                   + 添加变量
                 </Button>
@@ -502,7 +502,7 @@ export default function TemplatesPage() {
                             size="sm"
                             onClick={() => insertVariableToContent(variable.name)}
                             title="复制标签"
-                            className="h-9 w-9 p-0 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
+                            className="h-9 w-9 p-0 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-500 hover:text-emerald-300 hover:bg-emerald-500/12 hover:border-emerald-500/35"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -513,7 +513,7 @@ export default function TemplatesPage() {
                             size="sm"
                             onClick={() => removeVariable(idx)}
                             title="删除变量"
-                            className="h-9 w-9 p-0 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
+                            className="h-9 w-9 p-0 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-500 hover:text-red-300 hover:bg-red-500/12 hover:border-red-500/35"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -584,10 +584,11 @@ export default function TemplatesPage() {
               
               <Button
                 variant="secondary"
+                size="sm"
                 onClick={handleRunPreview}
                 disabled={isPreviewLoading}
                 isLoading={isPreviewLoading}
-                className="w-full mt-4 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40"
+                className="w-full mt-4 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40"
                 rightIcon={
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />

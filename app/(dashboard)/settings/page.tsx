@@ -404,7 +404,11 @@ export default function SettingsPage() {
               <h2 className="text-2xl font-bold text-white tracking-tight">AI 服务商配置</h2>
               <p className="text-gray-400">配置 OpenAI、Claude、Gemini 等 AI 服务的 API 密钥</p>
             </div>
-            <Button onClick={openCreateModal} leftIcon={
+            <Button
+              onClick={openCreateModal}
+              size="sm"
+              className="min-w-[122px]"
+              leftIcon={
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -465,14 +469,16 @@ export default function SettingsPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 p-1 rounded-xl border border-zinc-700/70 bg-zinc-900/80 shadow-lg shadow-black/30">
                             <Button 
                               variant="ghost" 
                               size="sm" 
                               onClick={(e) => { e.stopPropagation(); openEditModal(provider); }}
-                              className="h-9 w-9 p-0"
+                              className="h-9 w-9 p-0 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/90 border border-transparent hover:border-zinc-600/70 transition-all"
+                              aria-label={`编辑${provider.name}`}
+                              title="编辑服务商"
                             >
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                               </svg>
                             </Button>
@@ -480,9 +486,11 @@ export default function SettingsPage() {
                               variant="ghost" 
                               size="sm" 
                               onClick={(e) => { e.stopPropagation(); handleDelete(provider.id); }}
-                              className="h-9 w-9 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              className="h-9 w-9 p-0 rounded-lg text-red-300 hover:text-red-200 hover:bg-red-500/15 border border-transparent hover:border-red-500/35 transition-all"
+                              aria-label={`删除${provider.name}`}
+                              title="删除服务商"
                             >
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </Button>
@@ -833,18 +841,20 @@ export default function SettingsPage() {
               <label className="text-sm font-medium text-gray-300">服务商类型</label>
               <div className="grid grid-cols-3 gap-2">
                 {PROVIDER_TYPES.map((type) => (
-                  <button
+                  <Button
                     key={type.value}
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleProviderTypeChange(type.value)}
-                    className={`px-4 py-3 rounded-xl border transition-all text-sm font-medium ${
+                    className={`h-10 rounded-xl border px-4 text-sm font-medium transition-all ${
                       formData.providerType === type.value
-                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 hover:border-emerald-400/70 hover:bg-emerald-500/25'
+                        : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-zinc-100'
                     }`}
                   >
                     {type.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -876,15 +886,19 @@ export default function SettingsPage() {
                   {formData.models.map((model) => (
                     <Badge key={model} variant="outline" className="pl-2 pr-1 gap-1">
                       {model}
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setFormData(prev => ({ ...prev, models: prev.models.filter(m => m !== model) }))}
-                        className="p-1 hover:bg-white/20 rounded-full text-gray-400 hover:text-white transition-colors"
+                        className="h-6 w-6 rounded-full px-0 text-gray-400 hover:bg-white/20 hover:text-white"
+                        aria-label={`删除模型 ${model}`}
+                        title={`删除模型 ${model}`}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                      </button>
+                      </Button>
                     </Badge>
                   ))}
                 </div>
@@ -971,38 +985,43 @@ export default function SettingsPage() {
               </motion.div>
             )}
 
-            <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/5">
+            <DialogFooter className="mt-2 flex-col gap-3 sm:flex-row sm:justify-between">
               <Button
                 type="button"
                 variant="ghost"
+                size="sm"
                 onClick={handleTestConnection}
                 disabled={testStatus === 'testing' || (!formData.apiKey.trim() && !editingProvider)}
                 isLoading={testStatus === 'testing'}
+                className="border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                 leftIcon={!testStatus.includes('testing') && (
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 )}
-              >
-                测试连接
-              </Button>
+                >
+                  测试连接
+                </Button>
 
               <div className="flex gap-3">
                 <Button
                   type="button"
                   variant="ghost"
+                  size="sm"
+                  className="border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                   onClick={() => setShowModal(false)}
                 >
                   取消
                 </Button>
                 <Button
                   type="submit"
+                  size="sm"
                   isLoading={saving}
                 >
                   保存
                 </Button>
               </div>
-            </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

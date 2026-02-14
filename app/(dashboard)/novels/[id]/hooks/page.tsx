@@ -3,7 +3,8 @@
 import { useState, useMemo, use } from 'react';
 import Link from 'next/link';
 import GlassCard from '@/app/components/ui/GlassCard';
-import Modal from '@/app/components/ui/Modal';
+import Modal, { ModalFooter } from '@/app/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
 import HookTimeline from '@/app/components/HookTimeline';
 import { useFetch } from '@/src/hooks/useFetch';
 
@@ -139,9 +140,9 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
       <div className="flex flex-col gap-6">
         <Link 
           href={`/novels/${novelId}`}
-          className="text-gray-400 hover:text-white flex items-center gap-2 w-fit transition-colors group text-sm font-medium"
+          className="inline-flex items-center gap-2 w-fit text-gray-400 hover:text-white transition-colors group text-sm font-medium"
         >
-          <span className="bg-white/5 p-1.5 rounded-lg group-hover:bg-white/10 transition-colors">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] group-hover:bg-white/10 transition-colors">
             <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -156,19 +157,21 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
             </h1>
             <p className="text-gray-400 max-w-xl">追踪故事中的伏笔、悬念和承诺，确保每一个埋设的钩子都能得到完美的回收。</p>
           </div>
-          <button 
+          <Button
+            variant="primary"
+            size="sm"
             onClick={(e) => { 
               e.preventDefault();
               setEditingHook(null); 
               setIsModalOpen(true); 
             }}
-            className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all transform hover:-translate-y-0.5"
+            className="px-6"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             添加新钩子
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -244,21 +247,24 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
       <HookTimeline hooks={hooksList} />
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm sticky dashboard-sticky-offset z-20 shadow-xl shadow-black/20">
-        <div className="flex overflow-x-auto pb-2 md:pb-0 gap-1 no-scrollbar w-full md:w-auto">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === tab.id 
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+          <div className="flex overflow-x-auto pb-2 md:pb-0 gap-1 no-scrollbar w-full md:w-auto">
+            {STATUS_TABS.map((tab) => (
+              <Button
+                key={tab.id}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveTab(tab.id)}
+                className={`h-9 rounded-xl px-4 text-sm font-medium whitespace-nowrap transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-500'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
         
         <div className="relative w-full md:w-72 group">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-emerald-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,16 +391,19 @@ function HookCard({
               </span>
             </div>
             
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={onDelete}
-              className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+              className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.03] px-0 text-gray-500 hover:text-red-400 hover:bg-red-500/12 hover:border-red-500/30 transition-all opacity-0 group-hover:opacity-100"
               title="删除钩子"
               aria-label="删除钩子"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-            </button>
+            </Button>
           </div>
 
           <div>
@@ -446,24 +455,30 @@ function HookCard({
 
       {isActive && (
         <div className="flex items-center gap-3 pt-4 border-t border-white/5 mt-4">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onReference}
-            className="flex-1 flex items-center justify-center gap-2 text-xs py-2 rounded-xl bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all hover:scale-[1.02]"
+            className="flex-1 border border-purple-500/25 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/35"
           >
             <span>🔗</span> 记录引用
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onResolve}
-            className="flex-1 flex items-center justify-center gap-2 text-xs py-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all hover:scale-[1.02]"
+            className="flex-1 border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/35"
           >
             <span>✅</span> 标记解决
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onAbandon}
-            className="flex-1 flex items-center justify-center gap-2 text-xs py-2 rounded-xl bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 transition-all hover:scale-[1.02]"
+            className="flex-1 border border-white/10 bg-white/[0.03] text-gray-300 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/30"
           >
             <span>🗑️</span> 放弃钩子
-          </button>
+          </Button>
         </div>
       )}
     </GlassCard>
@@ -506,45 +521,49 @@ function CreateHookModal({
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">类型</label>
-            <div className="grid grid-cols-2 gap-2">
-              {HOOK_TYPES.map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setType(t.id)}
-                  className={`p-2 rounded-xl text-xs flex items-center gap-2 border transition-all ${
-                    type === t.id 
-                      ? 'bg-emerald-500/20 border-emerald-500 text-white' 
-                      : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                  }`}
-                >
-                  <span>{t.icon}</span>
-                  {t.label}
-                </button>
-              ))}
+              <label className="block text-sm font-medium text-gray-300">类型</label>
+              <div className="grid grid-cols-2 gap-2">
+                {HOOK_TYPES.map(t => (
+                  <Button
+                    key={t.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setType(t.id)}
+                    className={`h-auto justify-start rounded-xl border p-2 text-xs transition-all ${
+                      type === t.id
+                        ? 'border-emerald-500 bg-emerald-500/20 text-white'
+                        : 'border-transparent bg-white/5 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    <span>{t.icon}</span>
+                    {t.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
           
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">重要性</label>
-            <div className="grid grid-cols-3 gap-2">
-              {IMPORTANCE_LEVELS.map(i => (
-                <button
-                  key={i.id}
-                  type="button"
-                  onClick={() => setImportance(i.id)}
-                  className={`p-2 rounded-xl text-xs flex flex-col items-center justify-center border transition-all ${
-                    importance === i.id 
-                      ? `${i.bg} border-current ${i.color}` 
-                      : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                  }`}
-                >
-                  <span className="font-bold">{i.label}</span>
-                </button>
-              ))}
+              <label className="block text-sm font-medium text-gray-300">重要性</label>
+              <div className="grid grid-cols-3 gap-2">
+                {IMPORTANCE_LEVELS.map(i => (
+                  <Button
+                    key={i.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setImportance(i.id)}
+                    className={`h-auto flex-col rounded-xl border p-2 text-xs transition-all ${
+                      importance === i.id
+                        ? `${i.bg} border-current ${i.color}`
+                        : 'border-transparent bg-white/5 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="font-bold">{i.label}</span>
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
         </div>
 
         <div className="space-y-2">
@@ -582,22 +601,14 @@ function CreateHookModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-secondary px-6 py-2.5 rounded-xl text-sm"
-          >
+        <ModalFooter>
+          <Button type="button" variant="secondary" size="sm" className="px-6" onClick={onClose}>
             取消
-          </button>
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-emerald-500/20"
-          >
+          </Button>
+          <Button type="submit" variant="primary" size="sm" disabled={isSaving} className="px-6">
             {isSaving ? '保存中...' : '创建钩子'}
-          </button>
-        </div>
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   );
@@ -675,14 +686,14 @@ function ActionModal({
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-          <button onClick={onClose} className="btn-secondary px-6 py-2.5 rounded-xl text-sm">
+        <ModalFooter>
+          <Button variant="secondary" size="sm" className="px-6" onClick={onClose}>
             取消
-          </button>
-          <button onClick={handleConfirm} className="btn-primary px-6 py-2.5 rounded-xl text-sm shadow-lg">
+          </Button>
+          <Button variant="primary" size="sm" className="px-6" onClick={handleConfirm}>
             确认
-          </button>
-        </div>
+          </Button>
+        </ModalFooter>
       </div>
     </Modal>
   );
