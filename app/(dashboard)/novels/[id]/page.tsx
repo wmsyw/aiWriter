@@ -2076,6 +2076,180 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     return countRecursive(visibleOutlineNodes);
   })();
 
+  const outlineActionPanel = (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 p-3 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">批量操作</div>
+          {outlineSelectionMode && (
+            <Badge variant="outline" className="border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">
+              已选 {selectedOutlineIds.size}
+            </Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {outlineSelectionMode ? (
+            <>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleBatchRegenerate}
+                disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
+                className="h-8 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+              >
+                批量重新生成
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBatchDelete}
+                disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
+                className="h-8 text-xs border border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/22 hover:text-red-100 disabled:opacity-50"
+              >
+                批量删除
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setOutlineSelectionMode(false);
+                  setSelectedOutlineIds(new Set());
+                }}
+                disabled={isOutlineMutating}
+                className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
+              >
+                取消选择
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setOutlineSelectionMode(true)}
+              disabled={isOutlineMutating}
+              className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
+            >
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              批量选择
+            </Button>
+          )}
+
+          {outlineStage === 'rough' && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleRegenerateOutline('detailed')}
+              isLoading={regeneratingOutline === 'detailed'}
+              disabled={isOutlineMutating}
+              className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+            >
+              生成全部细纲
+            </Button>
+          )}
+          {outlineStage === 'detailed' && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleRegenerateOutline('chapters')}
+              isLoading={regeneratingOutline === 'chapters'}
+              disabled={isOutlineMutating}
+              className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+            >
+              生成全部章节
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-3 space-y-2.5">
+        <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-300/80">续写追加</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => handleContinueOutline('rough')}
+            isLoading={continuingOutline === 'rough'}
+            disabled={isOutlineMutating}
+            className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
+            title="基于当前结尾追加下一卷粗纲"
+          >
+            续写粗纲
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => handleContinueOutline('detailed')}
+            isLoading={continuingOutline === 'detailed'}
+            disabled={isOutlineMutating || !canContinueDetailed}
+            className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
+            title="承接最后一卷，追加细纲节点"
+          >
+            续写细纲
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => handleContinueOutline('chapters')}
+            isLoading={continuingOutline === 'chapters'}
+            disabled={isOutlineMutating || !canContinueChapters}
+            className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
+            title="承接最近章节，追加章节纲"
+          >
+            续写章节
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-zinc-700/75 bg-zinc-950/45 p-3 space-y-2.5">
+        <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">阶段重建</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => handleRegenerateOutline('rough')}
+            disabled={isOutlineMutating}
+            className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+            title="重新生成粗纲 (将重置所有内容)"
+          >
+            重置粗纲
+          </Button>
+          {(outlineStage === 'detailed' || outlineStage === 'chapters') && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRegenerateOutline('detailed')}
+              disabled={isOutlineMutating}
+              className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+              title="重新生成细纲 (将重置细纲和章节)"
+            >
+              重置细纲
+            </Button>
+          )}
+          {outlineStage === 'chapters' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRegenerateOutline('chapters')}
+              disabled={isOutlineMutating}
+              className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+              title="重新生成章节"
+            >
+              重置章节
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative min-h-screen overflow-x-clip">
       <div className="pointer-events-none absolute inset-0">
@@ -2392,8 +2566,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           <AnimatePresence mode="wait">
             <TabsContent value="outline" key="outline">
               {novel?.type === 'long' && (
-                <div className="max-w-5xl mx-auto space-y-6">
+                <div className="max-w-[1360px] mx-auto space-y-6">
                   {outlineNodes.length > 0 && (
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_310px] gap-4 items-start">
                     <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/55 overflow-hidden">
                       <div className="p-5 md:p-6 border-b border-zinc-800/70 space-y-5">
                         <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
@@ -2428,177 +2603,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                             </div>
                           </div>
 
-                          <div className="flex flex-col gap-3 2xl:min-w-[480px]">
-                            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 p-3 space-y-2.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">批量操作</div>
-                                {outlineSelectionMode && (
-                                  <Badge variant="outline" className="border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">
-                                    已选 {selectedOutlineIds.size}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {outlineSelectionMode ? (
-                                  <>
-                                    <Button
-                                      variant="primary"
-                                      size="sm"
-                                      onClick={handleBatchRegenerate}
-                                      disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
-                                      className="h-8 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
-                                    >
-                                      批量重新生成
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={handleBatchDelete}
-                                      disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
-                                      className="h-8 text-xs border border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/22 hover:text-red-100 disabled:opacity-50"
-                                    >
-                                      批量删除
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setOutlineSelectionMode(false);
-                                        setSelectedOutlineIds(new Set());
-                                      }}
-                                      disabled={isOutlineMutating}
-                                      className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
-                                    >
-                                      取消选择
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setOutlineSelectionMode(true)}
-                                    disabled={isOutlineMutating}
-                                    className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
-                                  >
-                                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                    </svg>
-                                    批量选择
-                                  </Button>
-                                )}
-
-                                {outlineStage === 'rough' && (
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => handleRegenerateOutline('detailed')}
-                                    isLoading={regeneratingOutline === 'detailed'}
-                                    disabled={isOutlineMutating}
-                                    className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
-                                  >
-                                    生成全部细纲
-                                  </Button>
-                                )}
-                                {outlineStage === 'detailed' && (
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => handleRegenerateOutline('chapters')}
-                                    isLoading={regeneratingOutline === 'chapters'}
-                                    disabled={isOutlineMutating}
-                                    className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
-                                  >
-                                    生成全部章节
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-3 space-y-2.5">
-                              <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-300/80">续写追加</div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleContinueOutline('rough')}
-                                  isLoading={continuingOutline === 'rough'}
-                                  disabled={isOutlineMutating}
-                                  className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
-                                  title="基于当前结尾追加下一卷粗纲"
-                                >
-                                  续写粗纲
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleContinueOutline('detailed')}
-                                  isLoading={continuingOutline === 'detailed'}
-                                  disabled={isOutlineMutating || !canContinueDetailed}
-                                  className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
-                                  title="承接最后一卷，追加细纲节点"
-                                >
-                                  续写细纲
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleContinueOutline('chapters')}
-                                  isLoading={continuingOutline === 'chapters'}
-                                  disabled={isOutlineMutating || !canContinueChapters}
-                                  className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
-                                  title="承接最近章节，追加章节纲"
-                                >
-                                  续写章节
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-zinc-700/75 bg-zinc-950/45 p-3 space-y-2.5">
-                              <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">阶段重建</div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRegenerateOutline('rough')}
-                                  disabled={isOutlineMutating}
-                                  className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
-                                  title="重新生成粗纲 (将重置所有内容)"
-                                >
-                                  重置粗纲
-                                </Button>
-                                {(outlineStage === 'detailed' || outlineStage === 'chapters') && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRegenerateOutline('detailed')}
-                                    disabled={isOutlineMutating}
-                                    className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
-                                    title="重新生成细纲 (将重置细纲和章节)"
-                                  >
-                                    重置细纲
-                                  </Button>
-                                )}
-                                {outlineStage === 'chapters' && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRegenerateOutline('chapters')}
-                                    disabled={isOutlineMutating}
-                                    className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
-                                    title="重新生成章节"
-                                  >
-                                    重置章节
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -2779,6 +2783,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                         </div>
                       </div>
                     </Card>
+                    <aside className="order-last xl:order-none xl:sticky xl:top-24 max-h-[calc(100vh-6.5rem)] overflow-y-auto custom-scrollbar">
+                      {outlineActionPanel}
+                    </aside>
+                    </div>
                   )}
                   
                   {outlineNodes.length === 0 && (
