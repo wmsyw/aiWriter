@@ -6,7 +6,7 @@ import { processExtractedHooks, formatHooksForContext } from '../../src/server/s
 import { batchProcessExtractedEntities } from '../../src/server/services/pending-entities.js';
 import { upsertChapterSummary } from '../../src/server/services/chapter-summary.js';
 import { cleanSlop, detectSlopLevel } from '../../src/server/services/slop-cleaner.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, normalizeString, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson, normalizeString } from '../utils/helpers.js';
 
 function mergeRelationshipEntries(existing = [], incoming = []) {
   const merged = Array.isArray(existing) ? [...existing] : [];
@@ -370,14 +370,18 @@ ${existingHooksContext || '（暂无）'}
   const fallbackPrompt = FALLBACK_PROMPTS.MEMORY_EXTRACT(chapter.content || '');
   const prompt = template ? renderTemplateString(template.content, context) : enhancedPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 6000,
-  }));
+    temperature: 0.2,
+    maxTokens: 6000,
+  });
 
   const analysis = parseModelJson(response.content);
   const invalidAnalysis = !analysis || typeof analysis !== 'object' || Array.isArray(analysis) || analysis?.raw || analysis?.parseError;
@@ -544,8 +548,6 @@ ${existingHooksContext || '（暂无）'}
     });
   }
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return {
     analysis,
     materials: materialStats,
@@ -585,14 +587,18 @@ export async function handleDeaiRewrite(prisma, job, { jobId, userId, input }) {
   const fallbackPrompt = FALLBACK_PROMPTS.DEAI_REWRITE(chapter.content || '');
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 8000,
-  }));
+    temperature: 0.7,
+    maxTokens: 8000,
+  });
 
   const preSlopLevel = detectSlopLevel(response.content);
   const slopResult = cleanSlop(response.content, {
@@ -611,8 +617,6 @@ export async function handleDeaiRewrite(prisma, job, { jobId, userId, input }) {
 
     await saveVersion(chapterId, finalContent, tx);
   });
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     content: finalContent,

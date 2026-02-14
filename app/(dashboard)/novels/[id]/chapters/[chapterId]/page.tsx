@@ -85,7 +85,61 @@ interface Branch {
 interface Job {
   id: string;
   type: string;
-  status: 'queued' | 'processing' | 'succeeded' | 'failed';
+  status: 'queued' | 'running' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+}
+
+const POST_PROCESS_JOB_TYPES = [
+  'MEMORY_EXTRACT',
+  'HOOKS_EXTRACT',
+  'PENDING_ENTITY_EXTRACT',
+  'CHAPTER_SUMMARY_GENERATE',
+] as const;
+
+type PostProcessJobType = (typeof POST_PROCESS_JOB_TYPES)[number];
+type PostProcessDisplayStatus = 'running' | 'succeeded' | 'failed';
+
+interface PostProcessStatusEntry {
+  status: PostProcessDisplayStatus;
+  error?: string;
+  updatedAt?: string;
+}
+
+const POST_PROCESS_LABELS: Record<PostProcessJobType, string> = {
+  MEMORY_EXTRACT: '记忆',
+  HOOKS_EXTRACT: '钩子',
+  PENDING_ENTITY_EXTRACT: '待确认实体',
+  CHAPTER_SUMMARY_GENERATE: '摘要',
+};
+
+function isPostProcessJobType(type: string): type is PostProcessJobType {
+  return (POST_PROCESS_JOB_TYPES as readonly string[]).includes(type);
+}
+
+function normalizePostProcessStatus(status: string): PostProcessDisplayStatus | null {
+  if (status === 'failed') return 'failed';
+  if (status === 'succeeded') return 'succeeded';
+  if (status === 'queued' || status === 'running' || status === 'processing') return 'running';
+  return null;
+}
+
+function buildPostProcessSnapshot(
+  jobs: Array<{ type: string; status: string; error?: string | null; updatedAt?: string | Date }>
+): Partial<Record<PostProcessJobType, PostProcessStatusEntry>> {
+  const next: Partial<Record<PostProcessJobType, PostProcessStatusEntry>> = {};
+
+  for (const type of POST_PROCESS_JOB_TYPES) {
+    const latest = jobs.find((job) => job.type === type);
+    if (!latest) continue;
+    const normalizedStatus = normalizePostProcessStatus(latest.status);
+    if (!normalizedStatus) continue;
+    next[type] = {
+      status: normalizedStatus,
+      error: latest.error || undefined,
+      updatedAt: latest.updatedAt ? new Date(latest.updatedAt).toISOString() : undefined,
+    };
+  }
+
+  return next;
 }
 
 const REVIEW_DIMENSION_LABELS: Record<string, string> = {
@@ -218,6 +272,8 @@ export default function ChapterEditorPage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [showDiff, setShowDiff] = useState<Version | null>(null);
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
+  const [postProcessStatus, setPostProcessStatus] = useState<Partial<Record<PostProcessJobType, PostProcessStatusEntry>>>({});
+  const [postProcessWarning, setPostProcessWarning] = useState<string | null>(null);
   const [reviewResult, setReviewResult] = useState<any>(null);
   const [consistencyResult, setConsistencyResult] = useState<any>(null);
   const [canonCheckResult, setCanonCheckResult] = useState<any>(null);
@@ -245,6 +301,39 @@ export default function ChapterEditorPage() {
   const lastSavedContent = useRef('');
   // const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set()); // Deprecated in favor of SSE
 
+  const applyQueuedPostProcess = useCallback((summary: any) => {
+    if (!summary?.results || !Array.isArray(summary.results)) return;
+
+    setPostProcessStatus((prev) => {
+      const next = { ...prev };
+      for (const item of summary.results) {
+        const itemType = typeof item?.type === 'string' ? item.type : '';
+        if (!isPostProcessJobType(itemType)) continue;
+        next[itemType] = {
+          status: item.ok ? 'running' : 'failed',
+          error: item.ok ? undefined : (item.error || '任务派发失败'),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return next;
+    });
+  }, []);
+
+  const applyPostProcessJobUpdate = useCallback((job: any) => {
+    if (!job?.type || !isPostProcessJobType(job.type)) return;
+    const normalizedStatus = normalizePostProcessStatus(job.status);
+    if (!normalizedStatus) return;
+
+    setPostProcessStatus((prev) => ({
+      ...prev,
+      [job.type]: {
+        status: normalizedStatus,
+        error: normalizedStatus === 'failed' ? (job.error || job.errorMessage || '任务执行失败') : undefined,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+  }, []);
+
   const refreshChapter = useCallback(async () => {
     try {
       const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}`);
@@ -255,6 +344,9 @@ export default function ChapterEditorPage() {
       setContent(data.chapter.content || '');
       setTitle(data.chapter.title || '');
       lastSavedContent.current = data.chapter.content || '';
+      if (Array.isArray(data.postGenerationJobs)) {
+        setPostProcessStatus(buildPostProcessSnapshot(data.postGenerationJobs));
+      }
     } catch (err) {
       console.error(err);
     }
@@ -307,7 +399,7 @@ export default function ChapterEditorPage() {
           const next = [...prev];
           chapterJobs.forEach((job: any) => {
             const idx = next.findIndex(j => j.id === job.id);
-            if (job.status === 'succeeded' || job.status === 'failed') {
+            if (job.status === 'succeeded' || job.status === 'failed' || job.status === 'canceled') {
               if (idx !== -1) next.splice(idx, 1);
             } else {
               if (idx === -1) next.push(job);
@@ -319,10 +411,18 @@ export default function ChapterEditorPage() {
 
         // Handle completions
         for (const job of chapterJobs) {
+          applyPostProcessJobUpdate(job);
+
           if (job.status === 'succeeded') {
             if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
               fetchBranches();
             } else if (job.type === 'CHAPTER_GENERATE' || job.type === 'DEAI_REWRITE') {
+              if (job.output?.postProcess) {
+                applyQueuedPostProcess(job.output.postProcess);
+              }
+              if (job.output?.analysisQueueError) {
+                setPostProcessWarning(`后处理派发失败：${job.output.analysisQueueError}`);
+              }
               await refreshChapter();
             } else if (job.type === 'REVIEW_SCORE') {
               await refreshChapter();
@@ -340,6 +440,10 @@ export default function ChapterEditorPage() {
               setCanonCheckError(job.error || job.errorMessage || '检测失败，请稍后重试');
               setCanonCheckResult(null);
             }
+            const failedJobType = typeof job.type === 'string' ? job.type : '';
+            if (isPostProcessJobType(failedJobType)) {
+              setPostProcessWarning(`${POST_PROCESS_LABELS[failedJobType]}任务失败：${job.error || job.errorMessage || '请稍后重试'}`);
+            }
             console.error(`Job ${job.type} failed`);
           }
         }
@@ -351,7 +455,7 @@ export default function ChapterEditorPage() {
     return () => {
       eventSource.close();
     };
-  }, [refreshChapter, chapterId, fetchBranches]);
+  }, [applyPostProcessJobUpdate, applyQueuedPostProcess, refreshChapter, chapterId, fetchBranches]);
 
   const handleMemoryExtract = async () => {
     if (saveStatus !== 'saved') {
@@ -436,6 +540,9 @@ export default function ChapterEditorPage() {
 
   const createJob = async (type: string, additionalInput: any = {}) => {
     try {
+      if (type === 'CHAPTER_GENERATE' || type === 'CHAPTER_GENERATE_BRANCHES') {
+        setPostProcessWarning(null);
+      }
       const res = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -451,6 +558,12 @@ export default function ChapterEditorPage() {
         const { job } = await res.json();
         if (job?.id) {
           setActiveJobs(prev => [...prev, job]);
+          if (isPostProcessJobType(type)) {
+            setPostProcessStatus((prev) => ({
+              ...prev,
+              [type]: { status: 'running', updatedAt: new Date().toISOString() },
+            }));
+          }
           // pollJob(job.id); // Replaced by SSE
         }
         
@@ -494,6 +607,13 @@ export default function ChapterEditorPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data?.postProcess) {
+          applyQueuedPostProcess(data.postProcess);
+        }
+        if (data?.analysisQueueError) {
+          setPostProcessWarning(`后处理派发失败：${data.analysisQueueError}`);
+        }
         setContent(branch.content);
         setShowBranchPanel(false);
         setIterationRound(1);
@@ -531,6 +651,14 @@ export default function ChapterEditorPage() {
   const canCanonCheck = hasContent && novel?.isFanfiction;
   const hasReviewArtifacts = !!(reviewResult || consistencyResult || canonCheckResult || canonCheckError);
   const runningJobCount = activeJobs.length;
+  const postProcessEntries = POST_PROCESS_JOB_TYPES
+    .map((type) => {
+      const item = postProcessStatus[type];
+      if (!item) return null;
+      return { type, ...item };
+    })
+    .filter(Boolean) as Array<{ type: PostProcessJobType } & PostProcessStatusEntry>;
+  const postProcessFailureCount = postProcessEntries.filter((item) => item.status === 'failed').length;
 
   const stageLabelMap: Record<string, string> = {
     draft: '草稿',
@@ -569,6 +697,16 @@ export default function ChapterEditorPage() {
     : saveStatus === 'saving'
       ? '保存中'
       : '待保存';
+  const postProcessBadgeTone: Record<PostProcessDisplayStatus, string> = {
+    running: 'border-sky-500/35 bg-sky-500/12 text-sky-200',
+    succeeded: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-200',
+    failed: 'border-red-500/35 bg-red-500/12 text-red-200',
+  };
+  const postProcessStatusLabel: Record<PostProcessDisplayStatus, string> = {
+    running: '进行中',
+    succeeded: '完成',
+    failed: '失败',
+  };
   const modalCloseButtonClass = 'w-9 rounded-xl border border-white/10 bg-white/[0.03] px-0 text-zinc-400 hover:bg-white/10 hover:text-white';
   const modalPanelClass = 'w-full h-full flex flex-col rounded-[26px] overflow-hidden shadow-2xl border border-white/10 bg-[#0d111a]/96';
 
@@ -1595,6 +1733,38 @@ export default function ChapterEditorPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {postProcessWarning && (
+                <div className="inline-flex max-w-[420px] items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
+                  <span className="truncate">{postProcessWarning}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPostProcessWarning(null)}
+                    className="rounded-md border border-red-400/30 px-1.5 py-0.5 text-[10px] text-red-100 hover:bg-red-500/20"
+                  >
+                    关闭
+                  </button>
+                </div>
+              )}
+
+              {postProcessEntries.length > 0 && (
+                <div className={`flex flex-wrap items-center gap-2 rounded-2xl border px-2 py-2 ${
+                  postProcessFailureCount > 0
+                    ? 'border-red-500/25 bg-red-500/10'
+                    : 'border-white/10 bg-zinc-900/60'
+                }`}>
+                  <span className="px-1 text-[11px] text-zinc-400">后处理</span>
+                  {postProcessEntries.map((item) => (
+                    <span
+                      key={item.type}
+                      className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] ${postProcessBadgeTone[item.status]}`}
+                      title={item.error || `${POST_PROCESS_LABELS[item.type]}${postProcessStatusLabel[item.status]}`}
+                    >
+                      {POST_PROCESS_LABELS[item.type]}·{postProcessStatusLabel[item.status]}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {hasReviewArtifacts && (
                 <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/60 px-2 py-2">
                   {(reviewResult || consistencyResult) && (

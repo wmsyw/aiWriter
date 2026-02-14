@@ -23,6 +23,7 @@ interface NovelData {
   targetWords?: number;
   chapterCount?: number;
   keywords?: string[];
+  creativeIntent?: string;
   specialRequirements?: string;
 }
 
@@ -49,6 +50,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
     detailedNodeCount: 0,
     chaptersPerNode: 0,
     keywords: '',
+    creativeIntent: '',
     specialRequirements: '',
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -65,6 +67,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         detailedNodeCount: 0,
         chaptersPerNode: 0,
         keywords: novel.keywords?.join(', ') || '',
+        creativeIntent: novel.creativeIntent || '',
         specialRequirements: novel.specialRequirements || '',
       });
     }
@@ -509,6 +512,21 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   onChange={e => setFormData(prev => ({ ...prev, keywords: e.target.value }))}
                   className="glass-input w-full px-4 py-3 rounded-xl focus:ring-2 focus:ring-emerald-500/30"
                   placeholder="用逗号分隔多个关键词..."
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8M8 14h5M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2h-4l-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  创作意图
+                </label>
+                <textarea
+                  value={formData.creativeIntent}
+                  onChange={e => setFormData(prev => ({ ...prev, creativeIntent: e.target.value }))}
+                  className="glass-input w-full px-4 py-3 rounded-xl h-20 resize-none focus:ring-2 focus:ring-emerald-500/30"
+                  placeholder="作者目标，例如：强调群像成长、减少爽点堆砌..."
                 />
               </div>
 

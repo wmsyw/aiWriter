@@ -1,5 +1,5 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson } from '../utils/helpers.js';
 import { generateCharacterBios } from './character.js';
 import { getOutlineRoughTemplateName, TEMPLATE_NAMES } from '../../src/shared/template-names.js';
 import { calculateOutlineParams } from '../../src/shared/outline-calculator.js';
@@ -21,6 +21,16 @@ function extractCharactersFromMarkdown(content) {
   return characters;
 }
 
+function resolveSpecialRequirements(specialRequirements, creativeIntent) {
+  if (typeof specialRequirements === 'string' && specialRequirements.trim()) {
+    return specialRequirements;
+  }
+  if (typeof creativeIntent === 'string' && creativeIntent.trim()) {
+    return creativeIntent.trim();
+  }
+  return '';
+}
+
 export async function handleOutlineRough(prisma, job, { jobId, userId, input }) {
   const { 
     novelId, 
@@ -32,6 +42,7 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     protagonist, 
     worldSetting, 
     specialRequirements, 
+    creativeIntent,
     agentId, 
     prev_volume_summary,
     user_guidance 
@@ -62,7 +73,7 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     chapter_count: chapterCount || calculatedParams.totalChapters,
     protagonist: protagonist || '',
     world_setting: worldSetting || '',
-    special_requirements: specialRequirements || '',
+    special_requirements: resolveSpecialRequirements(specialRequirements, creativeIntent),
     prev_volume_summary: prev_volume_summary || '无（这是第一卷）',
     user_guidance: user_guidance || '无',
     nodes_per_volume: effectiveNodesPerVolume,
@@ -72,14 +83,18 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   const fallbackPrompt = `请生成小说的一卷粗略大纲（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n前卷概要：${prev_volume_summary || '无'}\n用户指引：${user_guidance || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 4000,
-  }));
+    temperature: 0.7,
+    maxTokens: 4000,
+  });
 
   let roughOutline = parseModelJson(response.content);
   if (roughOutline.raw) {
@@ -89,8 +104,6 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   // 单卷模式下，我们不再全量更新 outlineRough，而是返回生成的单卷数据
   // 前端负责将其追加到现有的 outline tree 中
   
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return roughOutline;
 }
 
@@ -202,14 +215,18 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 6000,
-  }));
+    temperature: 0.7,
+    maxTokens: 6000,
+  });
 
   let detailedOutline = parseModelJson(response.content);
   if (detailedOutline.raw) {
@@ -256,8 +273,6 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
       },
     });
   }
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   if (typeof detailedOutline === 'string') {
     return detailedOutline;
@@ -380,14 +395,18 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     : `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.6,
-    maxTokens: params.maxTokens || 8000,
-  }));
+    temperature: 0.6,
+    maxTokens: 8000,
+  });
 
   let chapterOutlines = parseModelJson(response.content);
   if (chapterOutlines.raw) {
@@ -408,21 +427,18 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     });
   }
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return chapterOutlines;
 }
 
 export async function handleOutlineGenerate(prisma, job, { jobId, userId, input }) {
-  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, agentId } = input;
+  const { novelId, keywords, theme, genre, targetWords, chapterCount, protagonist, worldSetting, specialRequirements, creativeIntent, agentId } = input;
   
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: TEMPLATE_NAMES.AGENT_OUTLINE }, orderBy: { createdAt: 'desc' } });
-  
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: TEMPLATE_NAMES.AGENT_OUTLINE,
+    templateName: TEMPLATE_NAMES.OUTLINE_GENERATE,
+  });
   
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
   
@@ -434,25 +450,28 @@ export async function handleOutlineGenerate(prisma, job, { jobId, userId, input 
     chapter_count: chapterCount || null,
     protagonist: protagonist || '',
     world_setting: worldSetting || '',
-    special_requirements: specialRequirements || '',
+    special_requirements: resolveSpecialRequirements(specialRequirements, creativeIntent),
   };
   
   const prompt = template
     ? renderTemplateString(template.content, context)
     : `请根据以下要求生成小说大纲：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}`;
   
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 8000,
-  }));
+    temperature: 0.7,
+    maxTokens: 8000,
+  });
   
   const output = parseModelJson(response.content);
   const result = output.raw ? response.content : output;
   
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }

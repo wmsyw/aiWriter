@@ -7,8 +7,13 @@
 
 import { prisma } from '@/src/server/db';
 import { decryptApiKey } from '@/src/server/crypto';
-import { createAdapter, type NormalizedRequest, type NormalizedResponse, ProviderError } from '@/src/server/adapters/providers';
-import { createStreamingAdapter, type StreamingChunk, type StreamingOptions } from '@/src/server/adapters/streaming';
+import {
+  createAdapter,
+  applyProviderCapabilitiesToRequest,
+  type NormalizedRequest,
+  ProviderError,
+} from '@/src/server/adapters/providers';
+import { createStreamingAdapter } from '@/src/server/adapters/streaming';
 import type { StageContext, ProgressReporter } from '@/src/server/orchestrator/types';
 import { ErrorClassifier } from '@/src/server/orchestrator/self-healing';
 
@@ -145,11 +150,30 @@ export async function generateText(
     responseFormat: request.responseFormat,
     webSearch: request.webSearch,
   };
+  const { request: guardedRequest, warnings } = applyProviderCapabilitiesToRequest(
+    provider.providerType,
+    normalizedRequest,
+    {
+      supportsStreaming: provider.adapter.supportsStreaming,
+      supportsTools: provider.adapter.supportsTools,
+      supportsVision: provider.adapter.supportsVision,
+      supportsEmbeddings: provider.adapter.supportsEmbeddings,
+      supportsImageGen: provider.adapter.supportsImageGen,
+    },
+  );
+
+  if (warnings.length > 0) {
+    console.warn('[PipelineAI] capability guard applied', {
+      providerType: provider.providerType,
+      model: provider.model,
+      warnings,
+    });
+  }
 
   try {
     const response = await provider.adapter.generate(
       { providerType: provider.providerType, baseURL: provider.baseURL },
-      normalizedRequest
+      guardedRequest
     );
 
     return {
@@ -190,13 +214,32 @@ export async function generateTextStreaming(
     responseFormat: request.responseFormat,
     webSearch: request.webSearch,
   };
+  const { request: guardedRequest, warnings } = applyProviderCapabilitiesToRequest(
+    provider.providerType,
+    normalizedRequest,
+    {
+      supportsStreaming: provider.adapter.supportsStreaming,
+      supportsTools: provider.adapter.supportsTools,
+      supportsVision: provider.adapter.supportsVision,
+      supportsEmbeddings: provider.adapter.supportsEmbeddings,
+      supportsImageGen: provider.adapter.supportsImageGen,
+    },
+  );
+
+  if (warnings.length > 0) {
+    console.warn('[PipelineAI] streaming capability guard applied', {
+      providerType: provider.providerType,
+      model: provider.model,
+      warnings,
+    });
+  }
 
   let content = '';
   let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
   const stream = provider.streamingAdapter.generateStream(
     { providerType: provider.providerType, baseURL: provider.baseURL },
-    normalizedRequest,
+    guardedRequest,
     { signal: options.signal }
   );
 

@@ -17,6 +17,7 @@ const outlineInputSchema = z.object({
   protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
   worldSetting: z.string().max(MAX_FIELD_LENGTH).optional(),
   specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   agentId: z.string().optional(),
 });
 
@@ -28,6 +29,7 @@ const novelSeedInputSchema = z.object({
   keywords: z.string().max(MAX_FIELD_LENGTH).optional(),
   protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
   specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   agentId: z.string().optional(),
 });
 
@@ -41,6 +43,7 @@ const outlineRoughInputSchema = z.object({
   protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
   worldSetting: z.string().max(MAX_FIELD_LENGTH).optional(),
   specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   agentId: z.string().optional(),
 });
 
@@ -95,10 +98,20 @@ const characterBiosInputSchema = z.object({
   agentId: z.string().optional(),
 });
 
+const chapterCardSchema = z.object({
+  must: z.array(z.string().max(500)).max(20).optional(),
+  should: z.array(z.string().max(500)).max(20).optional(),
+  mustNot: z.array(z.string().max(500)).max(20).optional(),
+  hooks: z.array(z.string().max(500)).max(20).optional(),
+  styleGuidance: z.string().max(MAX_FIELD_LENGTH).optional(),
+  sceneObjective: z.string().max(MAX_FIELD_LENGTH).optional(),
+});
+
 const chapterInputSchema = z.object({
   chapterId: z.string(),
   agentId: z.string().optional(),
   outline: z.string().max(MAX_FIELD_LENGTH).optional(),
+  chapterCard: chapterCardSchema.optional(),
   enableWebSearch: z.boolean().optional(),
 });
 
@@ -110,6 +123,7 @@ const wizardWorldInputSchema = z.object({
   protagonist: z.string().max(MAX_FIELD_LENGTH).optional(),
   worldSetting: z.string().max(MAX_FIELD_LENGTH).optional(),
   specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+  creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   agentId: z.string().optional(),
 });
 
@@ -125,6 +139,11 @@ const wizardCharactersInputSchema = z.object({
 });
 
 const reviewInputSchema = z.object({
+  chapterId: z.string(),
+  agentId: z.string().optional(),
+});
+
+const chapterWorkflowInputSchema = z.object({
   chapterId: z.string(),
   agentId: z.string().optional(),
 });
@@ -185,6 +204,7 @@ const jobInputSchemas: Record<string, z.ZodType> = {
     chapterId: z.string(),
     agentId: z.string().optional(),
     outline: z.string().max(MAX_FIELD_LENGTH).optional(),
+    chapterCard: chapterCardSchema.optional(),
     branchCount: z.number().min(1).max(5).optional(),
     selectedVersionId: z.string().optional(),
     selectedContent: z.string().max(MAX_FIELD_LENGTH * 10).optional(),
@@ -196,6 +216,25 @@ const jobInputSchemas: Record<string, z.ZodType> = {
   DEAI_REWRITE: reviewInputSchema,
   MEMORY_EXTRACT: reviewInputSchema,
   CONSISTENCY_CHECK: reviewInputSchema,
+  CHAPTER_SUMMARY_GENERATE: chapterWorkflowInputSchema,
+  HOOKS_EXTRACT: chapterWorkflowInputSchema,
+  PENDING_ENTITY_EXTRACT: chapterWorkflowInputSchema,
+  OUTLINE_ADHERENCE_CHECK: z.object({
+    chapterId: z.string(),
+    agentId: z.string().optional(),
+    chapterOutline: z.string().max(MAX_FIELD_LENGTH * 4).optional(),
+  }),
+  REVIEW_SCORE_5DIM: z.object({
+    chapterId: z.string(),
+    agentId: z.string().optional(),
+    chapterOutline: z.string().max(MAX_FIELD_LENGTH * 4).optional(),
+    passThreshold: z.number().min(1).max(10).optional(),
+  }),
+  CONTEXT_ASSEMBLE: z.object({
+    novelId: z.string(),
+    currentChapterOrder: z.number().int().min(1),
+    maxTokens: z.number().int().min(1000).max(200000).optional(),
+  }),
   CHARACTER_CHAT: characterChatInputSchema,
   ARTICLE_ANALYZE: articleAnalyzeInputSchema,
   BATCH_ARTICLE_ANALYZE: batchArticleAnalyzeInputSchema,
@@ -220,6 +259,7 @@ const jobInputSchemas: Record<string, z.ZodType> = {
     goldenFinger: z.string().max(MAX_FIELD_LENGTH).optional(),
     existingSynopsis: z.string().max(MAX_FIELD_LENGTH).optional(),
     specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+    creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   }),
   WIZARD_GOLDEN_FINGER: z.object({
     novelId: z.string(),
@@ -232,6 +272,7 @@ const jobInputSchemas: Record<string, z.ZodType> = {
     targetWords: z.number().min(10).max(1000).optional(),
     existingGoldenFinger: z.string().max(MAX_FIELD_LENGTH).optional(),
     specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
+    creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   }),
 };
 

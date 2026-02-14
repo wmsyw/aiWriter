@@ -356,9 +356,10 @@ export default function InspirationModal({
               <div className="pt-3">
                 <Button
                   onClick={handleGenerate}
+                  leftIcon="✨"
                   className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 hover:scale-[1.02]"
                 >
-                  ✨ 开始探索灵感
+                  开始探索灵感
                 </Button>
               </div>
             </motion.div>
@@ -499,12 +500,13 @@ export default function InspirationModal({
                                   variant="primary"
                                   size="sm"
                                   className="bg-emerald-600 hover:bg-emerald-500"
+                                  leftIcon="✓"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onSelect(item);
                                   }}
                                 >
-                                  ✓ 应用此灵感
+                                  应用此灵感
                                 </Button>
                               </div>
                             </motion.div>

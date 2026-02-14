@@ -7,6 +7,17 @@ import type {
 } from '../types';
 import { registerPipeline } from '../engine';
 import { createPipelineAI } from '@/src/server/services/pipeline-ai';
+import { prisma } from '@/src/server/db';
+import { checkBlockingPendingEntities } from '@/src/server/services/pending-entities';
+
+interface ChapterCardInput {
+  must?: string[];
+  should?: string[];
+  mustNot?: string[];
+  hooks?: string[];
+  styleGuidance?: string;
+  sceneObjective?: string;
+}
 
 interface ContextAssemblyInput {
   novelId: string;
@@ -27,7 +38,7 @@ interface ContextAssemblyOutput {
 interface PreCheckInput {
   novelId: string;
   chapterId: string;
-  chapterNumber: number;
+  chapterNumber?: number;
   assembledContext: string;
 }
 
@@ -44,6 +55,7 @@ interface GenerateInput {
   chapterTitle?: string;
   assembledContext: string;
   outline?: string;
+  chapterCard?: ChapterCardInput | null;
   targetWords?: number;
   authorStyle?: string;
 }
@@ -100,6 +112,121 @@ interface EntityDetectionOutput {
     description?: string;
   }>;
   pendingConfirmation: number;
+}
+
+interface PreCheckEvaluation {
+  canProceed: boolean;
+  blockers: string[];
+  pendingEntities: number;
+}
+
+function normalizeChapterCard(raw?: ChapterCardInput | null): ChapterCardInput | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const ensureList = (value?: string[]) =>
+    Array.isArray(value)
+      ? value.map((item) => item.trim()).filter((item) => item.length > 0)
+      : [];
+
+  const normalized: ChapterCardInput = {
+    must: ensureList(raw.must),
+    should: ensureList(raw.should),
+    mustNot: ensureList(raw.mustNot),
+    hooks: ensureList(raw.hooks),
+    styleGuidance: raw.styleGuidance?.trim(),
+    sceneObjective: raw.sceneObjective?.trim(),
+  };
+
+  const hasContent =
+    (normalized.must?.length || 0) > 0 ||
+    (normalized.should?.length || 0) > 0 ||
+    (normalized.mustNot?.length || 0) > 0 ||
+    (normalized.hooks?.length || 0) > 0 ||
+    !!normalized.styleGuidance ||
+    !!normalized.sceneObjective;
+
+  return hasContent ? normalized : null;
+}
+
+function formatChapterCardForPrompt(card: ChapterCardInput): string {
+  const lines: string[] = ['【章节任务卡（必须遵循）】'];
+
+  const pushList = (title: string, items?: string[]) => {
+    if (!items || items.length === 0) return;
+    lines.push(title);
+    items.forEach((item) => lines.push(`- ${item}`));
+  };
+
+  pushList('Must（本章必须发生）', card.must);
+  pushList('Should（优先覆盖）', card.should);
+  pushList('MustNot（禁止偏离）', card.mustNot);
+  pushList('Hooks（本章需触及钩子）', card.hooks);
+
+  if (card.sceneObjective) {
+    lines.push(`场景目标：${card.sceneObjective}`);
+  }
+  if (card.styleGuidance) {
+    lines.push(`风格指导：${card.styleGuidance}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function evaluatePreChecks(input: PreCheckInput): Promise<PreCheckEvaluation> {
+  const blockers: string[] = [];
+  let pendingEntities = 0;
+  let chapterNumber = input.chapterNumber;
+
+  if ((!chapterNumber || chapterNumber < 1) && input.chapterId) {
+    const chapter = await prisma.chapter.findUnique({
+      where: { id: input.chapterId },
+      select: { order: true },
+    });
+    chapterNumber = chapter?.order;
+  }
+
+  if (!chapterNumber || chapterNumber < 1) {
+    blockers.push('Chapter number is missing');
+  } else {
+    if (chapterNumber > 1) {
+      const incompleteCount = await prisma.chapter.count({
+        where: {
+          novelId: input.novelId,
+          order: { lt: chapterNumber },
+          generationStage: { not: 'completed' },
+        },
+      });
+
+      if (incompleteCount > 0) {
+        blockers.push(`${incompleteCount} previous chapters are not completed`);
+      }
+    }
+
+    const blockingCheck = await checkBlockingPendingEntities(input.novelId, chapterNumber);
+    pendingEntities = blockingCheck.pendingEntities.length;
+
+    if (blockingCheck.blocked) {
+      const previewNames = blockingCheck.pendingEntities
+        .slice(0, 5)
+        .map((entity) => entity.name)
+        .join(', ');
+      const extraSuffix = blockingCheck.pendingEntities.length > 5 ? ', ...' : '';
+      blockers.push(
+        `${blockingCheck.pendingEntities.length} pending entities require confirmation` +
+          (previewNames ? ` (${previewNames}${extraSuffix})` : '')
+      );
+    }
+  }
+
+  if (!input.assembledContext || input.assembledContext.trim().length < 100) {
+    blockers.push('Insufficient context assembled');
+  }
+
+  return {
+    canProceed: blockers.length === 0,
+    blockers,
+    pendingEntities,
+  };
 }
 
 const contextAssemblyStage: Stage<ContextAssemblyInput, ContextAssemblyOutput> = {
@@ -168,18 +295,19 @@ const preCheckStage: Stage<PreCheckInput, PreCheckOutput> = {
   estimatedDurationSec: 5,
   
   async preCheck(ctx: StageContext<PreCheckInput>) {
-    // In real implementation, check for pending entities in database
-    const pendingCount = 0;
-    
-    if (pendingCount > 0) {
-      return {
-        canProceed: false,
-        reason: `${pendingCount} pending entities require confirmation`,
-        suggestedFixes: ['Confirm or reject pending entities before generating'],
-      };
+    const evaluation = await evaluatePreChecks(ctx.input);
+    if (evaluation.canProceed) {
+      return { canProceed: true };
     }
-    
-    return { canProceed: true };
+
+    return {
+      canProceed: false,
+      reason: evaluation.blockers.join('; '),
+      suggestedFixes: [
+        'Complete previous chapters before generating the next one',
+        'Confirm pending entities before continuing chapter generation',
+      ],
+    };
   },
   
   async execute(ctx: StageContext<PreCheckInput>): Promise<StageResult<PreCheckOutput>> {
@@ -188,10 +316,9 @@ const preCheckStage: Stage<PreCheckInput, PreCheckOutput> = {
     logger.info('Running pre-generation checks', { chapterId: input.chapterId });
     progress.report(50, 'Checking prerequisites...');
     
-    const blockers: string[] = [];
-    
-    if (!input.assembledContext || input.assembledContext.length < 100) {
-      blockers.push('Insufficient context assembled');
+    const evaluation = await evaluatePreChecks(input);
+    if (evaluation.blockers.length > 0) {
+      logger.warn('Pre-check blockers found', { blockers: evaluation.blockers });
     }
     
     progress.report(100, 'Pre-check complete');
@@ -199,9 +326,9 @@ const preCheckStage: Stage<PreCheckInput, PreCheckOutput> = {
     return {
       success: true,
       output: {
-        canProceed: blockers.length === 0,
-        blockers,
-        pendingEntities: 0,
+        canProceed: evaluation.canProceed,
+        blockers: evaluation.blockers,
+        pendingEntities: evaluation.pendingEntities,
       },
     };
   },
@@ -220,6 +347,8 @@ const generateStage: Stage<GenerateInput, GenerateOutput> = {
     
     const assembledContext = (pipelineContext.assembledContext as string) || input.assembledContext;
     const targetWords = input.targetWords || 2000;
+    const chapterCard = normalizeChapterCard(input.chapterCard);
+    const chapterCardSection = chapterCard ? formatChapterCardForPrompt(chapterCard) : '';
     
     logger.info('Starting chapter generation', { 
       chapterId: input.chapterId,
@@ -246,6 +375,8 @@ ${input.authorStyle ? `作者风格参考：${input.authorStyle}` : ''}`;
 ${assembledContext}
 
 ${input.outline ? `本章具体要求：\n${input.outline}` : ''}
+
+${chapterCardSection}
 
 请开始创作：`;
 

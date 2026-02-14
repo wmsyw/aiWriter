@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
 
+const POST_GENERATION_JOB_TYPES = [
+  'MEMORY_EXTRACT',
+  'HOOKS_EXTRACT',
+  'PENDING_ENTITY_EXTRACT',
+  'CHAPTER_SUMMARY_GENERATE',
+] as const;
+
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().optional(),
@@ -32,8 +39,28 @@ export async function GET(
   if (!chapter) return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
 
   const isFanfiction = novel.genre?.includes('同人') || false;
+  const postGenerationJobs = await prisma.job.findMany({
+    where: {
+      userId: session.userId,
+      type: { in: [...POST_GENERATION_JOB_TYPES] },
+      input: { path: ['chapterId'], equals: chapterId },
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      error: true,
+      updatedAt: true,
+    },
+    take: 40,
+  });
 
-  return NextResponse.json({ chapter, novel: { id: novel.id, genre: novel.genre, isFanfiction } });
+  return NextResponse.json({
+    chapter,
+    novel: { id: novel.id, genre: novel.genre, isFanfiction },
+    postGenerationJobs,
+  });
 }
 
 export async function PATCH(

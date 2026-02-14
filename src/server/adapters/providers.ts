@@ -18,6 +18,7 @@ const GEMINI_DEFAULT_SEARCH_MODELS = [
   'gemini-3-flash-preview',
   'gemini-3-pro-preview',
 ];
+const OPENAI_MODEL_WEB_SEARCH_HINTS = ['gpt-4.1', 'gpt-4o', 'gpt-5', 'o1', 'o3', 'o4'];
 
 function isGemini2xModel(model: string): boolean {
   return GEMINI_2X_MODELS.some(prefix => model.startsWith(prefix) || model.includes('gemini-2'));
@@ -186,6 +187,133 @@ export interface ProviderAdapter {
   supportsVision: boolean;
   supportsEmbeddings: boolean;
   supportsImageGen: boolean;
+}
+
+export interface ProviderCapabilities {
+  providerType: string;
+  model?: string;
+  supportsStreaming: boolean;
+  supportsTools: boolean;
+  supportsFunctionCalling: boolean;
+  supportsModelWebSearch: boolean;
+  supportsVision: boolean;
+  supportsEmbeddings: boolean;
+  supportsImageGen: boolean;
+}
+
+function supportsOpenAIModelWebSearch(model?: string): boolean {
+  if (!model) return true;
+  const normalized = model.toLowerCase();
+  return OPENAI_MODEL_WEB_SEARCH_HINTS.some(prefix => normalized.startsWith(prefix));
+}
+
+type AdapterCapabilityOverride = Pick<
+  ProviderAdapter,
+  'supportsStreaming' | 'supportsTools' | 'supportsVision' | 'supportsEmbeddings' | 'supportsImageGen'
+>;
+
+export function getProviderCapabilities(
+  providerType: string,
+  model?: string,
+  adapterCapabilities?: Partial<AdapterCapabilityOverride>
+): ProviderCapabilities {
+  const normalizedProviderType = providerType.toLowerCase();
+  const base = (() => {
+    switch (normalizedProviderType) {
+      case 'openai':
+        return {
+          supportsStreaming: false,
+          supportsTools: true,
+          supportsModelWebSearch: supportsOpenAIModelWebSearch(model),
+          supportsVision: true,
+          supportsEmbeddings: true,
+          supportsImageGen: true,
+        };
+      case 'custom':
+        return {
+          supportsStreaming: false,
+          supportsTools: true,
+          // 自定义 OpenAI 兼容网关是否支持 Responses API 不可预期，默认关闭模型内置联网搜索
+          supportsModelWebSearch: false,
+          supportsVision: true,
+          supportsEmbeddings: true,
+          supportsImageGen: true,
+        };
+      case 'claude':
+        return {
+          supportsStreaming: false,
+          supportsTools: false,
+          supportsModelWebSearch: false,
+          supportsVision: true,
+          supportsEmbeddings: false,
+          supportsImageGen: false,
+        };
+      case 'gemini':
+        return {
+          supportsStreaming: false,
+          supportsTools: true,
+          supportsModelWebSearch: true,
+          supportsVision: true,
+          supportsEmbeddings: true,
+          supportsImageGen: false,
+        };
+      default:
+        return {
+          supportsStreaming: false,
+          supportsTools: false,
+          supportsModelWebSearch: false,
+          supportsVision: false,
+          supportsEmbeddings: false,
+          supportsImageGen: false,
+        };
+    }
+  })();
+
+  const supportsStreaming = adapterCapabilities?.supportsStreaming ?? base.supportsStreaming;
+  const supportsTools = adapterCapabilities?.supportsTools ?? base.supportsTools;
+  const supportsVision = adapterCapabilities?.supportsVision ?? base.supportsVision;
+  const supportsEmbeddings = adapterCapabilities?.supportsEmbeddings ?? base.supportsEmbeddings;
+  const supportsImageGen = adapterCapabilities?.supportsImageGen ?? base.supportsImageGen;
+
+  return {
+    providerType: normalizedProviderType,
+    model,
+    supportsStreaming,
+    supportsTools,
+    supportsFunctionCalling: supportsTools,
+    supportsModelWebSearch: base.supportsModelWebSearch && supportsTools,
+    supportsVision,
+    supportsEmbeddings,
+    supportsImageGen,
+  };
+}
+
+export function applyProviderCapabilitiesToRequest(
+  providerType: string,
+  request: NormalizedRequest,
+  adapterCapabilities?: Partial<AdapterCapabilityOverride>
+): { request: NormalizedRequest; warnings: string[]; capabilities: ProviderCapabilities } {
+  const capabilities = getProviderCapabilities(providerType, request.model, adapterCapabilities);
+  const normalizedRequest: NormalizedRequest = { ...request };
+  const warnings: string[] = [];
+
+  if (!capabilities.supportsTools && normalizedRequest.tools && normalizedRequest.tools.length > 0) {
+    normalizedRequest.tools = undefined;
+    normalizedRequest.tool_choice = 'none';
+    warnings.push('tools_disabled_for_provider_or_model');
+  }
+
+  if (!capabilities.supportsTools && normalizedRequest.tool_choice && normalizedRequest.tool_choice !== 'none') {
+    normalizedRequest.tool_choice = 'none';
+    warnings.push('tool_choice_downgraded_to_none');
+  }
+
+  if (!capabilities.supportsModelWebSearch && normalizedRequest.webSearch) {
+    normalizedRequest.webSearch = false;
+    warnings.push('model_web_search_disabled_for_provider_or_model');
+  }
+
+  return { request: normalizedRequest, warnings, capabilities };
 }
 
 const TIMEOUT_MS = 120000;

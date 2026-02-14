@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { decryptApiKey } from '@/src/server/crypto';
-import { createAdapter } from '@/src/server/adapters/providers';
-import { getProviderBaseURL } from '@/src/server/adapters/providers';
+import { createAdapter, getProviderBaseURL, getProviderCapabilities } from '@/src/server/adapters/providers';
 
 const testSchema = z.object({
   providerId: z.string().min(1).optional(),
@@ -78,8 +77,15 @@ export async function POST(request: NextRequest) {
       success: true,
       message: '连接成功',
       latency,
-      model: testModel,
+      model: finalModel,
       response: response.content?.slice(0, 50),
+      capabilities: getProviderCapabilities(providerType, finalModel, {
+        supportsStreaming: adapter.supportsStreaming,
+        supportsTools: adapter.supportsTools,
+        supportsVision: adapter.supportsVision,
+        supportsEmbeddings: adapter.supportsEmbeddings,
+        supportsImageGen: adapter.supportsImageGen,
+      }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Connection test failed';

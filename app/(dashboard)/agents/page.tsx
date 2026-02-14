@@ -71,6 +71,19 @@ const getCategoryBadgeVariant = (category: AgentCategory) => {
   }
 };
 
+const extractErrorMessage = (payload: unknown, fallback: string): string => {
+  if (!payload || typeof payload !== 'object') return fallback;
+  const error = (payload as { error?: unknown }).error;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (error && typeof error === 'object') {
+    const formErrors = (error as { formErrors?: unknown }).formErrors;
+    if (Array.isArray(formErrors) && typeof formErrors[0] === 'string') {
+      return formErrors[0];
+    }
+  }
+  return fallback;
+};
+
 const AgentSkeleton = () => (
   <Card className="h-[280px]">
     <CardHeader className="space-y-4">
@@ -94,18 +107,30 @@ const AgentSkeleton = () => (
 const BuiltInAgentCard = memo(({ 
   agentKey, 
   agent, 
-  template, 
+  instance,
+  providerName,
+  hasTemplate,
+  hasAnyProvider,
   onViewTemplate, 
-  onCreateInstance 
+  onCreateInstance
 }: {
   agentKey: string;
   agent: BuiltInAgentDefinition;
-  template?: Template;
+  instance?: Agent;
+  providerName: string;
+  hasTemplate: boolean;
+  hasAnyProvider: boolean;
   onViewTemplate: (key: string) => void;
   onCreateInstance: (key: string) => void;
 }) => {
   const categoryLabel = CATEGORY_LABELS[agent.category];
   const badgeVariant = getCategoryBadgeVariant(agent.category);
+  const isConfigured = Boolean(instance?.providerConfigId || instance?.model || hasAnyProvider);
+  const statusText = instance?.providerConfigId || instance?.model
+    ? '已配置'
+    : hasAnyProvider
+      ? '默认可用'
+      : '待配置';
   
   return (
     <motion.div
@@ -133,9 +158,27 @@ const BuiltInAgentCard = memo(({
           <h3 className="text-lg font-bold text-white mb-2">{agent.name}</h3>
           <p className="text-gray-400 text-sm mb-4 line-clamp-2 min-h-[40px]">{agent.description}</p>
           
-          <div className="flex items-center gap-2 text-xs text-gray-500 mb-6">
-            <span>模板: {agent.templateName}</span>
-            {template && <span className="text-emerald-400">✓</span>}
+          <div className="space-y-2 mb-6 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">实例状态</span>
+              <Badge variant={isConfigured ? 'success' : 'outline'} size="sm">
+                {statusText}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">模板</span>
+              <Badge variant={hasTemplate ? 'success' : 'warning'} size="sm">
+                {hasTemplate ? '已就绪' : '缺失'}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-gray-500">
+              <span>服务商</span>
+              <span className="text-gray-300">{providerName}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-500">
+              <span>模型</span>
+              <span className="text-gray-300 font-mono">{instance?.model || '默认模型'}</span>
+            </div>
           </div>
 
           <div className="flex gap-2 mt-auto">
@@ -153,7 +196,7 @@ const BuiltInAgentCard = memo(({
               onClick={() => onCreateInstance(agentKey)}
               className="flex-1"
             >
-              创建实例
+              配置调用
             </Button>
           </div>
         </div>
@@ -225,6 +268,7 @@ export default function AgentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentAgent, setCurrentAgent] = useState<Partial<Agent>>({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [customModel, setCustomModel] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -232,6 +276,12 @@ export default function AgentsPage() {
   const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
   const [builtInTemplateCache, setBuiltInTemplateCache] = useState<Record<string, { name: string; content: string } | null>>({});
   const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
+  const builtInInstances = useMemo(() => agents.filter(agent => agent.isBuiltIn), [agents]);
+  const customAgents = useMemo(() => agents.filter(agent => !agent.isBuiltIn), [agents]);
+  const builtInInstanceMap = useMemo(() => {
+    return new Map(builtInInstances.map(agent => [agent.name, agent]));
+  }, [builtInInstances]);
+  const isEditingBuiltIn = Boolean(currentAgent.id && currentAgent.isBuiltIn);
   
   const viewingAgent = viewingAgentKey ? BUILT_IN_AGENTS[viewingAgentKey] : null;
   const viewingTemplate = useMemo(() => {
@@ -295,6 +345,11 @@ export default function AgentsPage() {
     return builtInAgentsByCategory[activeCategory];
   }, [activeCategory, builtInAgentsByCategory]);
 
+  const getProviderName = useCallback((providerConfigId?: string) => {
+    if (!providerConfigId) return '默认服务商';
+    return providers.find(provider => provider.id === providerConfigId)?.name || '默认服务商';
+  }, [providers]);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -322,6 +377,7 @@ export default function AgentsPage() {
   };
 
   const handleOpenModal = useCallback((agent?: Agent) => {
+    setSaveError(null);
     if (agent) {
       setCurrentAgent(agent);
       const provider = providers.find(p => p.id === agent.providerConfigId);
@@ -350,8 +406,8 @@ export default function AgentsPage() {
     const template = BUILT_IN_AGENTS[key];
     const matchingTemplate = templates.find(t => t.name === template.templateName);
     setCurrentAgent({
-      name: template.name,
-      description: template.description,
+      name: `${template.name}·自定义`,
+      description: `基于内置助手「${template.name}」创建`,
       templateId: matchingTemplate?.id,
       params: template.defaultParams,
     });
@@ -363,9 +419,17 @@ export default function AgentsPage() {
   }, []);
 
   const handleCreateInstance = useCallback((key: string) => {
+    const builtInDef = BUILT_IN_AGENTS[key];
+    if (!builtInDef) return;
+    const existingBuiltIn = builtInInstanceMap.get(builtInDef.name);
+    if (existingBuiltIn) {
+      handleOpenModal(existingBuiltIn);
+      return;
+    }
+
     handleSelectBuiltInTemplate(key);
     setIsModalOpen(true);
-  }, [handleSelectBuiltInTemplate]);
+  }, [builtInInstanceMap, handleOpenModal, handleSelectBuiltInTemplate]);
 
   const getBuiltInAgentTemplate = useCallback((templateName: string) => {
     return templates.find(t => t.name === templateName);
@@ -373,24 +437,48 @@ export default function AgentsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
+
+    if (!currentAgent.id && !currentAgent.name?.trim()) {
+      setSaveError('请先填写助手名称');
+      return;
+    }
+
     setSaving(true);
 
     try {
       const url = currentAgent.id ? `/api/agents/${currentAgent.id}` : '/api/agents';
       const method = currentAgent.id ? 'PUT' : 'POST';
+      const payload = currentAgent.id && currentAgent.isBuiltIn
+        ? {
+            providerConfigId: currentAgent.providerConfigId || '',
+            model: currentAgent.model || '',
+          }
+        : {
+            name: currentAgent.name?.trim() || '',
+            description: currentAgent.description || '',
+            templateId: currentAgent.templateId || '',
+            providerConfigId: currentAgent.providerConfigId || '',
+            model: currentAgent.model || '',
+            params: currentAgent.params,
+          };
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(currentAgent),
+        body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('Failed to save agent');
+      if (!res.ok) {
+        const errorPayload = await res.json().catch(() => null);
+        throw new Error(extractErrorMessage(errorPayload, '保存助手失败'));
+      }
 
       await fetchData();
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving agent:', error);
+      setSaveError(error instanceof Error ? error.message : '保存助手失败');
     } finally {
       setSaving(false);
     }
@@ -505,7 +593,10 @@ export default function AgentsPage() {
                 key={key}
                 agentKey={key}
                 agent={agent}
-                template={getBuiltInAgentTemplate(agent.templateName)}
+                instance={builtInInstanceMap.get(agent.name)}
+                providerName={getProviderName(builtInInstanceMap.get(agent.name)?.providerConfigId)}
+                hasTemplate={Boolean(getBuiltInAgentTemplate(agent.templateName))}
+                hasAnyProvider={providers.length > 0}
                 onViewTemplate={handleViewBuiltInAgent}
                 onCreateInstance={handleCreateInstance}
               />
@@ -514,55 +605,53 @@ export default function AgentsPage() {
         </motion.div>
       </div>
 
-      {agents.length > 0 && (
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-            自定义助手
-          </h2>
-          <motion.div 
-            variants={staggerContainer}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {agents.map((agent) => (
-              <CustomAgentCard
-                key={agent.id}
-                agent={agent}
-                providerName={providers.find(p => p.id === agent.providerConfigId)?.name || '默认'}
-                onConfigure={handleOpenModal}
-              />
-            ))}
-            
-            <motion.div variants={staggerItem}>
-              <Card 
-                variant="outline" 
-                className="h-full border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 cursor-pointer min-h-[200px]"
-                onClick={() => handleOpenModal()}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div className="flex flex-col items-center justify-center h-full gap-4 p-6">
-                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                    <svg className="w-8 h-8 text-gray-400 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </div>
-                  <span className="text-gray-400 font-medium group-hover:text-emerald-300">创建新的自定义助手</span>
+      <div className="space-y-6">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          自定义助手
+        </h2>
+        <motion.div 
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
+          {customAgents.map((agent) => (
+            <CustomAgentCard
+              key={agent.id}
+              agent={agent}
+              providerName={getProviderName(agent.providerConfigId)}
+              onConfigure={handleOpenModal}
+            />
+          ))}
+          
+          <motion.div variants={staggerItem}>
+            <Card 
+              variant="outline" 
+              className="h-full border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 cursor-pointer min-h-[200px]"
+              onClick={() => handleOpenModal()}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div className="flex flex-col items-center justify-center h-full gap-4 p-6">
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                  <svg className="w-8 h-8 text-gray-400 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
                 </div>
-              </Card>
-            </motion.div>
+                <span className="text-gray-400 font-medium group-hover:text-emerald-300">创建新的自定义助手</span>
+              </div>
+            </Card>
           </motion.div>
-        </div>
-      )}
+        </motion.div>
+      </div>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={currentAgent.id ? '编辑助手' : '创建助手'}
+        title={isEditingBuiltIn ? '配置内置助手' : currentAgent.id ? '编辑助手' : '创建助手'}
         size="2xl"
       >
         {!currentAgent.id && showTemplateSelector && (
@@ -592,16 +681,30 @@ export default function AgentsPage() {
         )}
 
         <form onSubmit={handleSave} className="space-y-6">
+          {isEditingBuiltIn && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+              内置助手仅支持修改服务商与模型，提示词与参数由系统统一维护。
+            </div>
+          )}
+
+          {saveError && (
+            <div className="rounded-lg border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {saveError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
               label="名称"
-              required
+              required={!isEditingBuiltIn}
+              disabled={isEditingBuiltIn}
               value={currentAgent.name || ''}
               onChange={e => setCurrentAgent({...currentAgent, name: e.target.value})}
               placeholder="例如：故事大纲师"
             />
             <Input
               label="描述"
+              disabled={isEditingBuiltIn}
               value={currentAgent.description || ''}
               onChange={e => setCurrentAgent({...currentAgent, description: e.target.value})}
               placeholder="这个助手是做什么的？"
@@ -677,6 +780,7 @@ export default function AgentsPage() {
             <label className="text-sm font-medium text-gray-300">系统提示词模板</label>
             <select
               value={currentAgent.templateId || ''}
+              disabled={isEditingBuiltIn}
               onChange={e => setCurrentAgent({...currentAgent, templateId: e.target.value || undefined})}
               className="w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             >
@@ -701,34 +805,36 @@ export default function AgentsPage() {
             )}
           </div>
 
-          <div className="border-t border-white/10 pt-6">
-            <h3 className="text-sm font-medium text-gray-300 mb-4">参数设置</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>温度 (Temperature)</span>
-                  <span>{currentAgent.params?.temperature ?? 0.7}</span>
+          {!isEditingBuiltIn && (
+            <div className="border-t border-white/10 pt-6">
+              <h3 className="text-sm font-medium text-gray-300 mb-4">参数设置</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>温度 (Temperature)</span>
+                    <span>{currentAgent.params?.temperature ?? 0.7}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value={currentAgent.params?.temperature ?? 0.7}
+                    onChange={e => updateParam('temperature', parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={currentAgent.params?.temperature ?? 0.7}
-                  onChange={e => updateParam('temperature', parseFloat(e.target.value))}
-                  className="w-full accent-emerald-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Input
-                  label="最大Token数"
-                  type="number"
-                  value={currentAgent.params?.maxTokens ?? 1000}
-                  onChange={e => updateParam('maxTokens', parseInt(e.target.value))}
-                />
+                <div className="space-y-2">
+                  <Input
+                    label="最大Token数"
+                    type="number"
+                    value={currentAgent.params?.maxTokens ?? 1000}
+                    onChange={e => updateParam('maxTokens', parseInt(e.target.value))}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <ModalFooter className="mt-8">
             <Button

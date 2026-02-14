@@ -4,6 +4,7 @@ import { prisma } from '@/src/server/db';
 import { getSessionUser, auditRequest } from '@/src/server/middleware/audit';
 import { encryptApiKey } from '@/src/server/crypto';
 import { AuditActions } from '@/src/server/services/audit';
+import { getProviderCapabilities } from '@/src/server/adapters/providers';
 import { verifyCsrf } from '@/src/server/middleware/csrf';
 
 const updateSchema = z.object({
@@ -41,7 +42,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Provider config not found' }, { status: 404 });
   }
 
-  return NextResponse.json(config);
+  const models = Array.isArray(config.models)
+    ? config.models.filter((model): model is string => typeof model === 'string')
+    : [];
+  const capabilityModel = config.defaultModel || models[0];
+  return NextResponse.json({
+    ...config,
+    capabilities: getProviderCapabilities(config.providerType, capabilityModel),
+  });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -99,7 +107,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     metadata: { name: updated.name },
   });
 
-  return NextResponse.json(updated);
+  const models = Array.isArray(updated.models)
+    ? updated.models.filter((model): model is string => typeof model === 'string')
+    : [];
+  const capabilityModel = updated.defaultModel || models[0];
+  return NextResponse.json({
+    ...updated,
+    capabilities: getProviderCapabilities(updated.providerType, capabilityModel),
+  });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -40,6 +40,8 @@ export interface UpdateAgentInput {
 
 export { BUILT_IN_AGENTS } from '@/src/constants/agents';
 
+const BUILT_IN_AGENT_NAMES = new Set(Object.values(BUILT_IN_AGENTS).map(agent => agent.name));
+
 function parseParams(params: Prisma.JsonValue | null): AgentParams {
   const result = AgentParamsSchema.safeParse(params);
   return result.success ? result.data : null;
@@ -53,11 +55,31 @@ function toAgentDefinition(agent: PrismaAgentDefinition): AgentDefinition {
 }
 
 export async function createAgent(input: CreateAgentInput): Promise<AgentDefinition> {
+  const normalizedName = input.name.trim();
+  if (!normalizedName) {
+    throw new Error('Agent name is required');
+  }
+
+  if (!input.isBuiltIn && BUILT_IN_AGENT_NAMES.has(normalizedName)) {
+    throw new Error('该名称为系统内置助手保留名，请使用其他名称');
+  }
+
+  const nameConflict = await prisma.agentDefinition.findFirst({
+    where: { userId: input.userId, name: normalizedName },
+    select: { id: true },
+  });
+  if (nameConflict) {
+    throw new Error('助手名称已存在，请使用其他名称');
+  }
+
+  const matchedBuiltIn = Object.values(BUILT_IN_AGENTS).find(agent => agent.name === normalizedName);
+
   const agent = await prisma.agentDefinition.create({
     data: {
       userId: input.userId,
-      name: input.name,
+      name: normalizedName,
       description: input.description || null,
+      category: matchedBuiltIn?.category || null,
       templateId: input.templateId || null,
       providerConfigId: input.providerConfigId || null,
       model: input.model || null,
@@ -92,18 +114,40 @@ export async function updateAgent(id: string, userId: string, input: UpdateAgent
   
   if (agent.isBuiltIn) {
     const allowedUpdates: Prisma.AgentDefinitionUpdateInput = {};
-    if (input.providerConfigId !== undefined) allowedUpdates.providerConfigId = input.providerConfigId;
-    if (input.model !== undefined) allowedUpdates.model = input.model;
+    if (input.providerConfigId !== undefined) allowedUpdates.providerConfigId = input.providerConfigId || null;
+    if (input.model !== undefined) allowedUpdates.model = input.model || null;
     const updated = await prisma.agentDefinition.update({ where: { id }, data: allowedUpdates });
     return toAgentDefinition(updated);
   }
   
   const updateData: Prisma.AgentDefinitionUpdateInput = {};
-  if (input.name !== undefined) updateData.name = input.name;
-  if (input.description !== undefined) updateData.description = input.description;
-  if (input.templateId !== undefined) updateData.templateId = input.templateId;
-  if (input.providerConfigId !== undefined) updateData.providerConfigId = input.providerConfigId;
-  if (input.model !== undefined) updateData.model = input.model;
+  if (input.name !== undefined) {
+    const normalizedName = input.name.trim();
+    if (!normalizedName) {
+      throw new Error('Agent name is required');
+    }
+    if (BUILT_IN_AGENT_NAMES.has(normalizedName)) {
+      throw new Error('该名称为系统内置助手保留名，请使用其他名称');
+    }
+
+    const nameConflict = await prisma.agentDefinition.findFirst({
+      where: {
+        userId,
+        name: normalizedName,
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+    if (nameConflict) {
+      throw new Error('助手名称已存在，请使用其他名称');
+    }
+
+    updateData.name = normalizedName;
+  }
+  if (input.description !== undefined) updateData.description = input.description || null;
+  if (input.templateId !== undefined) updateData.templateId = input.templateId || null;
+  if (input.providerConfigId !== undefined) updateData.providerConfigId = input.providerConfigId || null;
+  if (input.model !== undefined) updateData.model = input.model || null;
   if (input.params !== undefined) updateData.params = input.params as Prisma.InputJsonValue;
   
   const updated = await prisma.agentDefinition.update({ where: { id }, data: updateData });
@@ -133,27 +177,71 @@ export async function seedBuiltInAgents(userId: string): Promise<number> {
       isBuiltIn: true,
       name: { in: builtInNames }
     },
-    select: { name: true }
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      category: true,
+      templateId: true,
+      params: true,
+    }
   });
   
-  const existingNames = new Set(existingAgents.map(a => a.name));
+  const existingByName = new Map(existingAgents.map(agent => [agent.name, agent]));
   const agentsToCreate: Prisma.AgentDefinitionCreateManyInput[] = [];
+  const agentsToUpdate: Array<{ id: string; data: Prisma.AgentDefinitionUpdateInput }> = [];
 
   for (const agentDef of Object.values(BUILT_IN_AGENTS)) {
-    if (!existingNames.has(agentDef.name)) {
+    const desiredTemplateId = templateMap.get(agentDef.templateName) || null;
+    const desiredParams = agentDef.defaultParams as Prisma.InputJsonValue;
+    const existing = existingByName.get(agentDef.name);
+
+    if (!existing) {
       agentsToCreate.push({
         userId,
         name: agentDef.name,
         description: agentDef.description,
-        templateId: templateMap.get(agentDef.templateName) || null,
-        params: agentDef.defaultParams as Prisma.InputJsonValue,
+        category: agentDef.category,
+        templateId: desiredTemplateId,
+        params: desiredParams,
         isBuiltIn: true,
+      });
+      continue;
+    }
+
+    const needsUpdate =
+      existing.description !== agentDef.description ||
+      existing.category !== agentDef.category ||
+      existing.templateId !== desiredTemplateId ||
+      JSON.stringify(existing.params ?? null) !== JSON.stringify(desiredParams);
+
+    if (needsUpdate) {
+      agentsToUpdate.push({
+        id: existing.id,
+        data: {
+          description: agentDef.description,
+          category: agentDef.category,
+          templateId: desiredTemplateId,
+          params: desiredParams,
+          isBuiltIn: true,
+        },
       });
     }
   }
 
   if (agentsToCreate.length > 0) {
     await prisma.agentDefinition.createMany({ data: agentsToCreate });
+  }
+
+  if (agentsToUpdate.length > 0) {
+    await prisma.$transaction(
+      agentsToUpdate.map(update =>
+        prisma.agentDefinition.update({
+          where: { id: update.id },
+          data: update.data,
+        })
+      )
+    );
   }
   
   return agentsToCreate.length;

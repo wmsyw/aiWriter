@@ -1,6 +1,6 @@
 import { webSearch, formatSearchResultsForContext } from '../../src/server/services/web-search.js';
 import { decryptApiKey } from '../../src/core/crypto.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson } from '../utils/helpers.js';
 import { renderTemplateString } from '../../src/server/services/templates.js';
 
 async function getUserSearchConfig(prisma, userId) {
@@ -167,7 +167,6 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
   const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
 
   const MIN_SEARCH_TOKENS = 6000;
   const MIN_FORMAT_TOKENS = 3000;
@@ -181,18 +180,20 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
       categories: searchCategories.join('、'),
     });
     
-    const searchOptions = {
+    const { response: searchResponse } = await generateWithAgentRuntime({
+      prisma,
+      userId,
+      jobId,
+      config,
+      adapter,
+      agent,
+      defaultModel,
       messages: [{ role: 'user', content: searchPrompt }],
-      model: effectiveModel,
       temperature: params.temperature || 0.7,
       maxTokens: Math.max(params.maxTokens || 8000, MIN_SEARCH_TOKENS),
       webSearch: true,
-    };
-    
-    const searchResponse = await withConcurrencyLimit(() => adapter.generate(config, searchOptions));
+    });
     const rawSearchContent = searchResponse.content;
-    
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, searchResponse.usage);
     
     // Step 2: 格式化模式 - 禁用搜索，强制 JSON 输出
     const formatPrompt = renderTemplateString(FORMAT_EXTRACTION_PROMPT, {
@@ -200,36 +201,41 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
       keyword,
     });
     
-    const formatOptions = {
+    const { response: formatResponse } = await generateWithAgentRuntime({
+      prisma,
+      userId,
+      jobId,
+      config,
+      adapter,
+      agent,
+      defaultModel,
       messages: [{ role: 'user', content: formatPrompt }],
-      model: effectiveModel,
       temperature: 0.3,
       maxTokens: Math.max(params.maxTokens || 4000, MIN_FORMAT_TOKENS),
       responseFormat: 'json',
-    };
-    
-    const formatResponse = await withConcurrencyLimit(() => adapter.generate(config, formatOptions));
+    });
     parsed = parseModelJson(formatResponse.content);
-    
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, formatResponse.usage);
     
     if (parsed?.parseError) {
       // 格式化失败，使用新请求重试
-      const retryOptions = {
-        messages: [{ 
-          role: 'user', 
-          content: formatPrompt + '\n\n(上次尝试格式不正确，请确保只返回有效JSON)' 
-        }],
-        model: effectiveModel,
-        temperature: 0.2,
-        maxTokens: Math.max(params.maxTokens || 4000, MIN_FORMAT_TOKENS),
-        responseFormat: 'json',
-      };
-      
       try {
-        const retryResponse = await withConcurrencyLimit(() => adapter.generate(config, retryOptions));
+        const { response: retryResponse } = await generateWithAgentRuntime({
+          prisma,
+          userId,
+          jobId,
+          config,
+          adapter,
+          agent,
+          defaultModel,
+          messages: [{ 
+            role: 'user', 
+            content: formatPrompt + '\n\n(上次尝试格式不正确，请确保只返回有效JSON)' 
+          }],
+          temperature: 0.2,
+          maxTokens: Math.max(params.maxTokens || 4000, MIN_FORMAT_TOKENS),
+          responseFormat: 'json',
+        });
         parsed = parseModelJson(retryResponse.content);
-        await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, retryResponse.usage);
       } catch (retryErr) {
         console.error(`[MATERIAL_SEARCH] Format retry failed:`, retryErr.message);
       }
@@ -275,36 +281,41 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
     const promptTemplate = template?.content || MATERIAL_SEARCH_PROMPT;
     const prompt = renderTemplateString(promptTemplate, context);
     
-    const generateOptions = {
+    const { response } = await generateWithAgentRuntime({
+      prisma,
+      userId,
+      jobId,
+      config,
+      adapter,
+      agent,
+      defaultModel,
       messages: [{ role: 'user', content: prompt }],
-      model: effectiveModel,
       temperature: params.temperature || 0.5,
       maxTokens: params.maxTokens || 4000,
       responseFormat: 'json',
-    };
-
-    const response = await withConcurrencyLimit(() => adapter.generate(config, generateOptions));
+    });
     parsed = parseModelJson(response.content);
-    
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
     
     if (parsed?.parseError) {
       // 使用新请求重试，不包含历史
-      const retryOptions = {
-        messages: [{ 
-          role: 'user', 
-          content: prompt + '\n\n(上次尝试格式不正确，请确保只返回有效JSON，不要有任何其他文字)' 
-        }],
-        model: effectiveModel,
-        temperature: 0.3,
-        maxTokens: params.maxTokens || 4000,
-        responseFormat: 'json',
-      };
-      
       try {
-        const retryResponse = await withConcurrencyLimit(() => adapter.generate(config, retryOptions));
+        const { response: retryResponse } = await generateWithAgentRuntime({
+          prisma,
+          userId,
+          jobId,
+          config,
+          adapter,
+          agent,
+          defaultModel,
+          messages: [{ 
+            role: 'user', 
+            content: prompt + '\n\n(上次尝试格式不正确，请确保只返回有效JSON，不要有任何其他文字)' 
+          }],
+          temperature: 0.3,
+          maxTokens: params.maxTokens || 4000,
+          responseFormat: 'json',
+        });
         parsed = parseModelJson(retryResponse.content);
-        await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, retryResponse.usage);
       } catch (retryErr) {
         console.error(`[MATERIAL_SEARCH] Retry failed:`, retryErr.message);
       }
@@ -428,8 +439,6 @@ export async function handleMaterialEnhance(prisma, job, { jobId, userId, input 
   });
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
 
   const attributesStr = currentAttributes && Object.keys(currentAttributes).length > 0
     ? JSON.stringify(currentAttributes, null, 2)
@@ -442,18 +451,20 @@ export async function handleMaterialEnhance(prisma, job, { jobId, userId, input 
     attributes: attributesStr,
   });
 
-  const searchOptions = {
+  const { response: searchResponse } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: searchPrompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
+    temperature: 0.7,
     maxTokens: 6000,
     webSearch: true,
-  };
-
-  const searchResponse = await withConcurrencyLimit(() => adapter.generate(config, searchOptions));
+  });
   const rawContent = searchResponse.content;
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, searchResponse.usage);
 
   const formatPrompt = renderTemplateString(MATERIAL_ENHANCE_FORMAT_PROMPT, {
     name: materialName,
@@ -462,18 +473,20 @@ export async function handleMaterialEnhance(prisma, job, { jobId, userId, input 
     current_attributes: attributesStr,
   });
 
-  const formatOptions = {
+  const { response: formatResponse } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: formatPrompt }],
-    model: effectiveModel,
     temperature: 0.3,
     maxTokens: 4000,
     responseFormat: 'json',
-  };
-
-  const formatResponse = await withConcurrencyLimit(() => adapter.generate(config, formatOptions));
+  });
   let parsed = parseModelJson(formatResponse.content);
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, formatResponse.usage);
 
   if (parsed?.parseError) {
     return {
@@ -561,24 +574,25 @@ export async function handleMaterialDeduplicate(prisma, job, { jobId, userId, in
   });
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
 
   const prompt = renderTemplateString(MATERIAL_DEDUPLICATE_PROMPT, {
     materials_json: JSON.stringify(materialsContext, null, 2),
   });
 
-  const options = {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
     temperature: 0.1,
     maxTokens: 8000,
     responseFormat: 'json',
-  };
-
-  const response = await withConcurrencyLimit(() => adapter.generate(config, options));
+  });
   const parsed = parseModelJson(response.content);
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   if (parsed?.parseError) {
     throw new Error('AI返回格式错误，无法处理去重');

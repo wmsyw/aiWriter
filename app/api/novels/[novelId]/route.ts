@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
+import {
+  mergeCreativeIntentIntoWorkflowConfig,
+  normalizeCreativeIntent,
+  withCreativeIntentField,
+} from '@/src/server/services/creative-intent';
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -24,6 +29,7 @@ const updateSchema = z.object({
   worldRules: z.string().optional(),
   keywords: z.array(z.string()).optional(),
   specialRequirements: z.string().optional(),
+  creativeIntent: z.string().optional(),
   outlineMode: z.enum(['simple', 'detailed']).optional(),
   wizardStatus: z.enum(['draft', 'in_progress', 'completed']).optional(),
   wizardStep: z.number().int().min(0).optional(),
@@ -48,7 +54,7 @@ export async function GET(
     return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
   }
 
-  return NextResponse.json(novel);
+  return NextResponse.json(withCreativeIntentField(novel));
 }
 
 export async function PATCH(
@@ -63,25 +69,33 @@ export async function PATCH(
   try {
     const body = await request.json();
     const data = updateSchema.parse(body);
-    const updateData = {
-      ...data,
-      inspirationData: data.inspirationData ? (data.inspirationData as Prisma.InputJsonValue) : undefined,
-      outlineRough: data.outlineRough ? (data.outlineRough as Prisma.InputJsonValue) : undefined,
-      outlineDetailed: data.outlineDetailed ? (data.outlineDetailed as Prisma.InputJsonValue) : undefined,
-      outlineChapters: data.outlineChapters ? (data.outlineChapters as Prisma.InputJsonValue) : undefined,
-    };
-
-    const novel = await prisma.novel.updateMany({
+    const { creativeIntent, ...rest } = data;
+    const existing = await prisma.novel.findFirst({
       where: { id: novelId, userId: session.userId },
-      data: updateData,
+      select: { id: true, workflowConfig: true },
     });
-
-    if (novel.count === 0) {
+    if (!existing) {
       return NextResponse.json({ error: 'Novel not found' }, { status: 404 });
     }
 
-    const updated = await prisma.novel.findUnique({ where: { id: novelId } });
-    return NextResponse.json(updated);
+    const normalizedCreativeIntent = normalizeCreativeIntent(creativeIntent);
+    const shouldUpdateCreativeIntent = creativeIntent !== undefined;
+    const updateData = {
+      ...rest,
+      inspirationData: rest.inspirationData ? (rest.inspirationData as Prisma.InputJsonValue) : undefined,
+      outlineRough: rest.outlineRough ? (rest.outlineRough as Prisma.InputJsonValue) : undefined,
+      outlineDetailed: rest.outlineDetailed ? (rest.outlineDetailed as Prisma.InputJsonValue) : undefined,
+      outlineChapters: rest.outlineChapters ? (rest.outlineChapters as Prisma.InputJsonValue) : undefined,
+      workflowConfig: shouldUpdateCreativeIntent
+        ? mergeCreativeIntentIntoWorkflowConfig(existing.workflowConfig, normalizedCreativeIntent)
+        : undefined,
+    };
+
+    const novel = await prisma.novel.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
+    return NextResponse.json(withCreativeIntentField(novel));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });

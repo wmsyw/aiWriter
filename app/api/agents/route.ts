@@ -37,15 +37,20 @@ export async function POST(req: NextRequest) {
   const parsed = createAgentSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const agent = await agents.createAgent({
-    userId: session.userId,
-    name: parsed.data.name,
-    description: parsed.data.description,
-    templateId: parsed.data.templateId,
-    providerConfigId: parsed.data.providerConfigId,
-    model: parsed.data.model,
-    params: parsed.data.params,
-  });
+  try {
+    const agent = await agents.createAgent({
+      userId: session.userId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      templateId: parsed.data.templateId,
+      providerConfigId: parsed.data.providerConfigId,
+      model: parsed.data.model,
+      params: parsed.data.params,
+    });
 
-  return NextResponse.json(agent, { status: 201 });
+    return NextResponse.json(agent, { status: 201 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to create agent';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

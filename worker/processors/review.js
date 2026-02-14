@@ -1,6 +1,6 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, truncateText, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson, truncateText } from '../utils/helpers.js';
 
 
 export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
@@ -12,13 +12,12 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
   });
   if (!chapter || chapter.novel.userId !== userId) throw new Error('Chapter not found');
 
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: '章节评审' }, orderBy: { createdAt: 'desc' } });
-
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '章节评审',
+    templateName: '章节评审',
+  });
 
   const context = { chapter_content: chapter.content };
   const basePrompt = template
@@ -27,14 +26,18 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: basePrompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.3,
-    maxTokens: params.maxTokens || 2000,
-  }));
+    temperature: 0.3,
+    maxTokens: 2000,
+  });
 
   const result = parseModelJson(response.content);
 
@@ -43,7 +46,6 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
     data: { generationStage: 'reviewed' },
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }
 
@@ -78,18 +80,21 @@ export async function handleConsistencyCheck(prisma, job, { jobId, userId, input
   const fallbackPrompt = `请检查以下章节与设定的一致性，输出JSON格式结果：\n\n${chapterContent}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 4000,
-  }));
+    temperature: 0.2,
+    maxTokens: 4000,
+  });
 
   const result = parseModelJson(response.content);
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }
 
@@ -143,17 +148,20 @@ ${context.original_work || '未指定'}
 
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 6000,
-  }));
+    temperature: 0.2,
+    maxTokens: 6000,
+  });
 
   const result = parseModelJson(response.content);
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
   return result;
 }

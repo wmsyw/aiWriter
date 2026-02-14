@@ -6,6 +6,13 @@ const mockPrisma = {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
   },
+  chapter: {
+    findUnique: vi.fn(),
+    count: vi.fn(),
+  },
+  pendingEntity: {
+    findMany: vi.fn(),
+  },
   pipelineExecution: {
     create: vi.fn(),
     update: vi.fn(),
@@ -48,7 +55,17 @@ vi.mock('@/src/server/adapters/providers', () => ({
       content: '{"synopsis": "Test synopsis", "goldenFinger": "Test power", "worldSetting": "Test world"}',
       usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     }),
+    supportsStreaming: false,
+    supportsTools: true,
+    supportsVision: true,
+    supportsEmbeddings: true,
+    supportsImageGen: false,
   }),
+  applyProviderCapabilitiesToRequest: vi.fn().mockImplementation((_providerType, request) => ({
+    request,
+    warnings: [],
+    capabilities: {},
+  })),
   ProviderError: class ProviderError extends Error {
     constructor(message: string) {
       super(message);
@@ -80,6 +97,10 @@ describe('Pipeline Orchestrator', () => {
       baseURL: 'https://api.openai.com/v1',
       defaultModel: 'gpt-4o',
     });
+
+    mockPrisma.chapter.findUnique.mockResolvedValue({ order: 1 });
+    mockPrisma.chapter.count.mockResolvedValue(0);
+    mockPrisma.pendingEntity.findMany.mockResolvedValue([]);
     
     mockPrisma.pipelineExecution.create.mockResolvedValue({
       id: 'exec-123',
@@ -203,6 +224,88 @@ describe('Pipeline Orchestrator', () => {
       const generateStage = pipeline?.stages.find(s => s.id === 'generate');
       
       expect(generateStage?.supportsStreaming).toBe(true);
+    });
+
+    it('should block pre-check when pending entities exist', async () => {
+      await import('@/src/server/orchestrator/pipelines/chapter');
+      const { getPipeline } = await import('@/src/server/orchestrator/engine');
+      const pipeline = getPipeline('chapter');
+      const preCheckStage = pipeline?.stages.find(s => s.id === 'pre-check');
+
+      mockPrisma.chapter.count.mockResolvedValue(0);
+      mockPrisma.pendingEntity.findMany.mockResolvedValue([
+        { name: '神秘组织', chapterNumber: 2, entityType: 'organization', status: 'pending' },
+      ]);
+
+      const ctx: StageContext = {
+        executionId: 'exec-precheck-1',
+        novelId: 'novel-1',
+        userId: 'user-1',
+        chapterId: 'chapter-3',
+        input: {
+          novelId: 'novel-1',
+          chapterId: 'chapter-3',
+          chapterNumber: 3,
+          assembledContext: 'x'.repeat(180),
+        },
+        pipelineContext: {},
+        config: {},
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
+        progress: {
+          report: vi.fn(),
+          step: vi.fn(),
+          token: vi.fn(),
+        },
+      };
+
+      const preCheckResult = await preCheckStage?.preCheck?.(ctx as StageContext<any>);
+      expect(preCheckResult?.canProceed).toBe(false);
+      expect(preCheckResult?.reason).toContain('pending entities');
+    });
+
+    it('should block pre-check when previous chapters are incomplete', async () => {
+      await import('@/src/server/orchestrator/pipelines/chapter');
+      const { getPipeline } = await import('@/src/server/orchestrator/engine');
+      const pipeline = getPipeline('chapter');
+      const preCheckStage = pipeline?.stages.find(s => s.id === 'pre-check');
+
+      mockPrisma.chapter.count.mockResolvedValue(2);
+      mockPrisma.pendingEntity.findMany.mockResolvedValue([]);
+
+      const ctx: StageContext = {
+        executionId: 'exec-precheck-2',
+        novelId: 'novel-1',
+        userId: 'user-1',
+        chapterId: 'chapter-4',
+        input: {
+          novelId: 'novel-1',
+          chapterId: 'chapter-4',
+          chapterNumber: 4,
+          assembledContext: 'x'.repeat(180),
+        },
+        pipelineContext: {},
+        config: {},
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
+        progress: {
+          report: vi.fn(),
+          step: vi.fn(),
+          token: vi.fn(),
+        },
+      };
+
+      const preCheckResult = await preCheckStage?.preCheck?.(ctx as StageContext<any>);
+      expect(preCheckResult?.canProceed).toBe(false);
+      expect(preCheckResult?.reason).toContain('previous chapters');
     });
   });
 

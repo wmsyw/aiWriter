@@ -11,6 +11,12 @@ import { Select } from '@/app/components/ui/Select';
 import { Progress } from '@/app/components/ui/Progress';
 import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
 import InspirationModal, { Inspiration } from './InspirationModal';
+import {
+  WIZARD_PHASE_LABEL,
+  WIZARD_PHASE_PROGRESS,
+  mapJobStatusToWizardPhase,
+  type WizardPhase,
+} from '@/src/shared/wizard-phase';
 
 const GENRES = ['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'];
 const OUTLINE_MODES = [
@@ -226,12 +232,8 @@ function NovelWizardContent() {
   const [novelId, setNovelId] = useState<string | null>(searchParams.get('novelId'));
   const [isSaving, setIsSaving] = useState(false);
   const [jobStatus, setJobStatus] = useState<string>('');
-  const [seedOutput, setSeedOutput] = useState<SeedOutput | null>(null);
+  const [wizardPhase, setWizardPhase] = useState<WizardPhase>('idle');
 // Unused outline states removed
-  const [worldBuildingLoading, setWorldBuildingLoading] = useState(false);
-  const [characterLoading, setCharacterLoading] = useState(false);
-  const [synopsisLoading, setSynopsisLoading] = useState(false);
-  const [goldenFingerLoading, setGoldenFingerLoading] = useState(false);
   const [autoGenerating, setAutoGenerating] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -248,6 +250,7 @@ function NovelWizardContent() {
     goldenFinger: '',
     keywords: [] as string[],
     keywordsInput: '',
+    creativeIntent: '',
     specialRequirements: '',
     outlineMode: 'simple',
   });
@@ -299,6 +302,16 @@ function NovelWizardContent() {
       : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
   };
 
+  const updateWizardPhase = (phase: WizardPhase, message: string) => {
+    setWizardPhase(phase);
+    setJobStatus(message);
+  };
+
+  const resetWizardPhase = () => {
+    setWizardPhase('idle');
+    setJobStatus('');
+  };
+
   const patchNovelFields = async (id: string, payload: Record<string, unknown>) => {
     await fetch(`/api/novels/${id}`, {
       method: 'PATCH',
@@ -309,7 +322,7 @@ function NovelWizardContent() {
 
   const ensureNovelId = async (): Promise<string | null> => {
     if (novelId) return novelId;
-    return saveNovel(false);
+    return saveNovel(false, { preserveStatus: true });
   };
 
   const applyPreset = (preset: { name: string; theme: string; keywords: string[]; protagonist: string; worldSetting: string }) => {
@@ -361,10 +374,10 @@ function NovelWizardContent() {
     }
   };
 
-  const saveNovel = async (advanceStep: boolean = true) => {
+  const saveNovel = async (advanceStep: boolean = true, options?: { preserveStatus?: boolean }) => {
     if (!formData.title.trim()) return null;
     setIsSaving(true);
-    setJobStatus('保存基础信息中...');
+    updateWizardPhase('saving', '保存基础信息中...');
 
     const normalizedKeywords = formData.keywordsInput
       ? formData.keywordsInput.split(',').map(item => item.trim()).filter(Boolean)
@@ -382,6 +395,7 @@ function NovelWizardContent() {
       worldSetting: formData.worldSetting || undefined,
       goldenFinger: formData.goldenFinger || undefined,
       keywords: normalizedKeywords,
+      creativeIntent: formData.creativeIntent || undefined,
       specialRequirements: formData.specialRequirements || undefined,
       outlineMode: formData.outlineMode,
       inspirationData: normalizedKeywords.length ? { keywords: normalizedKeywords } : undefined,
@@ -416,49 +430,34 @@ function NovelWizardContent() {
       return currentNovelId;
     } catch (error) {
       console.error('Failed to save novel', error);
+      updateWizardPhase('error', '基础信息保存失败');
       return null;
     } finally {
       setIsSaving(false);
-      setJobStatus('');
+      if (!options?.preserveStatus) {
+        resetWizardPhase();
+      }
     }
   };
 
   const handleSaveBasicInfo = () => saveNovel(true);
 
-  const pollJob = async (jobId: string, onSuccess: (output: unknown) => void) => {
+  const pollJobResult = (
+    jobId: string,
+    onStatusChange?: (status: string) => void,
+  ) => new Promise<any>((resolve, reject) => {
     let attempts = 0;
+    let lastStatus = '';
     const poll = async () => {
       attempts += 1;
       try {
         const res = await fetch(`/api/jobs/${jobId}`);
         if (!res.ok) return;
         const { job } = await res.json();
-        if (job.status === 'succeeded') {
-          onSuccess(job.output);
-          return;
+        if (job?.status && job.status !== lastStatus) {
+          lastStatus = job.status;
+          onStatusChange?.(job.status);
         }
-        if (job.status === 'failed') {
-          setJobStatus(job.error || '生成失败');
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to poll job', error);
-      }
-      if (attempts < 60) {
-        pollTimerRef.current = setTimeout(poll, 2000);
-      }
-    };
-    poll();
-  };
-
-  const pollJobResult = (jobId: string) => new Promise<any>((resolve, reject) => {
-    let attempts = 0;
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (!res.ok) return;
-        const { job } = await res.json();
         if (job.status === 'succeeded') {
           resolve(job.output);
           return;
@@ -480,7 +479,12 @@ function NovelWizardContent() {
     poll();
   });
 
-  const runJob = async (type: string, input: Record<string, unknown>) => {
+  const runJob = async (
+    type: string,
+    input: Record<string, unknown>,
+    onStatusChange?: (status: string) => void,
+  ) => {
+    updateWizardPhase('preparing', '正在准备生成任务...');
     const res = await fetch('/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -494,173 +498,14 @@ function NovelWizardContent() {
       throw new Error(errorMsg);
     }
     const { job } = await res.json();
-    return pollJobResult(job.id);
+    updateWizardPhase('queued', '任务已入队，等待调度...');
+    return pollJobResult(job.id, onStatusChange);
   };
 
-  const startWorldBuilding = async (overrideId?: string) => {
+  const startNovelSeed = async (overrideId?: string): Promise<SeedOutput | undefined> => {
     const idToUse = overrideId || novelId;
     if (!idToUse) return;
-    setWorldBuildingLoading(true);
-    try {
-      const keywordsArray = getKeywordsArray();
-      const output = await runJob('WIZARD_WORLD_BUILDING', {
-        novelId: idToUse,
-        theme: formData.theme,
-        genre: formData.genre,
-        keywords: keywordsArray,
-        protagonist: formData.protagonist,
-        worldSetting: formData.worldSetting,
-        specialRequirements: formData.specialRequirements,
-      });
-      if (output && output.world_setting) {
-        setField('worldSetting', output.world_setting);
-        await patchNovelFields(idToUse, { worldSetting: output.world_setting });
-      }
-    } catch (error) {
-      console.error('Failed to generate world setting', error);
-      alert(error instanceof Error ? error.message : '生成失败');
-    } finally {
-      setWorldBuildingLoading(false);
-    }
-  };
-
-  const startCharacterGeneration = async (overrideId?: string) => {
-    const idToUse = overrideId || novelId;
-    if (!idToUse) return;
-    setCharacterLoading(true);
-    try {
-      const keywordsArray = getKeywordsArray();
-      const output = await runJob('WIZARD_CHARACTERS', {
-        novelId: idToUse,
-        theme: formData.theme,
-        genre: formData.genre,
-        keywords: keywordsArray,
-        protagonist: formData.protagonist,
-        worldSetting: formData.worldSetting,
-        characterCount: 1,
-      });
-      if (output && output.characters && output.characters.length > 0) {
-        const char = output.characters[0];
-        const desc = `姓名：${char.name}\n定位：${char.role}\n描述：${char.description}\n性格：${char.traits}\n目标：${char.goals}`;
-        setField('protagonist', desc);
-        await patchNovelFields(idToUse, { protagonist: desc });
-      }
-    } catch (error) {
-      console.error('Failed to generate character', error);
-      alert(error instanceof Error ? error.message : '生成失败');
-    } finally {
-      setCharacterLoading(false);
-    }
-  };
-
-  const startSynopsisGeneration = async (overrideId?: string) => {
-    const idToUse = overrideId || novelId;
-    if (!idToUse) return;
-    setSynopsisLoading(true);
-    try {
-      const keywordsArray = getKeywordsArray();
-      const output = await runJob('WIZARD_SYNOPSIS', {
-        novelId: idToUse,
-        title: formData.title,
-        theme: formData.theme,
-        genre: formData.genre,
-        keywords: keywordsArray.join(', '),
-        protagonist: formData.protagonist,
-        worldSetting: formData.worldSetting,
-        goldenFinger: formData.goldenFinger,
-        existingSynopsis: formData.description,
-        specialRequirements: formData.specialRequirements,
-      });
-      if (output && output.synopsis) {
-        setField('description', output.synopsis);
-        await patchNovelFields(idToUse, { description: output.synopsis });
-      }
-    } catch (error) {
-      console.error('Failed to generate synopsis', error);
-      alert(error instanceof Error ? error.message : '生成失败');
-    } finally {
-      setSynopsisLoading(false);
-    }
-  };
-
-  const startGoldenFingerGeneration = async (overrideId?: string) => {
-    const idToUse = overrideId || novelId;
-    if (!idToUse) return;
-    setGoldenFingerLoading(true);
-    try {
-      const keywordsArray = getKeywordsArray();
-      const output = await runJob('WIZARD_GOLDEN_FINGER', {
-        novelId: idToUse,
-        title: formData.title,
-        theme: formData.theme,
-        genre: formData.genre,
-        keywords: keywordsArray.join(', '),
-        protagonist: formData.protagonist,
-        worldSetting: formData.worldSetting,
-        targetWords: formData.targetWords,
-        existingGoldenFinger: formData.goldenFinger,
-        specialRequirements: formData.specialRequirements,
-      });
-      if (output && output.golden_finger) {
-        setField('goldenFinger', output.golden_finger);
-        await patchNovelFields(idToUse, { goldenFinger: output.golden_finger });
-      }
-    } catch (error) {
-      console.error('Failed to generate golden finger', error);
-      alert(error instanceof Error ? error.message : '生成失败');
-    } finally {
-      setGoldenFingerLoading(false);
-    }
-  };
-
-  const handleGenerateWorldSetting = async () => {
-    if (!formData.title.trim()) {
-      alert('请先填写书名');
-      return;
-    }
-    const id = await ensureNovelId();
-    if (id) {
-      await startWorldBuilding(id);
-    }
-  };
-
-  const handleGenerateCharacter = async () => {
-    if (!formData.title.trim()) {
-      alert('请先填写书名');
-      return;
-    }
-    const id = await ensureNovelId();
-    if (id) {
-      await startCharacterGeneration(id);
-    }
-  };
-
-  const handleGenerateSynopsis = async () => {
-    if (!formData.title.trim()) {
-      alert('请先填写书名');
-      return;
-    }
-    const id = await ensureNovelId();
-    if (id) {
-      await startSynopsisGeneration(id);
-    }
-  };
-
-  const handleGenerateGoldenFinger = async () => {
-    if (!formData.title.trim()) {
-      alert('请先填写书名');
-      return;
-    }
-    const id = await ensureNovelId();
-    if (id) {
-      await startGoldenFingerGeneration(id);
-    }
-  };
-
-  const startNovelSeed = async (overrideId?: string) => {
-    const idToUse = overrideId || novelId;
-    if (!idToUse) return;
-    setJobStatus('生成核心设定中...');
+    updateWizardPhase('preparing', '开始统一生成基础设定...');
 
     try {
       const output = await runJob('NOVEL_SEED', {
@@ -670,11 +515,25 @@ function NovelWizardContent() {
         genre: formData.genre,
         keywords: formData.keywordsInput || formData.keywords.join(', '),
         protagonist: formData.protagonist,
+        creativeIntent: formData.creativeIntent,
         specialRequirements: formData.specialRequirements,
-      });
+      }, (status) => {
+        const mappedPhase = mapJobStatusToWizardPhase(status);
+        if (mappedPhase === 'queued') {
+          updateWizardPhase('queued', '任务排队中...');
+          return;
+        }
+        if (mappedPhase === 'generating') {
+          updateWizardPhase('generating', 'AI 正在统一生成基础设定...');
+          return;
+        }
+        if (mappedPhase === 'error') {
+          updateWizardPhase('error', '基础设定生成任务失败');
+        }
+      }) as SeedOutput;
+      updateWizardPhase('parsing', '正在解析生成结果...');
 
       const world = output?.world || {};
-      setSeedOutput(output);
       setFormData(prev => ({
         ...prev,
         description: output?.synopsis || prev.description,
@@ -683,17 +542,18 @@ function NovelWizardContent() {
         worldSetting: world.world_setting || prev.worldSetting,
       }));
 
+      updateWizardPhase('saving', '正在写入生成结果...');
       await patchNovelFields(idToUse, {
         description: output?.synopsis || undefined,
         protagonist: output?.protagonist || undefined,
         goldenFinger: output?.golden_finger || undefined,
         worldSetting: world.world_setting || undefined,
       });
-      setJobStatus('');
+      updateWizardPhase('complete', '基础设定统一生成完成');
       return output;
     } catch (error) {
       console.error('Failed to generate seed data', error);
-      setJobStatus(error instanceof Error ? error.message : '生成失败');
+      updateWizardPhase('error', error instanceof Error ? error.message : '生成失败');
       throw error;
     }
   };
@@ -707,26 +567,22 @@ function NovelWizardContent() {
     let success = false;
     setAutoGenerating(true);
     try {
+      updateWizardPhase('preparing', '正在准备创建并生成...');
       const id = await ensureNovelId();
       if (!id) {
         throw new Error('创建小说失败，请重试');
       }
 
       await startNovelSeed(id);
-
-      setJobStatus('生成主角设定中...');
-      await startCharacterGeneration(id);
-
-      setJobStatus('核心设定生成完成');
       success = true;
     } catch (error) {
       const msg = error instanceof Error ? error.message : '一键生成失败';
-      setJobStatus(msg);
+      updateWizardPhase('error', msg);
       alert(msg);
     } finally {
       setAutoGenerating(false);
       if (success) {
-        setTimeout(() => setJobStatus(''), 1500);
+        setTimeout(() => resetWizardPhase(), 1500);
       }
     }
   };
@@ -846,10 +702,39 @@ function NovelWizardContent() {
                         onClick={handleAutoGenerateCoreSetup}
                         disabled={autoGenerating || isSaving || !formData.title.trim()}
                         isLoading={autoGenerating}
+                        leftIcon="✨"
                       >
-                        {autoGenerating ? '生成中' : '✨ 一键生成核心设定'}
+                        {autoGenerating ? '生成中' : '统一生成基础设定'}
                       </Button>
                     </div>
+                    <p className="text-xs text-emerald-300/80">
+                      统一生成会一次性产出简介、世界观、主角与金手指，保证设定风格一致。
+                    </p>
+                    {(autoGenerating || wizardPhase !== 'idle' || !!jobStatus) && (
+                      <div className={`space-y-2 rounded-xl border p-3 ${
+                        wizardPhase === 'error'
+                          ? 'border-red-500/30 bg-red-500/10'
+                          : 'border-emerald-500/25 bg-emerald-500/10'
+                      }`}>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={wizardPhase === 'error' ? 'text-red-300' : 'text-emerald-300'}>
+                            当前阶段：{WIZARD_PHASE_LABEL[wizardPhase]}
+                          </span>
+                          <span className={wizardPhase === 'error' ? 'text-red-300/80' : 'text-emerald-300/80'}>
+                            {WIZARD_PHASE_PROGRESS[wizardPhase]}%
+                          </span>
+                        </div>
+                        <Progress
+                          value={WIZARD_PHASE_PROGRESS[wizardPhase]}
+                          indicatorClassName={wizardPhase === 'error' ? 'bg-gradient-to-r from-red-500 to-red-600' : undefined}
+                        />
+                        {jobStatus && (
+                          <p className={`text-xs ${wizardPhase === 'error' ? 'text-red-200' : 'text-emerald-200/90'}`}>
+                            {jobStatus}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="space-y-4">
                       <Input
                         label="书名"
@@ -860,18 +745,7 @@ function NovelWizardContent() {
                         placeholder="请输入书名"
                       />
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-sm font-medium text-gray-300">一句话简介</label>
-                          <Button
-                            variant="ai"
-                            size="sm"
-                            onClick={handleGenerateSynopsis}
-                            disabled={synopsisLoading || !formData.title.trim()}
-                            isLoading={synopsisLoading}
-                          >
-                            {synopsisLoading ? '生成中' : '✨ AI 生成'}
-                          </Button>
-                        </div>
+                        <label className="text-sm font-medium text-gray-300">一句话简介</label>
                         <Textarea
                           className="min-h-[80px]"
                           value={formData.description}
@@ -905,18 +779,7 @@ function NovelWizardContent() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <label className="text-sm font-medium text-gray-300">世界观</label>
-                        <Button
-                          variant="ai"
-                          size="sm"
-                          onClick={handleGenerateWorldSetting}
-                          disabled={worldBuildingLoading || !formData.title.trim()}
-                          isLoading={worldBuildingLoading}
-                        >
-                          {worldBuildingLoading ? '生成中' : '✨ AI 生成'}
-                        </Button>
-                      </div>
+                      <label className="text-sm font-medium text-gray-300">世界观</label>
                       <Textarea
                         className="min-h-[100px]"
                         value={formData.worldSetting}
@@ -951,18 +814,7 @@ function NovelWizardContent() {
                     </h3>
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-sm font-medium text-gray-300">主角人设</label>
-                          <Button
-                            variant="ai"
-                            size="sm"
-                            onClick={handleGenerateCharacter}
-                            disabled={characterLoading || !formData.title.trim()}
-                            isLoading={characterLoading}
-                          >
-                            {characterLoading ? '生成中' : '✨ AI 生成'}
-                          </Button>
-                        </div>
+                        <label className="text-sm font-medium text-gray-300">主角人设</label>
                         <Textarea
                           className="min-h-[100px]"
                           value={formData.protagonist}
@@ -971,23 +823,21 @@ function NovelWizardContent() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-sm font-medium text-gray-300">金手指</label>
-                          <Button
-                            variant="ai"
-                            size="sm"
-                            onClick={handleGenerateGoldenFinger}
-                            disabled={goldenFingerLoading || !formData.title.trim()}
-                            isLoading={goldenFingerLoading}
-                          >
-                            {goldenFingerLoading ? '生成中' : '✨ AI 生成'}
-                          </Button>
-                        </div>
+                        <label className="text-sm font-medium text-gray-300">金手指</label>
                         <Textarea
                           className="min-h-[80px]"
                           value={formData.goldenFinger}
                           onChange={e => setField('goldenFinger', e.target.value)}
                           placeholder="外挂/系统/特殊能力..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">创作意图（作者目标）</label>
+                        <Textarea
+                          className="min-h-[80px]"
+                          value={formData.creativeIntent}
+                          onChange={e => setField('creativeIntent', e.target.value)}
+                          placeholder="例如：强调成长线与群像，避免降智冲突，整体基调偏克制现实主义..."
                         />
                       </div>
                       <div>
@@ -1075,8 +925,9 @@ function NovelWizardContent() {
                           variant="ai"
                           size="sm"
                           onClick={() => setIsInspirationModalOpen(true)}
+                          leftIcon="✨"
                         >
-                          ✨ AI 生成灵感
+                          AI 生成灵感
                         </Button>
                       )}
                     </div>

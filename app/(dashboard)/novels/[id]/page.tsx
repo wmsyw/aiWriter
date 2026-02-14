@@ -72,6 +72,7 @@ interface Novel {
   chapterCount?: number;
   protagonist?: string;
   worldSetting?: string;
+  creativeIntent?: string;
   specialRequirements?: string;
 }
 
@@ -111,6 +112,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [editedTheme, setEditedTheme] = useState('');
   const [editedProtagonist, setEditedProtagonist] = useState('');
   const [editedWorldSetting, setEditedWorldSetting] = useState('');
+  const [editedCreativeIntent, setEditedCreativeIntent] = useState('');
   const [editedTargetWords, setEditedTargetWords] = useState<number>(200);
   const [editedChapterCount, setEditedChapterCount] = useState<number>(100);
   const [editedKeywords, setEditedKeywords] = useState('');
@@ -172,6 +174,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setEditedTheme(novelData.theme || '');
           setEditedProtagonist(novelData.protagonist || '');
           setEditedWorldSetting(novelData.worldSetting || '');
+          setEditedCreativeIntent(novelData.creativeIntent || '');
           setEditedTargetWords(novelData.targetWords ?? 200);
           setEditedChapterCount(novelData.chapterCount ?? 100);
           setEditedKeywords(novelData.keywords?.join(', ') || '');
@@ -313,6 +316,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           theme: editedTheme,
           protagonist: editedProtagonist,
           worldSetting: editedWorldSetting,
+          creativeIntent: editedCreativeIntent,
           targetWords: editedTargetWords,
           chapterCount: editedChapterCount,
           keywords: keywordsArray,
@@ -329,6 +333,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           theme: editedTheme,
           protagonist: editedProtagonist,
           worldSetting: editedWorldSetting,
+          creativeIntent: editedCreativeIntent,
           targetWords: editedTargetWords,
           chapterCount: editedChapterCount,
           keywords: keywordsArray,
@@ -1017,6 +1022,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               chapterCount: novel.chapterCount || 100,
               protagonist: novel.protagonist || '',
               worldSetting: novel.worldSetting || '',
+              creativeIntent: novel.creativeIntent || '',
               specialRequirements: novel.specialRequirements || '',
             });
             
@@ -2030,6 +2036,15 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           onChange={(e) => setEditedTheme(e.target.value)}
                           className="glass-input w-full px-4 py-3 rounded-xl focus:border-emerald-500/50 transition-colors"
                           placeholder="例如：废柴逆袭、穿越重生、系统流..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-400">创作意图（作者目标）</label>
+                        <textarea
+                          value={editedCreativeIntent}
+                          onChange={(e) => setEditedCreativeIntent(e.target.value)}
+                          className="glass-input w-full px-4 py-3 rounded-xl h-24 resize-none focus:border-emerald-500/50 transition-colors"
+                          placeholder="例如：偏现实主义、强调角色弧光与群像推进，减少套路打脸桥段..."
                         />
                       </div>
                       <div className="space-y-2">

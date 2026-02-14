@@ -32,6 +32,16 @@ type ProviderConfig = {
   defaultModel?: string;
   models?: string[];
   createdAt: string;
+  updatedAt: string;
+  capabilities?: {
+    supportsStreaming: boolean;
+    supportsTools: boolean;
+    supportsFunctionCalling: boolean;
+    supportsModelWebSearch: boolean;
+    supportsVision: boolean;
+    supportsEmbeddings: boolean;
+    supportsImageGen: boolean;
+  };
 };
 
 type Tab = 'providers' | 'account' | 'preferences';
@@ -61,7 +71,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [testResult, setTestResult] = useState<{ message?: string; latency?: number; error?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    message?: string;
+    latency?: number;
+    error?: string;
+    model?: string;
+    capabilities?: ProviderConfig['capabilities'];
+  } | null>(null);
+  const [lastVerifiedSignature, setLastVerifiedSignature] = useState<string | null>(null);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -87,6 +104,14 @@ export default function SettingsPage() {
   });
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentVerifySignature = JSON.stringify({
+    providerId: editingProvider?.id || 'new',
+    providerType: formData.providerType.trim(),
+    baseURL: formData.baseURL.trim(),
+    model: (formData.defaultModel || formData.models[0] || '').trim(),
+    keyMode: formData.apiKey.trim() ? 'input' : (editingProvider ? 'stored' : 'missing'),
+  });
+  const isVerificationStale = !!lastVerifiedSignature && lastVerifiedSignature !== currentVerifySignature;
 
   const savePreferences = useCallback(async (prefs: typeof preferences) => {
     try {
@@ -175,6 +200,7 @@ export default function SettingsPage() {
     setError('');
     setTestStatus('idle');
     setTestResult(null);
+    setLastVerifiedSignature(null);
     setShowModal(true);
   };
 
@@ -192,6 +218,7 @@ export default function SettingsPage() {
     setError('');
     setTestStatus('idle');
     setTestResult(null);
+    setLastVerifiedSignature(null);
     setShowModal(true);
   };
 
@@ -204,6 +231,10 @@ export default function SettingsPage() {
     }
     if (formData.models.length === 0) {
       setError('请至少添加一个模型');
+      return;
+    }
+    if (isVerificationStale) {
+      setError('配置已变更，请重新测试连接后再保存');
       return;
     }
     
@@ -297,14 +328,22 @@ export default function SettingsPage() {
 
       if (data.success) {
         setTestStatus('success');
-        setTestResult({ message: data.message, latency: data.latency });
+        setTestResult({
+          message: data.message,
+          latency: data.latency,
+          model: data.model,
+          capabilities: data.capabilities,
+        });
+        setLastVerifiedSignature(currentVerifySignature);
       } else {
         setTestStatus('error');
         setTestResult({ error: data.error });
+        setLastVerifiedSignature(null);
       }
     } catch (err) {
       setTestStatus('error');
       setTestResult({ error: err instanceof Error ? err.message : '连接测试失败' });
+      setLastVerifiedSignature(null);
     }
   };
 
@@ -368,6 +407,32 @@ export default function SettingsPage() {
       />
     </motion.button>
   );
+
+  const capabilityBadges = (capabilities?: ProviderConfig['capabilities']) => {
+    if (!capabilities) return null;
+    const tags = [
+      capabilities.supportsFunctionCalling ? '函数调用' : null,
+      capabilities.supportsModelWebSearch ? '模型联网' : null,
+      capabilities.supportsVision ? '视觉' : null,
+      capabilities.supportsEmbeddings ? 'Embedding' : null,
+      capabilities.supportsImageGen ? '图像生成' : null,
+    ].filter(Boolean) as string[];
+    if (tags.length === 0) {
+      return <span className="text-[11px] text-gray-500">无高级能力</span>;
+    }
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <motion.div 
@@ -517,6 +582,9 @@ export default function SettingsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                           </svg>
                           <span className="truncate">{provider.baseURL}</span>
+                        </div>
+                        <div className="mt-3">
+                          {capabilityBadges(provider.capabilities)}
                         </div>
                       </CardContent>
                       
@@ -966,7 +1034,11 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex flex-col">
                       <span>连接成功</span>
-                      <span className="text-emerald-500/60 font-normal">{testResult.message} • 延迟: {testResult.latency}ms</span>
+                      <span className="text-emerald-500/60 font-normal">
+                        {testResult.message} • 延迟: {testResult.latency}ms
+                        {testResult.model ? ` • 模型: ${testResult.model}` : ''}
+                      </span>
+                      {capabilityBadges(testResult.capabilities)}
                     </div>
                   </>
                 ) : (
@@ -982,6 +1054,17 @@ export default function SettingsPage() {
                     </div>
                   </>
                 )}
+              </motion.div>
+            )}
+
+            {isVerificationStale && (
+              <motion.div
+                variants={fadeIn}
+                initial="hidden"
+                animate="visible"
+                className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300"
+              >
+                当前配置已变更，连接状态已转为待验证，请重新测试连接。
               </motion.div>
             )}
 

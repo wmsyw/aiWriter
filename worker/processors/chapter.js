@@ -1,15 +1,127 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
-import { createJob } from '../../src/server/services/jobs.js';
 import { saveVersion, saveBranchVersions, deleteUnusedBranches } from '../../src/server/services/versioning.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
 import { decryptApiKey } from '../../src/core/crypto.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
-import { getProviderAndAdapter, withConcurrencyLimit, trackUsage, resolveModel } from '../utils/helpers.js';
-import { JobType } from '../types.js';
-import { checkBlockingPendingEntities, formatPendingEntitiesForContext } from '../../src/server/services/pending-entities.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime } from '../utils/helpers.js';
+import { checkBlockingPendingEntities } from '../../src/server/services/pending-entities.js';
 import { formatHooksForContext } from '../../src/server/services/hooks.js';
 import { assembleContextAsString } from '../../src/server/services/context-assembly.js';
+import { enqueuePostGenerationJobs } from '../../src/server/services/post-generation-jobs.js';
+
+function toCleanList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+}
+
+function normalizeChapterCard(rawCard) {
+  if (!rawCard || typeof rawCard !== 'object') return null;
+
+  const card = {
+    must: toCleanList(rawCard.must),
+    should: toCleanList(rawCard.should),
+    mustNot: toCleanList(rawCard.mustNot),
+    hooks: toCleanList(rawCard.hooks),
+    styleGuidance: typeof rawCard.styleGuidance === 'string' ? rawCard.styleGuidance.trim() : '',
+    sceneObjective: typeof rawCard.sceneObjective === 'string' ? rawCard.sceneObjective.trim() : '',
+  };
+
+  const hasContent = (
+    card.must.length ||
+    card.should.length ||
+    card.mustNot.length ||
+    card.hooks.length ||
+    card.styleGuidance ||
+    card.sceneObjective
+  );
+
+  return hasContent ? card : null;
+}
+
+function extractChapterOutlineFromNovel(chapter) {
+  const chapterOutlines = chapter?.novel?.outlineChapters;
+  if (!Array.isArray(chapterOutlines)) return '';
+
+  const item = chapterOutlines[chapter.order - 1];
+  if (!item) return '';
+  if (typeof item === 'string') return item.trim();
+  if (typeof item === 'object') {
+    const candidate = item.summary || item.content || item.title;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+    try {
+      return JSON.stringify(item);
+    } catch {
+      return '';
+    }
+  }
+
+  return '';
+}
+
+function deriveChapterCardFromOutline(outline) {
+  if (!outline) return null;
+
+  const must = outline
+    .split(/\n+/)
+    .map((line) => line.trim().replace(/^[-*•\d.、\s]+/, ''))
+    .filter(Boolean)
+    .slice(0, 4);
+
+  if (!must.length) {
+    const fallback = outline.trim().slice(0, 120);
+    return fallback ? { must: [fallback], should: [], mustNot: [], hooks: [] } : null;
+  }
+
+  return {
+    must,
+    should: [],
+    mustNot: [],
+    hooks: [],
+  };
+}
+
+function formatChapterCardForPrompt(card) {
+  if (!card) return '';
+
+  const lines = ['## 章节任务卡（必须遵循）'];
+
+  const pushList = (title, items) => {
+    if (!items || items.length === 0) return;
+    lines.push(title);
+    items.forEach((item) => lines.push(`- ${item}`));
+  };
+
+  pushList('Must（本章必须发生）', card.must);
+  pushList('Should（优先覆盖）', card.should);
+  pushList('MustNot（禁止偏离）', card.mustNot);
+  pushList('Hooks（本章需触及钩子）', card.hooks);
+
+  if (card.sceneObjective) {
+    lines.push(`场景目标：${card.sceneObjective}`);
+  }
+  if (card.styleGuidance) {
+    lines.push(`风格指导：${card.styleGuidance}`);
+  }
+
+  return lines.join('\n');
+}
+
+function resolveOutlineAndChapterCard(chapter, rawOutline, rawChapterCard) {
+  const resolvedOutline = (rawOutline || extractChapterOutlineFromNovel(chapter) || '').trim();
+  const normalizedCard = normalizeChapterCard(rawChapterCard);
+  const chapterCard = normalizedCard || deriveChapterCardFromOutline(resolvedOutline);
+
+  return {
+    outline: resolvedOutline,
+    chapterCard,
+    chapterCardSection: formatChapterCardForPrompt(chapterCard),
+  };
+}
 
 async function getUserSearchConfig(prisma, userId) {
   const user = await prisma.user.findUnique({
@@ -63,7 +175,7 @@ async function performWebSearchIfNeeded(prisma, userId, content, novelTitle) {
 }
 
 export async function handleChapterGenerate(prisma, job, { jobId, userId, input }) {
-  const { chapterId, agentId, outline, enableWebSearch } = input;
+  const { chapterId, agentId, outline, chapterCard, enableWebSearch } = input;
   
   const chapter = await prisma.chapter.findUnique({
     where: { id: chapterId },
@@ -92,14 +204,17 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     throw new Error(`生成被阻塞：前序章节有${blockingCheck.pendingEntities.length}个待确认实体 (${pendingNames})。请先确认后继续。`);
   }
 
-  const agent = await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } });
+  const resolved = resolveOutlineAndChapterCard(chapter, outline, chapterCard);
+
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '章节写手',
+    templateName: '章节写作',
+  });
   if (!agent) throw new Error('Agent not found');
 
-  const template = agent.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
-
-  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   let enhancedContext = null;
   
@@ -128,7 +243,7 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
   let webSearchResult = null;
   let useModelSearch = false;
   if (enableWebSearch !== false) {
-    const searchContent = outline || chapter.title || '';
+    const searchContent = resolved.outline || chapter.title || '';
     webSearchResult = await performWebSearchIfNeeded(prisma, userId, searchContent, chapter.novel.title);
     if (webSearchResult?.useModelSearch) {
       useModelSearch = true;
@@ -140,7 +255,9 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     novel_title: chapter.novel.title,
     previous_summary: previousSummary,
     characters: materials,
-    outline: outline || '',
+    outline: resolved.outline,
+    chapter_card_json: resolved.chapterCard ? JSON.stringify(resolved.chapterCard, null, 2) : '',
+    chapter_card_brief: resolved.chapterCardSection,
     word_count_target: 2000,
     web_search_results: webSearchResult?.context || '',
     unresolved_hooks: hooksContext,
@@ -150,6 +267,14 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     ? renderTemplateString(template.content, context)
     : FALLBACK_PROMPTS.CHAPTER_GENERATE(chapter.order, chapter.novel.title);
 
+  if (resolved.outline) {
+    prompt += `\n\n## 本章大纲\n${resolved.outline}`;
+  }
+
+  if (resolved.chapterCardSection) {
+    prompt += `\n\n${resolved.chapterCardSection}`;
+  }
+
   if (hooksContext) {
     prompt = `${prompt}\n\n---\n\n${hooksContext}`;
   }
@@ -158,15 +283,18 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     prompt = `${WEB_SEARCH_PREFIX}${webSearchResult.context}\n\n---\n\n${prompt}`;
   }
 
-  const params = agent.params || {};
-  const effectiveModel = resolveModel(agent.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.8,
-    maxTokens: params.maxTokens || 4000,
     webSearch: useModelSearch,
-  }));
+    temperature: 0.8,
+  });
 
   await prisma.$transaction(async (tx) => {
     await tx.chapter.update({
@@ -176,30 +304,27 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
 
     await saveVersion(chapterId, response.content, tx);
   });
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
-  let analysisQueued = true;
-  let analysisQueueError = null;
-  try {
-    await createJob(userId, JobType.MEMORY_EXTRACT, { chapterId });
-  } catch (error) {
-    analysisQueued = false;
-    analysisQueueError = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to enqueue memory extract', analysisQueueError);
+  const postProcessSummary = await enqueuePostGenerationJobs(userId, chapterId);
+  const analysisQueueError = postProcessSummary.failed.length
+    ? postProcessSummary.failed.map((item) => `${item.type}: ${item.error}`).join('; ')
+    : null;
+  if (analysisQueueError) {
+    console.error('Failed to enqueue some post-generation jobs', analysisQueueError);
   }
  
   return { 
     content: response.content, 
     wordCount: response.content.split(/\s+/).length,
     webSearchUsed: useModelSearch || !!webSearchResult?.context,
-    analysisQueued,
+    analysisQueued: postProcessSummary.allQueued,
     analysisQueueError,
+    postProcess: postProcessSummary,
     pendingEntitiesBlocking: false,
   };
 }
 
 export async function handleChapterGenerateBranches(prisma, job, { jobId, userId, input }) {
-  const { chapterId, agentId, outline, branchCount = 3, selectedVersionId, selectedContent, feedback, iterationRound = 1, enableWebSearch } = input;
+  const { chapterId, agentId, outline, chapterCard, branchCount = 3, selectedVersionId, selectedContent, feedback, iterationRound = 1, enableWebSearch } = input;
   
   const chapter = await prisma.chapter.findUnique({
     where: { id: chapterId },
@@ -222,16 +347,23 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     }
   }
 
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: '章节写手' }, orderBy: { createdAt: 'desc' } });
+  const blockingCheck = await checkBlockingPendingEntities(chapter.novelId, chapter.order);
+  if (blockingCheck.blocked) {
+    const pendingNames = blockingCheck.pendingEntities.map(e => e.name).join(', ');
+    throw new Error(`生成被阻塞：前序章节有${blockingCheck.pendingEntities.length}个待确认实体 (${pendingNames})。请先确认后继续。`);
+  }
+
+  const resolved = resolveOutlineAndChapterCard(chapter, outline, chapterCard);
+
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '章节写手',
+    templateName: '章节写作',
+  });
   if (!agent) throw new Error('Agent not found');
 
-  const template = agent.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
-
-  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent.providerConfigId);
+  const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
   let enhancedContext;
   try {
@@ -259,7 +391,7 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
   let webSearchResult = null;
   let useModelSearch = false;
   if (enableWebSearch !== false) {
-    const searchContent = outline || selectedContent || chapter.title || '';
+    const searchContent = resolved.outline || selectedContent || chapter.title || '';
     webSearchResult = await performWebSearchIfNeeded(prisma, userId, searchContent, chapter.novel.title);
     if (webSearchResult?.useModelSearch) {
       useModelSearch = true;
@@ -271,7 +403,9 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     novel_title: chapter.novel.title,
     previous_summary: previousSummary,
     characters: materials,
-    outline: outline || '',
+    outline: resolved.outline,
+    chapter_card_json: resolved.chapterCard ? JSON.stringify(resolved.chapterCard, null, 2) : '',
+    chapter_card_brief: resolved.chapterCardSection,
     word_count_target: 2000,
     iteration_round: iterationRound,
     has_feedback: !!feedback,
@@ -285,6 +419,14 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     ? renderTemplateString(template.content, context)
     : FALLBACK_PROMPTS.CHAPTER_GENERATE(chapter.order, chapter.novel.title);
 
+  if (resolved.outline) {
+    basePrompt += `\n\n## 本章大纲\n${resolved.outline}`;
+  }
+
+  if (resolved.chapterCardSection) {
+    basePrompt += `\n\n${resolved.chapterCardSection}`;
+  }
+
   if (hooksContext) {
     basePrompt += `\n\n## 未解决的叙事钩子（请适当引用或推进）\n${hooksContext}`;
   }
@@ -297,27 +439,28 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     basePrompt = ITERATION_PROMPT_TEMPLATE(iterationRound, selectedContent, feedback, basePrompt);
   }
 
-  const params = agent.params || {};
   const temperatures = [0.7, 0.8, 0.9];
-  const effectiveModel = resolveModel(agent.model, defaultModel, config.defaultModel);
 
   const branchPromises = Array.from({ length: branchCount }, (_, i) => 
-    withConcurrencyLimit(async () => {
-      const response = await adapter.generate(config, {
+    (async () => {
+      const { response } = await generateWithAgentRuntime({
+        prisma,
+        userId,
+        jobId,
+        config,
+        adapter,
+        agent,
+        defaultModel,
         messages: [{ role: 'user', content: basePrompt }],
-        model: effectiveModel,
         temperature: temperatures[i] || 0.8,
-        maxTokens: params.maxTokens || 4000,
         webSearch: useModelSearch,
       });
-      
-      await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
       
       return {
         content: response.content,
         branchNumber: i + 1,
       };
-    })
+    })()
   );
 
   const branches = await Promise.all(branchPromises);

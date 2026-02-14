@@ -4,6 +4,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { checkRateLimit, getClientIp } from '@/src/server/middleware/rate-limit';
+import {
+  mergeCreativeIntentIntoWorkflowConfig,
+  normalizeCreativeIntent,
+  withCreativeIntentField,
+} from '@/src/server/services/creative-intent';
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -17,6 +22,7 @@ const createSchema = z.object({
   worldSetting: z.string().optional(),
   keywords: z.array(z.string()).optional(),
   specialRequirements: z.string().optional(),
+  creativeIntent: z.string().optional(),
   outlineMode: z.enum(['simple', 'detailed']).optional(),
   inspirationData: z.record(z.string(), z.unknown()).optional(),
 });
@@ -35,7 +41,7 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: 'desc' },
   });
 
-  return NextResponse.json({ novels });
+  return NextResponse.json({ novels: novels.map((novel) => withCreativeIntentField(novel)) });
 }
 
 export async function POST(request: NextRequest) {
@@ -53,7 +59,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { title, description, type, theme, genre, targetWords, chapterCount, protagonist, worldSetting, keywords, specialRequirements, outlineMode, inspirationData } = parsed.data;
+    const {
+      title,
+      description,
+      type,
+      theme,
+      genre,
+      targetWords,
+      chapterCount,
+      protagonist,
+      worldSetting,
+      keywords,
+      specialRequirements,
+      creativeIntent,
+      outlineMode,
+      inspirationData,
+    } = parsed.data;
+    const normalizedCreativeIntent = normalizeCreativeIntent(creativeIntent);
 
     const novel = await prisma.novel.create({
       data: {
@@ -71,12 +93,15 @@ export async function POST(request: NextRequest) {
         specialRequirements,
         outlineMode: outlineMode || 'simple',
         inspirationData: inspirationData ? (inspirationData as Prisma.InputJsonValue) : undefined,
+        workflowConfig: normalizedCreativeIntent
+          ? mergeCreativeIntentIntoWorkflowConfig(undefined, normalizedCreativeIntent)
+          : undefined,
         wizardStatus: 'draft',
         wizardStep: 0,
       },
     });
 
-    return NextResponse.json({ novel });
+    return NextResponse.json({ novel: withCreativeIntentField(novel) });
   } catch (error) {
     console.error('Failed to create novel:', error);
     return NextResponse.json({ error: 'Failed to create novel' }, { status: 500 });

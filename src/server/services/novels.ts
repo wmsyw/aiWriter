@@ -1,6 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db';
+import {
+  mergeCreativeIntentIntoWorkflowConfig,
+  normalizeCreativeIntent,
+  withCreativeIntentField,
+} from './creative-intent';
 
 const OutlineNodeSchema: z.ZodType<unknown> = z.lazy(() => z.object({
   id: z.string(),
@@ -57,20 +62,22 @@ export interface ParsedNovel {
   outlineStage: string;
   inspirationData: Record<string, unknown> | null;
   workflowConfig: Record<string, unknown> | null;
+  creativeIntent?: string;
   [key: string]: unknown;
 }
 
 type PrismaNovel = Awaited<ReturnType<typeof prisma.novel.findFirst>>;
 
 function toNovel<T extends NonNullable<PrismaNovel>>(novel: T): T & ParsedNovel {
-  return {
+  const parsedNovel = {
     ...novel,
     outlineRough: parseOutlineBlocks(novel.outlineRough),
     outlineDetailed: parseOutlineBlocks(novel.outlineDetailed),
     outlineChapters: parseOutlineBlocks(novel.outlineChapters),
     inspirationData: parseInspirationData(novel.inspirationData),
     workflowConfig: parseWorkflowConfig(novel.workflowConfig),
-  } as T & ParsedNovel;
+  };
+  return withCreativeIntentField(parsedNovel) as T & ParsedNovel;
 }
 
 export interface CreateNovelInput {
@@ -86,6 +93,7 @@ export interface CreateNovelInput {
   worldSetting?: string;
   keywords?: string[];
   specialRequirements?: string;
+  creativeIntent?: string;
   outlineMode?: 'simple' | 'detailed';
   inspirationData?: Record<string, unknown>;
 }
@@ -102,6 +110,7 @@ export interface UpdateNovelInput {
   worldSetting?: string;
   keywords?: string[];
   specialRequirements?: string;
+  creativeIntent?: string;
   outlineMode?: 'simple' | 'detailed';
   inspirationData?: Record<string, unknown>;
   goldenFinger?: string;
@@ -119,6 +128,8 @@ export interface UpdateNovelInput {
 }
 
 export async function createNovel(input: CreateNovelInput) {
+  const normalizedCreativeIntent = normalizeCreativeIntent(input.creativeIntent);
+
   const novel = await prisma.novel.create({
     data: {
       userId: input.userId,
@@ -135,6 +146,9 @@ export async function createNovel(input: CreateNovelInput) {
       specialRequirements: input.specialRequirements,
       outlineMode: input.outlineMode || 'simple',
       inspirationData: input.inspirationData as Prisma.InputJsonValue,
+      workflowConfig: normalizedCreativeIntent
+        ? mergeCreativeIntentIntoWorkflowConfig(undefined, normalizedCreativeIntent)
+        : undefined,
       wizardStatus: 'draft',
       wizardStep: 0,
     },
@@ -178,6 +192,14 @@ export async function updateNovel(id: string, userId: string, input: UpdateNovel
     if (input[key] !== undefined) {
       (updateData as Record<string, unknown>)[key] = input[key];
     }
+  }
+
+  if (input.creativeIntent !== undefined) {
+    const normalizedCreativeIntent = normalizeCreativeIntent(input.creativeIntent);
+    updateData.workflowConfig = mergeCreativeIntentIntoWorkflowConfig(
+      existing.workflowConfig,
+      normalizedCreativeIntent
+    );
   }
 
   const updated = await prisma.novel.update({ where: { id }, data: updateData });

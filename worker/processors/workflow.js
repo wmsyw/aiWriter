@@ -4,9 +4,23 @@ import { processExtractedHooks, formatHooksForContext, getOverdueHooks } from '.
 import { batchProcessExtractedEntities, checkBlockingPendingEntities } from '../../src/server/services/pending-entities.js';
 import { buildAdherenceCheckPrompt, parseAdherenceResponse, formatAdherenceResultForReview } from '../../src/server/services/outline-adherence.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, truncateText, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson, truncateText } from '../utils/helpers.js';
 import { breakChapterIntoScenes, generateActSummary, detectActBoundaries, syncActSummaries } from '../../src/server/services/hierarchical-summary.js';
 import { generatePlotBranches, simulatePlotForward } from '../../src/server/services/plot-mcts.js';
+
+function normalizeText(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
+function getNovelCreativeIntent(novel) {
+  const workflowConfig = novel?.workflowConfig;
+  if (workflowConfig && typeof workflowConfig === 'object' && !Array.isArray(workflowConfig)) {
+    const fromWorkflow = normalizeText(workflowConfig.creativeIntent);
+    if (fromWorkflow) return fromWorkflow;
+  }
+  return normalizeText(novel?.specialRequirements);
+}
 
 export async function handleContextAssemble(prisma, job, { jobId, userId, input }) {
   const { novelId, currentChapterOrder, maxTokens } = input;
@@ -67,14 +81,18 @@ ${chapter.content}
   "newOrganizations": ["新出场组织名"]
 }`;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.3,
-    maxTokens: params.maxTokens || 2000,
-  }));
+    temperature: 0.3,
+    maxTokens: 2000,
+  });
 
   const parsed = parseModelJson(response.content);
 
@@ -90,8 +108,6 @@ ${chapter.content}
     newCharacters: parsed.newCharacters || [],
     newOrganizations: parsed.newOrganizations || [],
   });
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return { summaryId: summary.id, ...parsed };
 }
@@ -149,14 +165,18 @@ ${chapter.content}
   ]
 }`;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.3,
-    maxTokens: params.maxTokens || 3000,
-  }));
+    temperature: 0.3,
+    maxTokens: 3000,
+  });
 
   const extracted = parseModelJson(response.content);
 
@@ -167,8 +187,6 @@ ${chapter.content}
   });
 
   const overdueHooks = await getOverdueHooks(chapter.novelId, chapter.order);
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     extracted,
@@ -234,14 +252,18 @@ ${chapter.content}
   ]
 }`;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.3,
-    maxTokens: params.maxTokens || 3000,
-  }));
+    temperature: 0.3,
+    maxTokens: 3000,
+  });
 
   const extracted = parseModelJson(response.content);
 
@@ -252,8 +274,6 @@ ${chapter.content}
     extracted.characters || [],
     extracted.organizations || []
   );
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     extracted,
@@ -291,14 +311,18 @@ export async function handleOutlineAdherenceCheck(prisma, job, { jobId, userId, 
     previousChapterSummary: previousChapter?.summary?.oneLine || undefined,
   });
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 3000,
-  }));
+    temperature: 0.2,
+    maxTokens: 3000,
+  });
 
   const result = parseAdherenceResponse(response.content);
 
@@ -306,8 +330,6 @@ export async function handleOutlineAdherenceCheck(prisma, job, { jobId, userId, 
     where: { id: chapterId },
     data: { outlineAdherence: result.score },
   });
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     ...result,
@@ -360,6 +382,13 @@ export async function handleReviewScore5Dim(prisma, job, { jobId, userId, input 
     }
   }
 
+  const creativeIntent = getNovelCreativeIntent(chapter.novel);
+  const creativeIntentContext = [
+    creativeIntent ? `创作意图文档：${creativeIntent}` : '',
+    chapter.novel.theme ? `主题方向：${chapter.novel.theme}` : '',
+    chapter.novel.description ? `作品简介：${chapter.novel.description}` : '',
+  ].filter(Boolean).join('\n');
+
   const prompt = `请对以下章节进行5维度深度评审，返回JSON格式结果：
 
 ## 本章内容
@@ -373,6 +402,9 @@ ${previousContext || '（第一章）'}
 
 ## 本章大纲（预期）
 ${effectiveChapterOutline || '（未提供本章大纲，请仅评估章节本身的质量和连贯性）'}
+
+## 创作意图（作者目标）
+${creativeIntentContext || '（未提供创作意图文档，请按通用网文质量标准评审）'}
 
 ## 叙事钩子状态
 ${hooksContext || '（暂无）'}
@@ -422,17 +454,26 @@ ${hooksContext || '（暂无）'}
   ],
   "verdict": "approve|minor_revision|major_revision|reject",
   "regenerationInstructions": "如果需要重写，这里是具体指导",
-  "summary": "总体评价"
+  "summary": "总体评价",
+  "intentAlignment": {
+    "score": 0,
+    "gaps": ["与创作意图不一致的点"],
+    "notes": "创作意图对齐评价"
+  }
 }`;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.2,
-    maxTokens: params.maxTokens || 6000,
-  }));
+    temperature: 0.2,
+    maxTokens: 6000,
+  });
 
   const parsed = parseModelJson(response.content);
 
@@ -455,8 +496,6 @@ ${hooksContext || '（暂无）'}
       reviewIterations: { increment: 1 },
     },
   });
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return parsed;
 }
@@ -524,16 +563,19 @@ export async function handlePlotSimulate(prisma, job, { jobId, userId, input }) 
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const generator = async (prompt, options) => {
-    const params = agent?.params || {};
-    const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    const { response } = await generateWithAgentRuntime({
+      prisma,
+      userId,
+      jobId,
+      config,
+      adapter,
+      agent,
+      defaultModel,
       messages: [{ role: 'user', content: prompt }],
-      model: effectiveModel,
-      temperature: options?.temperature || params.temperature || 0.7,
-      maxTokens: options?.maxTokens || params.maxTokens || 4000,
-    }));
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+      temperature: options?.temperature,
+      maxTokens: options?.maxTokens,
+    });
     return response.content;
   };
 
@@ -563,16 +605,19 @@ export async function handlePlotBranchGenerate(prisma, job, { jobId, userId, inp
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
   const generator = async (prompt, options) => {
-    const params = agent?.params || {};
-    const response = await withConcurrencyLimit(() => adapter.generate(config, {
+    const { response } = await generateWithAgentRuntime({
+      prisma,
+      userId,
+      jobId,
+      config,
+      adapter,
+      agent,
+      defaultModel,
       messages: [{ role: 'user', content: prompt }],
-      model: effectiveModel,
-      temperature: options?.temperature || params.temperature || 0.7,
-      maxTokens: options?.maxTokens || params.maxTokens || 4000,
-    }));
-    await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+      temperature: options?.temperature,
+      maxTokens: options?.maxTokens,
+    });
     return response.content;
   };
 

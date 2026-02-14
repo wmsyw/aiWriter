@@ -1,6 +1,6 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { FALLBACK_PROMPTS } from '../../src/constants/prompts.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseModelJson, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson } from '../utils/helpers.js';
 
 export async function generateCharacterBios(prisma, { userId, novelId, characters, outlineContext, agentId, jobId }) {
   if (!characters || characters.length === 0) return { characters: [], materialIds: [] };
@@ -22,14 +22,18 @@ export async function generateCharacterBios(prisma, { userId, novelId, character
   const fallbackPrompt = `请为这些角色生成完整传记（JSON）：\n${context.characters_brief}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 6000,
-  }));
+    temperature: 0.7,
+    maxTokens: 6000,
+  });
 
   const parsed = parseModelJson(response.content);
   const bioCharacters = Array.isArray(parsed.characters) ? parsed.characters : [];
@@ -69,8 +73,6 @@ export async function generateCharacterBios(prisma, { userId, novelId, character
     }
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return { characters: bioCharacters, materialIds, raw: parsed.raw || null };
 }
 
@@ -89,13 +91,12 @@ export async function handleCharacterChat(prisma, job, { jobId, userId, input })
   const character = await prisma.material.findFirst({ where: { id: characterId, novelId, type: 'character' } });
   if (!character) throw new Error('Character not found');
   
-  const agent = agentId
-    ? await prisma.agentDefinition.findFirst({ where: { id: agentId, userId } })
-    : await prisma.agentDefinition.findFirst({ where: { userId, name: '角色对话' }, orderBy: { createdAt: 'desc' } });
-  
-  const template = agent?.templateId
-    ? await prisma.promptTemplate.findFirst({ where: { id: agent.templateId, userId } })
-    : null;
+  const { agent, template } = await resolveAgentAndTemplate(prisma, {
+    userId,
+    agentId,
+    agentName: '角色对话',
+    templateName: '角色对话',
+  });
   
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
   
@@ -113,16 +114,18 @@ export async function handleCharacterChat(prisma, job, { jobId, userId, input })
     ? renderTemplateString(template.content, context)
     : FALLBACK_PROMPTS.CHARACTER_CHAT(character.name, userMessage);
   
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.8,
-    maxTokens: params.maxTokens || 2000,
-  }));
-  
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
+    temperature: 0.8,
+    maxTokens: 2000,
+  });
   
   return {
     characterName: character.name,
@@ -158,14 +161,18 @@ export async function handleWizardCharacters(prisma, job, { jobId, userId, input
     ? renderTemplateString(template.content, context)
     : `请根据以下信息生成角色设定，返回 JSON 数组，每项包含 name, role, description, traits, goals：\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n世界观：${context.world_setting || '无'}\n角色数量：${context.character_count}`;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 4000,
-  }));
+    temperature: 0.7,
+    maxTokens: 4000,
+  });
 
   let parsedCharacters = [];
   const parsed = parseModelJson(response.content);
@@ -211,8 +218,6 @@ export async function handleWizardCharacters(prisma, job, { jobId, userId, input
       },
     });
   });
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   return {
     characters: parsedCharacters,

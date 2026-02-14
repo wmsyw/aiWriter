@@ -1,5 +1,27 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
-import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, trackUsage, parseJsonOutput, parseModelJson, resolveModel } from '../utils/helpers.js';
+import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson } from '../utils/helpers.js';
+
+function normalizeCreativeIntent(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
+function resolveCreativeIntent(inputCreativeIntent, novel) {
+  const inputIntent = normalizeCreativeIntent(inputCreativeIntent);
+  if (inputIntent) return inputIntent;
+
+  const config = novel?.workflowConfig;
+  if (config && typeof config === 'object' && !Array.isArray(config)) {
+    const workflowIntent = normalizeCreativeIntent(config.creativeIntent);
+    if (workflowIntent) return workflowIntent;
+  }
+
+  return '';
+}
+
+function resolveSpecialRequirements(inputSpecialRequirements, creativeIntent, novel) {
+  return inputSpecialRequirements || creativeIntent || novel.specialRequirements || '';
+}
 
 /**
  * @typedef {import('@prisma/client').PrismaClient} PrismaClient
@@ -25,10 +47,11 @@ import { getProviderAndAdapter, resolveAgentAndTemplate, withConcurrencyLimit, t
  * @returns {Promise<Object>}
  */
 export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
-  const { novelId, title, theme, genre, keywords, protagonist, specialRequirements, agentId } = input;
+  const { novelId, title, theme, genre, keywords, protagonist, specialRequirements, creativeIntent, agentId } = input;
 
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
+  const resolvedCreativeIntent = resolveCreativeIntent(creativeIntent, novel);
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
@@ -46,20 +69,24 @@ export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
     genre: genre || novel.genre || '',
     keywords: keywords || '',
     protagonist: protagonist || novel.protagonist || '',
-    special_requirements: specialRequirements || novel.specialRequirements || '',
+    special_requirements: resolveSpecialRequirements(specialRequirements, resolvedCreativeIntent, novel),
   };
 
   const fallbackPrompt = `请生成简介、世界观和金手指设定（JSON）：\n书名：${context.title}\n主题：${context.theme}\n类型：${context.genre}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.7,
-    maxTokens: params.maxTokens || 3000,
-  }));
+    temperature: 0.7,
+    maxTokens: 3000,
+  });
 
   const seedResult = parseModelJson(response.content);
   const world = seedResult.world || {};
@@ -81,16 +108,15 @@ export async function handleNovelSeed(prisma, job, { jobId, userId, input }) {
     },
   });
 
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return seedResult;
 }
 
 export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, input }) {
-  const { novelId, theme, genre, keywords, protagonist, worldSetting, specialRequirements, agentId } = input;
+  const { novelId, theme, genre, keywords, protagonist, worldSetting, specialRequirements, creativeIntent, agentId } = input;
 
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
+  const resolvedCreativeIntent = resolveCreativeIntent(creativeIntent, novel);
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
@@ -107,21 +133,25 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
     keywords: (keywords || novel.keywords || []).join(', '),
     protagonist: protagonist || novel.protagonist || '',
     world_setting: worldSetting || novel.worldSetting || '',
-    special_requirements: specialRequirements || novel.specialRequirements || '',
+    special_requirements: resolveSpecialRequirements(specialRequirements, resolvedCreativeIntent, novel),
   };
 
   const prompt = template
     ? renderTemplateString(template.content, context)
     : `请根据以下信息生成小说世界观设定，并返回 JSON：\n\n字段：world_time_period, world_location, world_atmosphere, world_rules, world_setting\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n已有设定：${context.world_setting || '无'}\n特殊要求：${context.special_requirements || '无'}`;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.6,
-    maxTokens: params.maxTokens || 3000,
-  }));
+    temperature: 0.6,
+    maxTokens: 3000,
+  });
 
   const parsed = parseModelJson(response.content);
 
@@ -168,9 +198,6 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
     });
   });
 
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return worldData;
 }
 
@@ -214,18 +241,20 @@ export async function handleWizardInspiration(prisma, job, { jobId, userId, inpu
 
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.9,
-    maxTokens: params.maxTokens || 4000,
-  }));
+    temperature: 0.9,
+    maxTokens: 4000,
+  });
 
   const inspirations = parseModelJson(response.content, { throwOnError: true });
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
 
   const result = Array.isArray(inspirations) ? inspirations : [inspirations];
   
@@ -237,10 +266,11 @@ export async function handleWizardInspiration(prisma, job, { jobId, userId, inpu
 }
 
 export async function handleWizardSynopsis(prisma, job, { jobId, userId, input }) {
-  const { novelId, title, genre, theme, keywords, protagonist, worldSetting, goldenFinger, existingSynopsis, specialRequirements, agentId } = input;
+  const { novelId, title, genre, theme, keywords, protagonist, worldSetting, goldenFinger, existingSynopsis, specialRequirements, creativeIntent, agentId } = input;
 
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
+  const resolvedCreativeIntent = resolveCreativeIntent(creativeIntent, novel);
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
@@ -260,20 +290,24 @@ export async function handleWizardSynopsis(prisma, job, { jobId, userId, input }
     world_setting: worldSetting || novel.worldSetting || '',
     golden_finger: goldenFinger || novel.goldenFinger || '',
     existing_synopsis: existingSynopsis || '',
-    special_requirements: specialRequirements || '',
+    special_requirements: resolveSpecialRequirements(specialRequirements, resolvedCreativeIntent, novel),
   };
 
   const fallbackPrompt = `请为小说《${context.title}》生成吸引人的简介（200-350字），返回JSON格式：{"synopsis": "简介内容", "hooks": ["钩子1", "钩子2"], "selling_points": ["卖点1", "卖点2"]}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.8,
-    maxTokens: params.maxTokens || 2000,
-  }));
+    temperature: 0.8,
+    maxTokens: 2000,
+  });
 
   const result = parseModelJson(response.content, { throwOnError: true });
 
@@ -283,17 +317,15 @@ export async function handleWizardSynopsis(prisma, job, { jobId, userId, input }
       data: { description: result.synopsis },
     });
   }
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return result;
 }
 
 export async function handleWizardGoldenFinger(prisma, job, { jobId, userId, input }) {
-  const { novelId, title, genre, theme, keywords, protagonist, worldSetting, targetWords, existingGoldenFinger, specialRequirements, agentId } = input;
+  const { novelId, title, genre, theme, keywords, protagonist, worldSetting, targetWords, existingGoldenFinger, specialRequirements, creativeIntent, agentId } = input;
 
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
+  const resolvedCreativeIntent = resolveCreativeIntent(creativeIntent, novel);
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
@@ -313,20 +345,24 @@ export async function handleWizardGoldenFinger(prisma, job, { jobId, userId, inp
     world_setting: worldSetting || novel.worldSetting || '',
     target_words: targetWords || novel.targetWordCount || 100,
     existing_golden_finger: existingGoldenFinger || '',
-    special_requirements: specialRequirements || '',
+    special_requirements: resolveSpecialRequirements(specialRequirements, resolvedCreativeIntent, novel),
   };
 
   const fallbackPrompt = `请为小说《${context.title}》设计金手指系统，返回JSON格式：{"golden_finger": "金手指描述", "name": "名称", "core_ability": "核心能力", "growth_stages": [], "limitations": [], "highlight_moments": []}`;
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 
-  const params = agent?.params || {};
-  const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
-  const response = await withConcurrencyLimit(() => adapter.generate(config, {
+  const { response } = await generateWithAgentRuntime({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
     messages: [{ role: 'user', content: prompt }],
-    model: effectiveModel,
-    temperature: params.temperature || 0.8,
-    maxTokens: params.maxTokens || 3000,
-  }));
+    temperature: 0.8,
+    maxTokens: 3000,
+  });
 
   const result = parseModelJson(response.content, { throwOnError: true });
 
@@ -336,8 +372,5 @@ export async function handleWizardGoldenFinger(prisma, job, { jobId, userId, inp
       data: { goldenFinger: result.golden_finger },
     });
   }
-
-  await trackUsage(prisma, userId, jobId, config.providerType, effectiveModel, response.usage);
-
   return result;
 }
