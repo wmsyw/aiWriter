@@ -79,19 +79,19 @@ function trimOutlineDepth(raw, maxDepth) {
   return visit(raw, 0);
 }
 
-function buildRoughHierarchyGuard({ chapterRangeMin, chapterRangeMax, targetWords, userGuidance }) {
-  return `\n【分层约束（必须遵守）】\n- 本次任务是“粗纲（单卷）”，不是细纲/章节纲。\n- 输出粒度：仅输出“这一整卷”的宏观蓝图，不得输出逐章列表、逐章标题、逐章剧情。\n- 本卷应覆盖约 ${chapterRangeMin}-${chapterRangeMax} 章的主线推进（允许合理浮动）。\n- 必须包含：卷目标、主线矛盾升级、3-6个阶段里程碑、关键伏笔、卷末钩子。\n- 若出现“第1章/第2章/章节1”等逐章表达，视为不合格并改写为卷级阶段描述。\n- 保持与“前卷概要”和“用户指引”连续，禁止重置世界观和人物动机。\n${targetWords ? `- 目标体量：约 ${targetWords} 万字。` : ''}\n${userGuidance ? `- 用户指引优先级最高：${userGuidance}` : ''}`;
+function buildRoughHierarchyGuard({ chapterRangeMin, chapterRangeMax, targetWords, userGuidance, isContinuation = false }) {
+  return `\n【分层约束（必须遵守）】\n- 本次任务是“粗纲（单卷）”，不是细纲/章节纲。\n- 输出粒度：仅输出“这一整卷”的宏观蓝图，不得输出逐章列表、逐章标题、逐章剧情。\n- 本卷应覆盖约 ${chapterRangeMin}-${chapterRangeMax} 章的主线推进（允许合理浮动）。\n- 必须包含：卷目标、主线矛盾升级、3-6个阶段里程碑、关键伏笔、卷末钩子。\n- 若出现“第1章/第2章/章节1”等逐章表达，视为不合格并改写为卷级阶段描述。\n- 保持与“前卷概要”和“用户指引”连续，禁止重置世界观和人物动机。\n${isContinuation ? '- 当前是“续写模式”：仅输出新增卷级节点，禁止重写或复制已有分卷内容。' : ''}\n${targetWords ? `- 目标体量：约 ${targetWords} 万字。` : ''}\n${userGuidance ? `- 用户指引优先级最高：${userGuidance}` : ''}`;
 }
 
-function buildDetailedHierarchyGuard({ chaptersPerNode, userGuidance }) {
+function buildDetailedHierarchyGuard({ chaptersPerNode, userGuidance, isContinuation = false }) {
   const chapterSpan = Math.max(10, chaptersPerNode);
   const chapterSpanMax = Math.max(chapterSpan + 6, 20);
-  return `\n【分层约束（必须遵守）】\n- 本次任务是“细纲（事件簇级）”，不是粗纲/章节纲。\n- 每个细纲节点必须覆盖连续的多章区间（建议 ${chapterSpan}-${chapterSpanMax} 章），不得退化为单章剧情。\n- 每个节点应写清：阶段目标、核心冲突、关键转折、结果变化、对后续节点的钩子。\n- 请显式标注章节区间（示例：第021-032章），并确保区间连续且不重叠。\n- 保持与前置粗纲节点及已生成细纲节点的因果连续。\n${userGuidance ? `- 用户指引优先级最高：${userGuidance}` : ''}`;
+  return `\n【分层约束（必须遵守）】\n- 本次任务是“细纲（事件簇级）”，不是粗纲/章节纲。\n- 每个细纲节点必须覆盖连续的多章区间（建议 ${chapterSpan}-${chapterSpanMax} 章），不得退化为单章剧情。\n- 每个节点应写清：阶段目标、核心冲突、关键转折、结果变化、对后续节点的钩子。\n- 请显式标注章节区间（示例：第021-032章），并确保区间连续且不重叠。\n- 保持与前置粗纲节点及已生成细纲节点的因果连续。\n${isContinuation ? '- 当前是“续写模式”：仅输出新增细纲节点，禁止重写、复制或回填已有细纲节点。' : ''}\n${userGuidance ? `- 用户指引优先级最高：${userGuidance}` : ''}`;
 }
 
-function buildChapterHierarchyGuard({ wordsPerChapter, wordMin = CHAPTER_WORD_MIN, wordMax = CHAPTER_WORD_MAX, userGuidance }) {
+function buildChapterHierarchyGuard({ wordsPerChapter, wordMin = CHAPTER_WORD_MIN, wordMax = CHAPTER_WORD_MAX, userGuidance, isContinuation = false }) {
   const chapterWords = clampNumber(wordsPerChapter, wordMin, wordMax, CHAPTER_WORD_DEFAULT);
-  return `\n【分层约束（必须遵守）】\n- 本次任务是“章节纲（单章级）”。每个 children 节点必须对应“1章”，禁止一个节点覆盖多章。\n- 单章规划目标字数：${wordMin}-${wordMax} 字（建议 ${chapterWords} 字）。\n- 每章必须包含：本章看点、开场承接、冲突推进、阶段结果、章末钩子。\n- 新生成章节需与上一批章节自然衔接，角色状态、时间线与伏笔回收必须连续。\n${userGuidance ? `- 用户指引优先级最高：${userGuidance}` : ''}`;
+  return `\n【分层约束（必须遵守）】\n- 本次任务是“章节纲（单章级）”。每个 children 节点必须对应“1章”，禁止一个节点覆盖多章。\n- 单章规划目标字数：${wordMin}-${wordMax} 字（建议 ${chapterWords} 字）。\n- 每章必须包含：本章看点、开场承接、冲突推进、阶段结果、章末钩子。\n- 新生成章节需与上一批章节自然衔接，角色状态、时间线与伏笔回收必须连续。\n${isContinuation ? '- 当前是“续写模式”：仅输出新增章节纲节点，禁止重写、复制或回填已有章节节点。' : ''}\n${userGuidance ? `- 用户指引优先级最高：${userGuidance}` : ''}`;
 }
 
 export async function handleOutlineRough(prisma, job, { jobId, userId, input }) {
@@ -129,6 +129,12 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
   const effectiveChaptersPerNode = calculatedParams.chaptersPerNode;
   const totalChaptersForPlan = chapterCount || calculatedParams.totalChapters;
   const volumeChapterRange = computeVolumeChapterRange(totalChaptersForPlan, calculatedParams.volumeCount);
+  const normalizedPrevVolumeSummary = typeof prev_volume_summary === 'string' ? prev_volume_summary.trim() : '';
+  const isContinuation = Boolean(
+    normalizedPrevVolumeSummary &&
+      normalizedPrevVolumeSummary !== '无' &&
+      normalizedPrevVolumeSummary !== '无（这是第一卷）'
+  );
   
   const context = {
     keywords: keywords || '',
@@ -147,12 +153,13 @@ export async function handleOutlineRough(prisma, job, { jobId, userId, input }) 
     volume_chapter_range_max: volumeChapterRange.max,
   };
 
-  const fallbackPrompt = `请生成小说的一卷粗略大纲（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n前卷概要：${prev_volume_summary || '无'}\n用户指引：${user_guidance || '无'}\n本卷目标章节规模：约${volumeChapterRange.min}-${volumeChapterRange.max}章`;
+  const fallbackPrompt = `请生成小说的一卷粗略大纲（JSON 输出）：\n任务模式：${isContinuation ? '续写下一卷' : '首卷规划'}\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n前卷概要：${prev_volume_summary || '无'}\n用户指引：${user_guidance || '无'}\n本卷目标章节规模：约${volumeChapterRange.min}-${volumeChapterRange.max}章`;
   const roughGuard = buildRoughHierarchyGuard({
     chapterRangeMin: volumeChapterRange.min,
     chapterRangeMax: volumeChapterRange.max,
     targetWords: targetWords || 0,
     userGuidance: user_guidance || '',
+    isContinuation,
   });
   const promptBase = template ? renderTemplateString(template.content, context) : fallbackPrompt;
   const prompt = `${promptBase}\n${roughGuard}`;
@@ -292,12 +299,19 @@ export async function handleOutlineDetailed(prisma, job, { jobId, userId, input 
     };
   }
 
-  const fallbackPrompt = regenerate_single || isSingleBlockMode
-    ? `请为以下分卷生成细纲节点（JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n全文大纲背景：${rough_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
-    : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
+  const isContinuationMode = Boolean(isSingleBlockMode && !regenerate_single);
+  const prevDetailedNodeText = prev_detailed_node
+    ? (typeof prev_detailed_node === 'string' ? prev_detailed_node : JSON.stringify(prev_detailed_node, null, 2))
+    : '无（当前为首批细纲）';
+  const fallbackPrompt = regenerate_single
+    ? `请重新生成以下细纲节点（JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n全文大纲背景：${rough_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
+    : isContinuationMode
+      ? `请为以下分卷续写细纲（仅输出新增节点，JSON 输出）：\n分卷标题：${target_title || '未知'}\n分卷内容：${target_content || '无'}\n前一个细纲节点：${prevDetailedNodeText}\n全文大纲背景：${rough_outline_context || '无'}\n要求：每个新增细纲节点覆盖连续10-30章，且与前序节点因果衔接。\n用户指引：${user_guidance || '无'}`
+      : `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`;
   const detailedGuard = buildDetailedHierarchyGuard({
     chaptersPerNode: effectiveChaptersPerNode,
     userGuidance: user_guidance || '',
+    isContinuation: isContinuationMode,
   });
   const promptBase = template ? renderTemplateString(template.content, context) : fallbackPrompt;
   const prompt = `${promptBase}\n${detailedGuard}`;
@@ -496,14 +510,18 @@ export async function handleOutlineChapters(prisma, job, { jobId, userId, input 
     };
   }
 
-  const fallbackPrompt = (regenerate_single || isSingleBlockMode)
-    ? `请为以下细纲事件生成章节大纲（JSON 输出）：\n事件标题：${target_title || '未知'}\n事件内容：${target_content || '无'}\n所属分卷：${parent_rough_title || '无'}\n全文细纲背景：${detailed_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
-    : `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}\n要求：每章规划字数${chapterWordMin}-${chapterWordMax}字`;
+  const isContinuationMode = Boolean(isSingleBlockMode && !regenerate_single);
+  const fallbackPrompt = regenerate_single
+    ? `请重新生成以下章节纲节点（JSON 输出）：\n事件标题：${target_title || '未知'}\n事件内容：${target_content || '无'}\n所属分卷：${parent_rough_title || '无'}\n全文细纲背景：${detailed_outline_context || '无'}\n用户指引：${user_guidance || '无'}`
+    : isContinuationMode
+      ? `请为以下细纲事件续写章节纲（仅输出新增章节节点，JSON 输出）：\n事件标题：${target_title || '未知'}\n事件内容：${target_content || '无'}\n所属分卷：${parent_rough_title || '无'}\n前10章摘要：${prev_chapters_summary || '无'}\n最近3章内容：${recent_chapters_content || '无'}\n要求：每个新增节点仅对应1章，单章计划字数${chapterWordMin}-${chapterWordMax}字，并与上一章自然衔接。\n用户指引：${user_guidance || '无'}`
+      : `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}\n要求：每章规划字数${chapterWordMin}-${chapterWordMax}字`;
   const chapterGuard = buildChapterHierarchyGuard({
     wordsPerChapter: effectiveWordsPerChapter,
     wordMin: chapterWordMin,
     wordMax: chapterWordMax,
     userGuidance: user_guidance || '',
+    isContinuation: isContinuationMode,
   });
   const promptBase = template ? renderTemplateString(template.content, context) : fallbackPrompt;
   const prompt = `${promptBase}\n${chapterGuard}`;

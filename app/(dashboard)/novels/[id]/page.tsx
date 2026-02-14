@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import OutlineGeneratorModal from './OutlineGeneratorModal';
 import OutlineTree from '@/app/components/OutlineTree';
 import {
   buildOutlinePersistencePayload,
@@ -260,6 +259,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [editedOutline, setEditedOutline] = useState('');
   const [editedGenre, setEditedGenre] = useState('');
   const [editedTheme, setEditedTheme] = useState('');
+  const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false);
   const [editedProtagonist, setEditedProtagonist] = useState('');
   const [editedWorldSetting, setEditedWorldSetting] = useState('');
   const [editedCreativeIntent, setEditedCreativeIntent] = useState('');
@@ -274,7 +274,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showOutlineGenerator, setShowOutlineGenerator] = useState(false);
   const [blockingInfo, setBlockingInfo] = useState<BlockingInfo>({ hasBlocking: false, count: 0 });
   const [workflowStats, setWorkflowStats] = useState<WorkflowStats>({ unresolvedHooks: 0, overdueHooks: 0, pendingEntities: 0 });
   const [confirmState, setConfirmState] = useState<{
@@ -889,8 +888,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       const existingDetailed = node.children || [];
       const prevDetailedNode = existingDetailed.length > 0 ? existingDetailed[existingDetailed.length - 1] : null;
       const guidance = prevDetailedNode
-        ? `请延续已生成细纲的叙事节奏与冲突升级，重点保持与前序节点“${prevDetailedNode.title}”的因果衔接。`
-        : '请先建立该分卷的开端、冲突与阶段目标，便于后续持续续写。';
+        ? `请续写该分卷细纲，仅输出新增事件簇节点，不要重复已有细纲。首个新增节点必须承接“${prevDetailedNode.title}”结尾；每个节点覆盖连续10-30章，并包含阶段目标、核心冲突、关键转折、结果变化与后续钩子。`
+        : '请生成该分卷首批细纲节点，采用事件簇粒度（每节点覆盖连续10-30章），不要下钻到单章；先建立开端目标与主冲突，再推进转折与阶段钩子。';
 
       const output = await runJob('OUTLINE_DETAILED', {
         novelId: novel.id,
@@ -955,8 +954,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         .join('\n\n');
       const prevChapter = allChapterNodes.length > 0 ? allChapterNodes[allChapterNodes.length - 1] : null;
       const guidance = prevChapter
-        ? `请保证新章节与上一章节“${prevChapter.title}”顺承，并推进主线冲突。`
-        : '请先构建开篇章节组，明确引子、冲突和章节钩子节奏。';
+        ? `请续写该细纲下的章节纲，仅输出新增章节节点。首章必须自然承接“${prevChapter.title}”结尾并推进主线；每个节点只对应1章，计划字数2000-3000字，需包含开场承接、冲突推进、阶段结果与章末钩子。`
+        : '请生成该细纲的首批章节纲，每个节点只对应1章，计划字数2000-3000字；章节序列需形成连续节奏（开场引子→冲突升级→阶段转折），并确保每章有章末钩子。';
 
       const output = await runJob('OUTLINE_CHAPTERS', {
         novelId: novel.id,
@@ -1367,13 +1366,22 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     if (!novel) return;
     
     const typeLabels = { rough: '粗纲', detailed: '细纲', chapters: '章节纲' };
+    const hasExistingOutline = outlineNodes.length > 0;
+    const impactHint =
+      type === 'rough'
+        ? '细纲和章节纲也会被重置。'
+        : type === 'detailed'
+          ? '章节纲也会被重置。'
+          : '';
     
     setConfirmState({
       isOpen: true,
-      title: `重新生成${typeLabels[type]}`,
-      message: `确定要重新生成${typeLabels[type]}吗？这将覆盖现有的${typeLabels[type]}内容。${type === 'rough' ? '细纲和章节纲也会被重置。' : type === 'detailed' ? '章节纲也会被重置。' : ''}`,
-      confirmText: '确认重新生成',
-      variant: 'warning',
+      title: `${hasExistingOutline ? '重新生成' : '开始生成'}${typeLabels[type]}`,
+      message: hasExistingOutline
+        ? `确定要重新生成${typeLabels[type]}吗？这将覆盖现有的${typeLabels[type]}内容。${impactHint}`
+        : `将基于当前作品设定生成${typeLabels[type]}。${impactHint}`,
+      confirmText: hasExistingOutline ? '确认重新生成' : '开始生成',
+      variant: hasExistingOutline ? 'warning' : 'info',
       onConfirm: async () => {
         setConfirmState(prev => ({ ...prev, isOpen: false }));
         setRegeneratingOutline(type);
@@ -1472,7 +1480,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           creativeIntent: novel.creativeIntent || '',
           specialRequirements: novel.specialRequirements || '',
           prev_volume_summary: previousVolumeSummary,
-          user_guidance: '请续写下一卷粗纲，必须承接前卷结尾伏笔并升级主线矛盾，保持世界观和人物动机连续。',
+          user_guidance: '请续写“下一卷”粗纲，只输出新增卷节点，不重写已有卷。保持粗纲粒度（单卷级，不得逐章拆解），承接前卷伏笔并升级主线矛盾，明确卷目标、3-6个阶段里程碑、关键伏笔与卷末钩子。',
         });
 
         const generated = forceLevel(parseGeneratedNodes(output, 'rough'), 'rough');
@@ -1529,8 +1537,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               }
             : undefined,
           user_guidance: prevDetailed
-            ? `请续写该分卷细纲，承接上一细纲节点“${prevDetailed.title}”并保持冲突升级。`
-            : '请从该分卷起始位置生成首批细纲节点，明确目标、冲突与阶段转折。',
+            ? `请续写该分卷细纲，仅输出新增事件簇节点，不重复已有细纲；首个新增节点承接“${prevDetailed.title}”结尾。每个节点覆盖连续10-30章，包含阶段目标、核心冲突、关键转折、结果变化与后续钩子。`
+            : '请为该分卷生成首批细纲节点，采用事件簇粒度（每节点覆盖连续10-30章），先建立开端目标与主冲突，再推进转折并预埋后续钩子。',
         });
 
         const generated = forceLevel(parseGeneratedNodes(output, 'detailed'), 'detailed');
@@ -1589,8 +1597,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             content: targetEntry.detailedNode.content,
           },
           user_guidance: prevChapter
-            ? `请续写章节纲，首章需要自然承接上一章“${prevChapter.title}”结尾并推动主线。`
-            : '请为该细纲生成首批章节纲，确保每章都有开场冲突与章末钩子。',
+            ? `请续写章节纲，仅输出新增章节节点。首章自然承接上一章“${prevChapter.title}”结尾并推动主线；每个节点仅对应1章，计划字数2000-3000字，需包含开场承接、冲突推进、阶段结果与章末钩子。`
+            : '请为该细纲生成首批章节纲，每个节点仅对应1章，计划字数2000-3000字；章节需要连贯推进，并确保每章有明确冲突与章末钩子。',
         });
 
         const generated = forceLevel(parseGeneratedNodes(output, 'chapter'), 'chapter');
@@ -1674,6 +1682,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const workflowHealthValue = workflowAlertCount > 0 ? `${workflowAlertCount} 项` : '正常';
   const activeTabLabel = (TAB_META as Record<string, { label: string }>)[activeTab]?.label || '小说详情';
   const activeTabHint = (TAB_META as Record<string, { hint: string }>)[activeTab]?.hint || '管理当前作品与创作流程';
+  const synopsisText = (novel.description || novel.theme || '').trim();
+  const canToggleSynopsis = synopsisText.length > 120 || synopsisText.includes('\n');
   const outlineStage = novel.outlineStage === 'rough' || novel.outlineStage === 'detailed' || novel.outlineStage === 'chapters'
     ? novel.outlineStage
     : 'none';
@@ -2048,10 +2058,33 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </h1>
                 )}
 
-                {(novel.description || novel.theme) && (
-                  <p className="mt-3 text-zinc-400 leading-relaxed max-w-3xl">
-                    {novel.description || novel.theme}
-                  </p>
+                {synopsisText && (
+                  <div className="mt-3 max-w-3xl">
+                    <p
+                      className={`text-zinc-400 leading-relaxed whitespace-pre-wrap transition-all ${
+                        isSynopsisExpanded ? '' : 'line-clamp-2'
+                      }`}
+                    >
+                      {synopsisText}
+                    </p>
+                    {canToggleSynopsis && (
+                      <button
+                        type="button"
+                        onClick={() => setIsSynopsisExpanded((prev) => !prev)}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+                      >
+                        {isSynopsisExpanded ? '收起简介' : '展开简介'}
+                        <svg
+                          className={`h-3 w-3 transition-transform ${isSynopsisExpanded ? 'rotate-180' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -2113,16 +2146,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 >
                   导出作品
                 </Button>
-                {novel?.type === 'long' && (
-                  <Button
-                    variant="primary"
-                    onClick={() => setShowOutlineGenerator(true)}
-                    className="w-full justify-between bg-emerald-500/20 text-emerald-200 border border-emerald-500/35 hover:bg-emerald-500/28"
-                  >
-                    打开大纲生成器
-                    <span className="text-xs">⌁</span>
-                  </Button>
-                )}
                 <div className="rounded-xl border border-zinc-800/80 bg-black/20 px-3 py-2.5">
                   <div className="text-[11px] text-zinc-500 mb-1">当前上下文</div>
                   <div className="text-sm text-zinc-200">{activeTabHint}</div>
@@ -2630,7 +2653,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                             readOnly={false}
                             className="space-y-3"
                             emptyTitle={isOutlineFiltered ? '未匹配到大纲节点' : '暂无大纲数据'}
-                            emptyDescription={isOutlineFiltered ? '请调整筛选条件或清空关键词后重试。' : '点击上方按钮生成大纲'}
+                            emptyDescription={isOutlineFiltered ? '请调整筛选条件或清空关键词后重试。' : '请使用上方续写或阶段重建操作生成大纲。'}
                           />
                         </div>
                       </div>
@@ -2667,7 +2690,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm hover:bg-white/10 transition-colors">
                           <div className="text-2xl mb-3">✨</div>
                           <h3 className="font-bold text-white mb-1">AI 辅助</h3>
-                          <p className="text-xs text-gray-400">一键生成完整大纲，激发无限创作灵感</p>
+                          <p className="text-xs text-gray-400">按分层规则逐步生成，避免层级错位与信息跳跃</p>
                         </div>
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm hover:bg-white/10 transition-colors">
                           <div className="text-2xl mb-3">🔄</div>
@@ -2679,15 +2702,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       <Button
                         variant="primary"
                         size="lg"
-                        onClick={() => setShowOutlineGenerator(true)}
+                        onClick={() => handleRegenerateOutline('rough')}
+                        disabled={isOutlineMutating}
                         leftIcon={
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                           </svg>
                         }
-                        className="px-8 py-6 text-lg shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300"
+                        className="px-8 py-6 text-lg shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                       >
-                        AI 智能生成大纲
+                        开始生成粗纲
                       </Button>
 
                       <p className="mt-6 text-xs text-gray-500">
@@ -3487,26 +3511,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           </AnimatePresence>
         </Tabs>
       </div>
-
-      <OutlineGeneratorModal
-        isOpen={showOutlineGenerator}
-        onClose={() => setShowOutlineGenerator(false)}
-        novelId={novel?.id || ''}
-        novel={novel}
-        onGenerated={(data) => {
-          const bestBlocks = pickBestOutlineBlocks({
-            outlineChapters: data.outlineChapters,
-            outlineDetailed: data.outlineDetailed,
-            outlineRough: data.outlineRough,
-          });
-          const persistence = buildOutlinePersistencePayload(bestBlocks as OutlinePlanningNode[]);
-
-          setNovel(prev => prev ? { ...prev, ...persistence } : null);
-          setEditedOutline(persistence.outline);
-          setOutlineNodes(bestBlocks as OutlineNode[]);
-          setShowOutlineGenerator(false);
-        }}
-      />
 
       <ConfirmModal
         isOpen={confirmState.isOpen}
