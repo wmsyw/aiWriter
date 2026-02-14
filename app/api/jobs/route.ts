@@ -77,6 +77,8 @@ const outlineChaptersInputSchema = z.object({
   chaptersPerNode: z.number().optional(),
   targetWords: z.number().optional(),
   chapterCount: z.number().optional(),
+  targetWordsPerChapterMin: z.number().min(500).max(10000).optional(),
+  targetWordsPerChapterMax: z.number().min(500).max(10000).optional(),
   agentId: z.string().optional(),
   target_id: z.string().optional(),
   target_title: z.string().optional(),

@@ -18,13 +18,13 @@ export const FALLBACK_PROMPTS = {
     `请生成简介、世界观和金手指设定（JSON）：\n书名：${title}\n主题：${theme}\n类型：${genre}`,
 
   OUTLINE_ROUGH: (keywords: string, theme: string, genre: string, targetWords: number | string) =>
-    `请生成粗略大纲，分段描述故事主线（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}\n目标字数：${targetWords || '未知'}万字`,
+    `请生成“粗纲（单卷级）”（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}\n目标字数：${targetWords || '未知'}万字\n要求：只输出整卷级主线规划（卷目标/主冲突/阶段里程碑/卷末钩子），禁止逐章内容。`,
 
   OUTLINE_DETAILED: (roughOutlinePayload: string) =>
-    `请基于粗略大纲生成细纲（JSON 输出）：\n${roughOutlinePayload || '无'}`,
+    `请基于粗纲生成“细纲（事件簇级）”（JSON 输出）：\n${roughOutlinePayload || '无'}\n要求：每个细纲节点覆盖连续多章（建议10-30章），禁止退化成单章。`,
 
   OUTLINE_CHAPTERS: (detailedPayload: string) =>
-    `请基于细纲生成章节大纲（JSON 输出）：\n${detailedPayload || '无'}`,
+    `请基于细纲生成“章节纲（单章级）”（JSON 输出）：\n${detailedPayload || '无'}\n要求：每个节点仅对应1章，单章计划字数2000-3000字，必须包含开场承接、冲突推进与章末钩子。`,
 
   OUTLINE_GENERATE: (keywords: string, theme: string, genre: string) =>
     `请根据以下要求生成小说大纲：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}`,

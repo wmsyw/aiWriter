@@ -928,6 +928,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         chapterCount: novel.chapterCount,
         prev_chapters_summary: prevChaptersSummary,
         recent_chapters_content: recentChaptersContent,
+        targetWordsPerChapterMin: 2000,
+        targetWordsPerChapterMax: 3000,
         user_guidance: guidance,
         parent_detailed_node: {
           id: node.id,
@@ -1063,6 +1065,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               next_chapter_title: nextChapter?.title || '',
               next_chapter_content: nextChapter?.content || '',
               original_chapter_title: node.title,
+              targetWordsPerChapterMin: 2000,
+              targetWordsPerChapterMax: 3000,
             });
             
             const newNode = output?.chapter || output;
@@ -1218,6 +1222,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           target_content: node.content,
           detailed_outline_context: parentDetailed ? `${parentDetailed.id}. ${parentDetailed.title}` : '',
           original_chapter_title: node.title,
+          targetWordsPerChapterMin: 2000,
+          targetWordsPerChapterMax: 3000,
         });
         
         const newNode = output?.chapter || output;
@@ -1299,6 +1305,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             const chaptersOutput = await runJob('OUTLINE_CHAPTERS', {
               novelId: novel.id,
               detailedOutline,
+              targetWordsPerChapterMin: 2000,
+              targetWordsPerChapterMax: 3000,
             });
 
             const normalized = normalizeOutlineBlocksPayload(chaptersOutput, 'rough');
@@ -1453,6 +1461,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           chapterCount: novel.chapterCount || 100,
           prev_chapters_summary: prevChaptersSummary,
           recent_chapters_content: recentChaptersContent,
+          targetWordsPerChapterMin: 2000,
+          targetWordsPerChapterMax: 3000,
           parent_detailed_node: {
             id: targetEntry.detailedNode.id,
             title: targetEntry.detailedNode.title,
@@ -1541,18 +1551,18 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     ? novel.outlineStage
     : 'none';
   const outlineStageText = outlineStage === 'rough'
-    ? '粗纲阶段'
+    ? '粗纲（单卷级）'
     : outlineStage === 'detailed'
-      ? '细纲阶段'
+      ? '细纲（事件簇级）'
       : outlineStage === 'chapters'
-        ? '章节规划完成'
+        ? '章节纲（单章级）'
         : '未分层';
   const outlineStageDescription = outlineStage === 'rough'
-    ? '先完善主线粗纲，再逐段展开为细纲。'
+    ? '当前为单卷级蓝图，聚焦整卷主线、里程碑与卷末钩子（可覆盖百章级推进）。'
     : outlineStage === 'detailed'
-      ? '细纲已就绪，可继续生成章节规划。'
+      ? '细纲节点应覆盖连续多章（建议 10-30 章），用于承接粗纲并组织阶段冲突。'
       : outlineStage === 'chapters'
-        ? '章节级大纲已形成，可直接进入正文创作。'
+        ? '章节纲已细化到单章维度，建议每章计划字数 2000-3000 字。'
         : '当前大纲尚未进入分层阶段。';
   const outlineStageRank = outlineStage === 'rough' ? 1 : outlineStage === 'detailed' ? 2 : outlineStage === 'chapters' ? 3 : 0;
 

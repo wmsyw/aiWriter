@@ -27,6 +27,7 @@ import {
 const AGENTS_CACHE_KEY = 'aiwriter.agents.cache.v1';
 const TEMPLATES_CACHE_KEY = 'aiwriter.templates.cache.v1';
 const PROVIDERS_CACHE_KEY = 'aiwriter.providers.cache.v1';
+const INITIAL_LOAD_TIMEOUT_MS = 8000;
 
 interface Agent {
   id: string;
@@ -269,6 +270,7 @@ export default function AgentsPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentAgent, setCurrentAgent] = useState<Partial<Agent>>({});
   const [saving, setSaving] = useState(false);
@@ -288,6 +290,7 @@ export default function AgentsPage() {
   const [viewingAgentKey, setViewingAgentKey] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
   const [builtInTemplateCache, setBuiltInTemplateCache] = useState<Record<string, { name: string; content: string } | null>>({});
+  const hasCacheBootstrapRef = useRef(false);
   const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
   const builtInInstances = useMemo(() => agents.filter(agent => agent.isBuiltIn), [agents]);
   const customAgents = useMemo(() => agents.filter(agent => !agent.isBuiltIn), [agents]);
@@ -318,7 +321,10 @@ export default function AgentsPage() {
     
     if (!hasInDb && !hasInCache && !isFetching) {
       fetchingTemplates.current.add(templateName);
-      fetch(`/api/templates/builtin?name=${encodeURIComponent(templateName)}`)
+      fetch(`/api/templates/builtin?name=${encodeURIComponent(templateName)}`, {
+        cache: 'no-store',
+        credentials: 'include',
+      })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (isMounted) {
@@ -366,46 +372,7 @@ export default function AgentsPage() {
     return providers.find(provider => provider.id === providerConfigId)?.name || '默认服务商';
   }, [providers]);
 
-  useEffect(() => {
-    let hasCachedData = false;
-    if (typeof window !== 'undefined') {
-      try {
-        const cachedAgents = window.localStorage.getItem(AGENTS_CACHE_KEY);
-        const cachedTemplates = window.localStorage.getItem(TEMPLATES_CACHE_KEY);
-        const cachedProviders = window.localStorage.getItem(PROVIDERS_CACHE_KEY);
-
-        if (cachedAgents) {
-          const parsed = JSON.parse(cachedAgents);
-          if (Array.isArray(parsed)) {
-            setAgents(parsed as Agent[]);
-            hasCachedData = true;
-          }
-        }
-        if (cachedTemplates) {
-          const parsed = JSON.parse(cachedTemplates);
-          if (Array.isArray(parsed)) {
-            setTemplates(parsed as Template[]);
-            hasCachedData = true;
-          }
-        }
-        if (cachedProviders) {
-          const parsed = JSON.parse(cachedProviders);
-          if (Array.isArray(parsed)) {
-            setProviders(parsed as Provider[]);
-            hasCachedData = true;
-          }
-        }
-      } catch (error) {
-        console.warn('Failed to read agents page cache', error);
-      }
-    }
-    if (hasCachedData) {
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
-
-  const fetchJsonWithTimeout = async (url: string, timeoutMs: number) => {
+  const fetchJsonWithTimeout = useCallback(async (url: string, timeoutMs: number) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -417,9 +384,9 @@ export default function AgentsPage() {
     } finally {
       clearTimeout(timer);
     }
-  };
+  }, []);
 
-  const fetchJsonWithRetry = async (url: string) => {
+  const fetchJsonWithRetry = useCallback(async (url: string) => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let res: Response;
       try {
@@ -463,9 +430,9 @@ export default function AgentsPage() {
       status: 500,
       error: `${url} 请求失败`,
     };
-  };
+  }, [fetchJsonWithTimeout]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [agentsResult, templatesResult, providersResult] = await Promise.all([
         fetchJsonWithRetry('/api/agents'),
@@ -504,13 +471,76 @@ export default function AgentsPage() {
           'Agents page data partially failed:',
           failedRequests.map((result) => result.error)
         );
+        if (failedRequests.length === 3 && !hasCacheBootstrapRef.current) {
+          setLoadWarning('实时数据加载失败，已切换到离线展示。');
+        } else {
+          setLoadWarning('部分配置加载失败，页面展示可用数据。');
+        }
+      } else {
+        setLoadWarning(null);
       }
     } catch (error) {
       console.error('Failed to fetch data', error);
+      if (!hasCacheBootstrapRef.current) {
+        setLoadWarning('助手配置加载失败，请稍后重试。');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchJsonWithRetry]);
+
+  useEffect(() => {
+    let hasCachedData = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedAgents = window.localStorage.getItem(AGENTS_CACHE_KEY);
+        const cachedTemplates = window.localStorage.getItem(TEMPLATES_CACHE_KEY);
+        const cachedProviders = window.localStorage.getItem(PROVIDERS_CACHE_KEY);
+
+        if (cachedAgents) {
+          const parsed = JSON.parse(cachedAgents);
+          if (Array.isArray(parsed)) {
+            setAgents(parsed as Agent[]);
+            hasCachedData = true;
+          }
+        }
+        if (cachedTemplates) {
+          const parsed = JSON.parse(cachedTemplates);
+          if (Array.isArray(parsed)) {
+            setTemplates(parsed as Template[]);
+            hasCachedData = true;
+          }
+        }
+        if (cachedProviders) {
+          const parsed = JSON.parse(cachedProviders);
+          if (Array.isArray(parsed)) {
+            setProviders(parsed as Provider[]);
+            hasCachedData = true;
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to read agents page cache', error);
+      }
+    }
+
+    hasCacheBootstrapRef.current = hasCachedData;
+    if (hasCachedData) {
+      setLoading(false);
+    }
+
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setLoadWarning((prev) => prev || '加载超时，已先展示本地可用内容。');
+    }, INITIAL_LOAD_TIMEOUT_MS);
+
+    void fetchData().finally(() => {
+      clearTimeout(timeout);
+    });
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [fetchData]);
 
   const handleOpenModal = useCallback((agent?: Agent) => {
     setSaveError(null);
@@ -793,6 +823,12 @@ export default function AgentsPage() {
       {batchSuccessMessage && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
           {batchSuccessMessage}
+        </div>
+      )}
+
+      {loadWarning && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {loadWarning}
         </div>
       )}
 

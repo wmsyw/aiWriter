@@ -123,7 +123,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
   const effectiveChaptersPerNode = formData.chaptersPerNode || calculatedParams.chaptersPerNode;
   
   const wordsPerChapterDensity = useMemo(() => {
-    if (!formData.chapterCount || formData.chapterCount <= 0) return 3000;
+    if (!formData.chapterCount || formData.chapterCount <= 0) return 2500;
     return (formData.targetWords * 10000) / formData.chapterCount;
   }, [formData.targetWords, formData.chapterCount]);
   
@@ -197,6 +197,8 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         targetWords: formData.targetWords,
         chapterCount: formData.chapterCount,
         chaptersPerNode: effectiveChaptersPerNode,
+        targetWordsPerChapterMin: 2000,
+        targetWordsPerChapterMax: 3000,
       });
       const normalizedChapters = normalizeOutlineBlocksPayload(chaptersOutput, 'rough');
       setChapterOutline(normalizedChapters);
@@ -449,7 +451,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   <span className="text-gray-400">预计总章节</span>
                   <span className="text-emerald-300 font-medium">
                     {calculatedParams.volumeCount * effectiveDetailedNodeCount * effectiveChaptersPerNode} 章
-                    ({Math.round(calculatedParams.volumeCount * effectiveDetailedNodeCount * effectiveChaptersPerNode * 3000 / 10000)} 万字)
+                    ({Math.round(calculatedParams.volumeCount * effectiveDetailedNodeCount * effectiveChaptersPerNode * calculatedParams.wordsPerChapter / 10000)} 万字)
                   </span>
                 </div>
               </div>
@@ -524,7 +526,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
                   )}
                 </Button>
                 <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>粗纲 → 细纲 → 章节纲</span>
+                  <span>粗纲（单卷）→ 细纲（数十章）→ 章节纲（单章2000-3000字）</span>
                   {isGenerating && stageLabel && <span className="text-emerald-300">当前阶段：{stageLabel}</span>}
                 </div>
                 <div className="flex gap-2">
