@@ -53,6 +53,7 @@ interface Chapter {
   id: string;
   title: string;
   wordCount: number;
+  content?: string;
   updatedAt: string;
   order: number;
   generationStage?: 'draft' | 'generated' | 'reviewed' | 'humanized' | 'approved';
@@ -729,29 +730,137 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     return normalized as OutlineNode[];
   };
 
-  const appendNodeChildren = (targetId: string, newChildren: OutlineNode[]) => {
-    setOutlineNodes((prev) => {
-      const existingIds = collectNodeIds(prev);
-      const normalizedChildren = ensureUniqueIds(newChildren, existingIds, `${targetId}-cont`);
+  const collectChapterOutlineNodes = (nodes: OutlineNode[]): OutlineNode[] => {
+    const result: OutlineNode[] = [];
+    const walk = (items: OutlineNode[]) => {
+      items.forEach((item) => {
+        if (item.level === 'chapter') {
+          result.push(item);
+        }
+        if (item.children?.length) {
+          walk(item.children);
+        }
+      });
+    };
+    walk(nodes);
+    return result;
+  };
 
-      const appendRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-        return nodes.map((node) => {
-          if (node.id === targetId) {
-            return {
-              ...node,
-              isExpanded: true,
-              children: [...(node.children || []), ...normalizedChildren],
-            };
-          }
-          if (node.children?.length) {
-            return { ...node, children: appendRecursive(node.children) };
-          }
-          return node;
+  const isDefaultChapterTitle = (title: string) => /^第\s*\d+\s*章$/.test(title.trim());
+
+  const syncOutlineChaptersToList = async (nextOutlineNodes: OutlineNode[]) => {
+    if (!novel?.id) return;
+
+    const chapterNodes = collectChapterOutlineNodes(nextOutlineNodes);
+    if (chapterNodes.length === 0) return;
+
+    try {
+      let latestChapters = chapters;
+      const latestListRes = await fetch(`/api/novels/${novel.id}/chapters`);
+      if (latestListRes.ok) {
+        const latestPayload = await latestListRes.json();
+        if (Array.isArray(latestPayload.chapters)) {
+          latestChapters = latestPayload.chapters as Chapter[];
+        }
+      }
+
+      const orderedChapters = [...latestChapters].sort((a, b) => a.order - b.order);
+      const chapterByOrder = new Map(orderedChapters.map((chapter) => [chapter.order, chapter]));
+
+      const chaptersToCreate: Array<{ title: string; order: number }> = [];
+      const chaptersToRename: Array<{ id: string; title: string }> = [];
+
+      chapterNodes.forEach((chapterNode, index) => {
+        const nextTitle = chapterNode.title?.trim() || `第 ${index + 1} 章`;
+        const existingChapter = chapterByOrder.get(index);
+
+        if (!existingChapter) {
+          chaptersToCreate.push({ title: nextTitle, order: index });
+          return;
+        }
+
+        const canAutoRename =
+          isDefaultChapterTitle(existingChapter.title || '') ||
+          !existingChapter.content?.trim() ||
+          existingChapter.generationStage === 'draft';
+
+        if (canAutoRename && existingChapter.title !== nextTitle) {
+          chaptersToRename.push({ id: existingChapter.id, title: nextTitle });
+        }
+      });
+
+      if (chaptersToCreate.length === 0 && chaptersToRename.length === 0) return;
+
+      for (const chapterInput of chaptersToCreate) {
+        const createRes = await fetch(`/api/novels/${novel.id}/chapters`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: chapterInput.title,
+            order: chapterInput.order,
+          }),
         });
-      };
 
-      return appendRecursive(prev);
-    });
+        if (!createRes.ok) {
+          const createErr = await createRes.json().catch(() => ({}));
+          throw new Error(createErr.error || '创建章节失败');
+        }
+      }
+
+      if (chaptersToRename.length > 0) {
+        await Promise.all(
+          chaptersToRename.map(async ({ id: chapterId, title }) => {
+            const renameRes = await fetch(`/api/novels/${novel.id}/chapters/${chapterId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title }),
+            });
+            if (!renameRes.ok) {
+              const renameErr = await renameRes.json().catch(() => ({}));
+              throw new Error(renameErr.error || '更新章节标题失败');
+            }
+          })
+        );
+      }
+
+      const listRes = await fetch(`/api/novels/${novel.id}/chapters`);
+      if (listRes.ok) {
+        const listPayload = await listRes.json();
+        setChapters(Array.isArray(listPayload.chapters) ? listPayload.chapters : []);
+      }
+    } catch (error) {
+      console.error('Failed to sync chapter outlines to chapter list', error);
+      setError('章节纲已生成，但同步章节列表失败，请重试');
+    }
+  };
+
+  const appendNodeChildren = (
+    targetId: string,
+    newChildren: OutlineNode[],
+    baseNodes: OutlineNode[] = outlineNodes,
+  ): OutlineNode[] => {
+    const existingIds = collectNodeIds(baseNodes);
+    const normalizedChildren = ensureUniqueIds(newChildren, existingIds, `${targetId}-cont`);
+
+    const appendRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map((node) => {
+        if (node.id === targetId) {
+          return {
+            ...node,
+            isExpanded: true,
+            children: [...(node.children || []), ...normalizedChildren],
+          };
+        }
+        if (node.children?.length) {
+          return { ...node, children: appendRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+
+    const nextNodes = appendRecursive(baseNodes);
+    setOutlineNodes(nextNodes);
+    return nextNodes;
   };
 
   const runJob = async (type: string, input: Record<string, unknown>): Promise<any> => {
@@ -829,21 +938,25 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     });
   };
 
-  const updateNodeChildren = (id: string, children: OutlineNode[]) => {
-    setOutlineNodes(prev => {
-      const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-        return nodes.map(node => {
-          if (node.id === id) {
-            return { ...node, children, isExpanded: true, isGenerating: false };
-          }
-          if (node.children && node.children.length > 0) {
-            return { ...node, children: updateRecursive(node.children) };
-          }
-          return node;
-        });
-      };
-      return updateRecursive(prev);
-    });
+  const updateNodeChildren = (
+    id: string,
+    children: OutlineNode[],
+    baseNodes: OutlineNode[] = outlineNodes,
+  ): OutlineNode[] => {
+    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, children, isExpanded: true, isGenerating: false };
+        }
+        if (node.children && node.children.length > 0) {
+          return { ...node, children: updateRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    const nextNodes = updateRecursive(baseNodes);
+    setOutlineNodes(nextNodes);
+    return nextNodes;
   };
 
   useEffect(() => {
@@ -981,7 +1094,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
       const normalizedChildren = forceLevel(parseGeneratedNodes(output, 'chapter'), 'chapter');
       if (normalizedChildren.length > 0) {
-        updateNodeChildren(node.id, normalizedChildren);
+        const nextOutlineNodes = updateNodeChildren(node.id, normalizedChildren);
+        await syncOutlineChaptersToList(nextOutlineNodes);
       } else {
         alert('未解析到章节纲节点，请重试');
       }
@@ -1123,7 +1237,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   return n;
                 });
               };
-              setOutlineNodes(prev => updateChapterNode(prev));
+              const nextOutlineNodes = updateChapterNode(outlineNodes);
+              setOutlineNodes(nextOutlineNodes);
+              await syncOutlineChaptersToList(nextOutlineNodes);
             }
           }
         } catch (error) {
@@ -1354,7 +1470,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               return n;
             });
           };
-          setOutlineNodes(prev => updateChapterNode(prev));
+          const nextOutlineNodes = updateChapterNode(outlineNodes);
+          setOutlineNodes(nextOutlineNodes);
+          await syncOutlineChaptersToList(nextOutlineNodes);
         }
       }
     } catch (error) {
@@ -1439,8 +1557,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
             const normalized = normalizeOutlineBlocksPayload(chaptersOutput, 'rough');
             const persistence = buildOutlinePersistencePayload(normalized.blocks);
-            setOutlineNodes(normalized.blocks as OutlineNode[]);
+            const nextOutlineNodes = normalized.blocks as OutlineNode[];
+            setOutlineNodes(nextOutlineNodes);
             setNovel(prev => prev ? { ...prev, ...persistence } : null);
+            await syncOutlineChaptersToList(nextOutlineNodes);
           }
           
         } catch (error) {
@@ -1606,7 +1726,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           throw new Error('未生成有效的章节纲节点');
         }
 
-        appendNodeChildren(targetEntry.detailedNode.id, generated);
+        const nextOutlineNodes = appendNodeChildren(targetEntry.detailedNode.id, generated);
+        await syncOutlineChaptersToList(nextOutlineNodes);
       }
     } catch (error) {
       console.error('Failed to continue outline', error);

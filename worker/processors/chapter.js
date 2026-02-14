@@ -59,22 +59,130 @@ function normalizeChapterCard(rawCard) {
   return hasContent ? card : null;
 }
 
-function extractChapterOutlineFromNovel(chapter) {
-  const chapterOutlines = chapter?.novel?.outlineChapters;
-  if (!Array.isArray(chapterOutlines)) return '';
-
-  const item = chapterOutlines[chapter.order - 1];
+function pickChapterOutlineText(item) {
   if (!item) return '';
   if (typeof item === 'string') return item.trim();
-  if (typeof item === 'object') {
-    const candidate = item.summary || item.content || item.title;
-    if (typeof candidate === 'string' && candidate.trim()) {
-      return candidate.trim();
+  if (typeof item !== 'object') return '';
+
+  const candidate =
+    item.summary ||
+    item.content ||
+    item.description ||
+    item.outline ||
+    item.chapter_title ||
+    item.title;
+  if (typeof candidate === 'string' && candidate.trim()) {
+    return candidate.trim();
+  }
+
+  try {
+    return JSON.stringify(item);
+  } catch {
+    return '';
+  }
+}
+
+function extractOutlineChildren(item) {
+  if (!item || typeof item !== 'object') return [];
+  const candidates = [
+    item.children,
+    item.chapters,
+    item.blocks,
+    item.nodes,
+    item.story_arcs,
+    item.events,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
     }
-    try {
-      return JSON.stringify(item);
-    } catch {
-      return '';
+  }
+
+  return [];
+}
+
+function collectChapterOutlineNodes(chapterOutlines) {
+  const rootItems = Array.isArray(chapterOutlines)
+    ? chapterOutlines
+    : chapterOutlines && typeof chapterOutlines === 'object'
+      ? (
+          Array.isArray(chapterOutlines.blocks)
+            ? chapterOutlines.blocks
+            : Array.isArray(chapterOutlines.chapters)
+              ? chapterOutlines.chapters
+              : Array.isArray(chapterOutlines.children)
+                ? chapterOutlines.children
+                : Array.isArray(chapterOutlines.nodes)
+                  ? chapterOutlines.nodes
+                  : Array.isArray(chapterOutlines.story_arcs)
+                    ? chapterOutlines.story_arcs
+                    : []
+        )
+      : [];
+
+  const result = [];
+  const walk = (items) => {
+    if (!Array.isArray(items)) return;
+
+    items.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+
+      const level = typeof item.level === 'string' ? item.level : '';
+      const children = extractOutlineChildren(item);
+      const text = pickChapterOutlineText(item);
+      const looksLikeChapter =
+        level === 'chapter' ||
+        typeof item.chapter_title === 'string' ||
+        typeof item.chapter_id === 'string' ||
+        typeof item.order === 'number';
+
+      if (looksLikeChapter && text) {
+        result.push(item);
+      }
+
+      if (children.length > 0) {
+        walk(children);
+      }
+    });
+  };
+
+  walk(rootItems);
+  return result;
+}
+
+function extractChapterOutlineFromNovel(chapter) {
+  const chapterOutlines = chapter?.novel?.outlineChapters;
+  const chapterNodes = collectChapterOutlineNodes(chapterOutlines);
+  if (chapterNodes.length === 0) {
+    return '';
+  }
+
+  const orderCandidates = [chapter.order, chapter.order - 1].filter(
+    (value) => Number.isInteger(value) && value >= 0
+  );
+  for (const orderIndex of orderCandidates) {
+    const orderMatch = chapterNodes[orderIndex];
+    const orderText = pickChapterOutlineText(orderMatch);
+    if (orderText) {
+      return orderText;
+    }
+  }
+
+  const chapterTitle = typeof chapter?.title === 'string' ? chapter.title.trim() : '';
+  if (chapterTitle) {
+    const titleMatch = chapterNodes.find((item) => {
+      const itemTitle =
+        typeof item.title === 'string'
+          ? item.title.trim()
+          : typeof item.chapter_title === 'string'
+            ? item.chapter_title.trim()
+            : '';
+      return itemTitle && itemTitle === chapterTitle;
+    });
+    const titleText = pickChapterOutlineText(titleMatch);
+    if (titleText) {
+      return titleText;
     }
   }
 
