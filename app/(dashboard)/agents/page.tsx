@@ -366,21 +366,62 @@ export default function AgentsPage() {
     fetchData();
   }, []);
 
+  const fetchJsonWithRetry = async (url: string) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await fetch(url, { cache: 'no-store' });
+      const payload = await res.json().catch(() => null);
+
+      if (res.ok) {
+        return { ok: true as const, data: payload };
+      }
+
+      if (res.status === 401 && attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 220));
+        continue;
+      }
+
+      return {
+        ok: false as const,
+        status: res.status,
+        error: extractErrorMessage(payload, `${url} 请求失败 (${res.status})`),
+      };
+    }
+
+    return {
+      ok: false as const,
+      status: 500,
+      error: `${url} 请求失败`,
+    };
+  };
+
   const fetchData = async () => {
     try {
-      const [agentsRes, templatesRes, providersRes] = await Promise.all([
-        fetch('/api/agents'),
-        fetch('/api/templates'),
-        fetch('/api/providers')
+      const [agentsResult, templatesResult, providersResult] = await Promise.all([
+        fetchJsonWithRetry('/api/agents'),
+        fetchJsonWithRetry('/api/templates'),
+        fetchJsonWithRetry('/api/providers'),
       ]);
 
-      const agentsData = await agentsRes.json();
-      const templatesData = await templatesRes.json();
-      const providersData = await providersRes.json();
+      if (agentsResult.ok) {
+        setAgents(Array.isArray(agentsResult.data) ? agentsResult.data : []);
+      }
+      if (templatesResult.ok) {
+        setTemplates(Array.isArray(templatesResult.data) ? templatesResult.data : []);
+      }
+      if (providersResult.ok) {
+        const configs = (providersResult.data as { configs?: unknown })?.configs;
+        setProviders(Array.isArray(configs) ? (configs as Provider[]) : []);
+      }
 
-      setAgents(Array.isArray(agentsData) ? agentsData : []);
-      setTemplates(Array.isArray(templatesData) ? templatesData : []);
-      setProviders(providersData.configs || []);
+      const failedRequests = [agentsResult, templatesResult, providersResult].filter(
+        (result) => !result.ok
+      );
+      if (failedRequests.length > 0) {
+        console.warn(
+          'Agents page data partially failed:',
+          failedRequests.map((result) => result.error)
+        );
+      }
     } catch (error) {
       console.error('Failed to fetch data', error);
     } finally {

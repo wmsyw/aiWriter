@@ -22,10 +22,21 @@ export async function GET(req: NextRequest) {
   const session = await getSessionUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Always sync built-in templates/agents to ensure new ones are available
-  await agents.initializeUserAgents(session.userId);
-  
-  const list = await agents.listAgents(session.userId);
+  let list = await agents.listAgents(session.userId);
+  const expectedBuiltInCount = Object.keys(agents.BUILT_IN_AGENTS).length;
+  const currentBuiltInCount = list.filter((agent) => agent.isBuiltIn).length;
+  const needSync = list.length === 0 || currentBuiltInCount < expectedBuiltInCount;
+
+  if (needSync) {
+    try {
+      await agents.initializeUserAgents(session.userId);
+      list = await agents.listAgents(session.userId);
+    } catch (error) {
+      console.error('Failed to initialize user agents:', error);
+      // 初始化失败时不阻断页面，先返回当前可用数据，避免刷新白屏
+    }
+  }
+
   return NextResponse.json(list);
 }
 
