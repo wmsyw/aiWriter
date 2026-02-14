@@ -196,18 +196,20 @@ export function ConfirmModal({
   const styles = variantStyles[variant];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm" title="" showCloseButton={false}>
-      <div className="text-center space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} size="md" title="" showCloseButton={false}>
+      <div className="space-y-4">
         <div className={`w-14 h-14 mx-auto rounded-2xl border flex items-center justify-center ${styles.iconClass}`}>
           <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M10.29 3.86l-7.2 12.48A2 2 0 004.82 19.5h14.36a2 2 0 001.73-3.16l-7.2-12.48a2 2 0 00-3.46 0z" />
           </svg>
         </div>
-        <h3 className="text-lg font-bold text-white">{title}</h3>
-        <p className="text-zinc-400 text-sm">{message}</p>
+        <h3 className="text-center text-lg font-bold text-white">{title}</h3>
+        <p className="whitespace-pre-line break-words text-left text-sm leading-6 text-zinc-300">
+          {message}
+        </p>
         
         {requireConfirmation && (
-          <div className="space-y-2">
+          <div className="space-y-2 text-left">
             <p className="text-xs text-zinc-500">
               请输入 <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300">{requireConfirmation}</code> 以确认
             </p>

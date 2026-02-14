@@ -17,12 +17,16 @@ import { Input, Textarea } from '@/app/components/ui/Input';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/app/components/ui/Tabs';
 import Modal, { ModalFooter } from '@/app/components/ui/Modal';
-import { 
+import {
   staggerContainer, 
   staggerItem, 
   fadeIn, 
   slideUp 
 } from '@/app/lib/animations';
+
+const AGENTS_CACHE_KEY = 'aiwriter.agents.cache.v1';
+const TEMPLATES_CACHE_KEY = 'aiwriter.templates.cache.v1';
+const PROVIDERS_CACHE_KEY = 'aiwriter.providers.cache.v1';
 
 interface Agent {
   id: string;
@@ -363,12 +367,79 @@ export default function AgentsPage() {
   }, [providers]);
 
   useEffect(() => {
+    let hasCachedData = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedAgents = window.localStorage.getItem(AGENTS_CACHE_KEY);
+        const cachedTemplates = window.localStorage.getItem(TEMPLATES_CACHE_KEY);
+        const cachedProviders = window.localStorage.getItem(PROVIDERS_CACHE_KEY);
+
+        if (cachedAgents) {
+          const parsed = JSON.parse(cachedAgents);
+          if (Array.isArray(parsed)) {
+            setAgents(parsed as Agent[]);
+            hasCachedData = true;
+          }
+        }
+        if (cachedTemplates) {
+          const parsed = JSON.parse(cachedTemplates);
+          if (Array.isArray(parsed)) {
+            setTemplates(parsed as Template[]);
+            hasCachedData = true;
+          }
+        }
+        if (cachedProviders) {
+          const parsed = JSON.parse(cachedProviders);
+          if (Array.isArray(parsed)) {
+            setProviders(parsed as Provider[]);
+            hasCachedData = true;
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to read agents page cache', error);
+      }
+    }
+    if (hasCachedData) {
+      setLoading(false);
+    }
     fetchData();
   }, []);
 
+  const fetchJsonWithTimeout = async (url: string, timeoutMs: number) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
+        cache: 'no-store',
+        credentials: 'include',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   const fetchJsonWithRetry = async (url: string) => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const res = await fetch(url, { cache: 'no-store' });
+      let res: Response;
+      try {
+        res = await fetchJsonWithTimeout(url, 10000);
+      } catch (error) {
+        if (attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 220));
+          continue;
+        }
+        const message =
+          error instanceof Error && error.name === 'AbortError'
+            ? `${url} 请求超时`
+            : `${url} 网络异常`;
+        return {
+          ok: false as const,
+          status: 500,
+          error: message,
+        };
+      }
+
       const payload = await res.json().catch(() => null);
 
       if (res.ok) {
@@ -403,14 +474,26 @@ export default function AgentsPage() {
       ]);
 
       if (agentsResult.ok) {
-        setAgents(Array.isArray(agentsResult.data) ? agentsResult.data : []);
+        const nextAgents = Array.isArray(agentsResult.data) ? (agentsResult.data as Agent[]) : [];
+        setAgents(nextAgents);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(AGENTS_CACHE_KEY, JSON.stringify(nextAgents));
+        }
       }
       if (templatesResult.ok) {
-        setTemplates(Array.isArray(templatesResult.data) ? templatesResult.data : []);
+        const nextTemplates = Array.isArray(templatesResult.data) ? (templatesResult.data as Template[]) : [];
+        setTemplates(nextTemplates);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(TEMPLATES_CACHE_KEY, JSON.stringify(nextTemplates));
+        }
       }
       if (providersResult.ok) {
         const configs = (providersResult.data as { configs?: unknown })?.configs;
-        setProviders(Array.isArray(configs) ? (configs as Provider[]) : []);
+        const nextProviders = Array.isArray(configs) ? (configs as Provider[]) : [];
+        setProviders(nextProviders);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(PROVIDERS_CACHE_KEY, JSON.stringify(nextProviders));
+        }
       }
 
       const failedRequests = [agentsResult, templatesResult, providersResult].filter(
