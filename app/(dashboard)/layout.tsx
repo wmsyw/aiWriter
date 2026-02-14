@@ -421,6 +421,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         <PageTransition
+          mode="sync"
           wrapperClassName="flex-1 p-4 lg:p-7"
           pageClassName="page-shell dashboard-page"
         >

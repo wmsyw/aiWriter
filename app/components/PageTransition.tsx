@@ -17,7 +17,7 @@ export default function PageTransition({
   children,
   wrapperClassName,
   pageClassName,
-  mode = 'wait',
+  mode = 'sync',
 }: PageTransitionProps) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
@@ -32,7 +32,7 @@ export default function PageTransition({
           initial="initial"
           animate="animate"
           exit="exit"
-          className={cn('h-full', pageClassName)}
+          className={cn('w-full', pageClassName)}
         >
           {children}
         </motion.div>

@@ -32,6 +32,12 @@ export default function JobsPage() {
     }
 
     const latest = jobs.find((job) => job.id === selectedJobId) || null;
+    if (!latest) {
+      setIsDrawerOpen(false);
+      setSelectedJob(null);
+      return;
+    }
+
     setSelectedJob(latest);
   }, [jobs, selectedJobId]);
 
@@ -52,6 +58,25 @@ export default function JobsPage() {
     setSelectedJob(job);
     setIsDrawerOpen(true);
   };
+
+  const closeDrawer = () => {
+    setIsDrawerOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isDrawerOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDrawerOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isDrawerOpen]);
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -209,112 +234,116 @@ export default function JobsPage() {
         </motion.div>
       </motion.div>
 
-      <div 
-        className={`fixed top-0 right-0 bottom-0 w-full md:w-[620px] border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out z-[100] bg-[#0d111a]/98 backdrop-blur-xl ${
-          isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="job-drawer-title"
-        aria-hidden={!isDrawerOpen}
-      >
-        <div className="h-full flex flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
-            <h2 id="job-drawer-title" className="text-xl font-bold text-white">任务详情</h2>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsDrawerOpen(false)}
-              aria-label="关闭"
-              className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.03] p-0 text-zinc-400 hover:bg-white/10 hover:text-white"
+      <AnimatePresence>
+        {isDrawerOpen && selectedJob && (
+          <>
+            <motion.div
+              key="jobs-drawer-backdrop"
+              className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[90]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeDrawer}
+            />
+            <motion.aside
+              key={`jobs-drawer-${selectedJob.id}`}
+              className="fixed top-0 right-0 bottom-0 w-full md:w-[620px] border-l border-white/10 shadow-2xl z-[100] bg-[#0d111a]/98 backdrop-blur-xl"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="job-drawer-title"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </Button>
-          </div>
-
-          {selectedJob && (
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">状态</div>
-                  <Badge
-                    variant={getStatusVariant(selectedJob.status) as any}
-                    size="lg"
-                    animated={selectedJob.status === 'running' || selectedJob.status === 'processing'}
+              <div className="h-full flex flex-col">
+                <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
+                  <h2 id="job-drawer-title" className="text-xl font-bold text-white">任务详情</h2>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeDrawer}
+                    aria-label="关闭"
+                    className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.03] p-0 text-zinc-400 hover:bg-white/10 hover:text-white"
                   >
-                    {getJobStatusLabel(selectedJob.status)}
-                  </Badge>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </Button>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-gray-500 mb-1">耗时</div>
-                  <span className="text-sm text-white font-mono">
-                    {selectedJob.updatedAt ? (
-                      `${((new Date(selectedJob.updatedAt).getTime() - new Date(selectedJob.createdAt).getTime()) / 1000).toFixed(2)}s`
-                    ) : '-'}
-                  </span>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-gray-500 mb-2">状态</div>
+                      <Badge
+                        variant={getStatusVariant(selectedJob.status) as any}
+                        size="lg"
+                        animated={selectedJob.status === 'running' || selectedJob.status === 'processing'}
+                      >
+                        {getJobStatusLabel(selectedJob.status)}
+                      </Badge>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500 mb-1">耗时</div>
+                      <span className="text-sm text-white font-mono">
+                        {selectedJob.updatedAt ? (
+                          `${((new Date(selectedJob.updatedAt).getTime() - new Date(selectedJob.createdAt).getTime()) / 1000).toFixed(2)}s`
+                        ) : '-'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Card className="bg-zinc-900/65 border-white/10">
+                      <CardContent className="p-4">
+                        <h3 className="text-sm font-bold text-gray-300 mb-2 border-b border-white/5 pb-2">输入数据</h3>
+                        <pre className="text-xs font-mono text-gray-400 overflow-x-auto whitespace-pre-wrap">
+                          {JSON.stringify(selectedJob.input, null, 2)}
+                        </pre>
+                      </CardContent>
+                    </Card>
+
+                    {Boolean(selectedJob.output) && (
+                      <Card className="bg-zinc-900/65 border-white/10">
+                        <CardContent className="p-4">
+                          <h3 className="text-sm font-bold text-green-400 mb-2 border-b border-white/5 pb-2">输出结果</h3>
+                          <pre className="text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap">
+                            {JSON.stringify(selectedJob.output, null, 2)}
+                          </pre>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {Boolean(selectedJob.error) && (
+                      <Card className="bg-red-500/12 border-red-500/25">
+                        <CardContent className="p-4">
+                          <h3 className="text-sm font-bold text-red-400 mb-2 border-b border-red-500/20 pb-2">错误信息</h3>
+                          <pre className="text-xs font-mono text-red-300 overflow-x-auto whitespace-pre-wrap">
+                            {selectedJob.error}
+                          </pre>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
+
+                <ModalFooter className="bg-zinc-900/75 px-4 py-4">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={closeDrawer}
+                    className="w-full min-w-0"
+                  >
+                    关闭
+                  </Button>
+                </ModalFooter>
               </div>
-
-              <div className="space-y-4">
-                <Card className="bg-zinc-900/65 border-white/10">
-                  <CardContent className="p-4">
-                    <h3 className="text-sm font-bold text-gray-300 mb-2 border-b border-white/5 pb-2">输入数据</h3>
-                    <pre className="text-xs font-mono text-gray-400 overflow-x-auto whitespace-pre-wrap">
-                      {JSON.stringify(selectedJob.input, null, 2)}
-                    </pre>
-                  </CardContent>
-                </Card>
-
-                {Boolean(selectedJob.output) && (
-                  <Card className="bg-zinc-900/65 border-white/10">
-                    <CardContent className="p-4">
-                      <h3 className="text-sm font-bold text-green-400 mb-2 border-b border-white/5 pb-2">输出结果</h3>
-                      <pre className="text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap">
-                        {JSON.stringify(selectedJob.output, null, 2)}
-                      </pre>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {Boolean(selectedJob.error) && (
-                  <Card className="bg-red-500/12 border-red-500/25">
-                    <CardContent className="p-4">
-                      <h3 className="text-sm font-bold text-red-400 mb-2 border-b border-red-500/20 pb-2">错误信息</h3>
-                      <pre className="text-xs font-mono text-red-300 overflow-x-auto whitespace-pre-wrap">
-                        {selectedJob.error}
-                      </pre>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <ModalFooter className="bg-zinc-900/75 px-4 py-4">
-             <Button
-               variant="secondary"
-               size="sm"
-               onClick={() => setIsDrawerOpen(false)}
-               className="w-full min-w-0"
-             >
-               关闭
-             </Button>
-          </ModalFooter>
-        </div>
-      </div>
-      
-      {isDrawerOpen && (
-        <motion.div 
-          className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[90]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setIsDrawerOpen(false)}
-        ></motion.div>
-      )}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -130,6 +130,15 @@ const WORKFLOW_STEPS = [
   { id: 'approved', label: '已定稿' },
 ] as const;
 
+const OUTLINE_LEVEL_FILTERS = [
+  { id: 'all', label: '全部' },
+  { id: 'rough', label: '粗纲' },
+  { id: 'detailed', label: '细纲' },
+  { id: 'chapter', label: '章节' },
+] as const;
+
+type OutlineLevelFilter = (typeof OUTLINE_LEVEL_FILTERS)[number]['id'];
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -254,6 +263,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [regeneratingOutline, setRegeneratingOutline] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
   const [outlineSelectionMode, setOutlineSelectionMode] = useState(false);
   const [selectedOutlineIds, setSelectedOutlineIds] = useState<Set<string>>(new Set());
+  const [outlineLevelFilter, setOutlineLevelFilter] = useState<OutlineLevelFilter>('all');
+  const [outlineSearchKeyword, setOutlineSearchKeyword] = useState('');
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -664,6 +675,19 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         });
       };
       return toggleRecursive(prev);
+    });
+  };
+
+  const handleSetAllExpanded = (expanded: boolean) => {
+    setOutlineNodes(prev => {
+      const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+        return nodes.map((node) => ({
+          ...node,
+          isExpanded: node.children && node.children.length > 0 ? expanded : node.isExpanded,
+          children: node.children ? updateRecursive(node.children) : node.children,
+        }));
+      };
+      return updateRecursive(prev);
     });
   };
 
@@ -1220,6 +1244,97 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const approvedCount = chapters.filter((c) => c.generationStage === 'approved').length;
   const reviewDoneCount = chapters.filter((c) => c.generationStage === 'reviewed' || c.generationStage === 'humanized' || c.generationStage === 'approved').length;
   const workflowAlertCount = (workflowStats.overdueHooks || 0) + (blockingInfo.hasBlocking ? blockingInfo.count : 0);
+  const outlineStage = novel.outlineStage === 'rough' || novel.outlineStage === 'detailed' || novel.outlineStage === 'chapters'
+    ? novel.outlineStage
+    : 'none';
+  const outlineStageText = outlineStage === 'rough'
+    ? '粗纲阶段'
+    : outlineStage === 'detailed'
+      ? '细纲阶段'
+      : outlineStage === 'chapters'
+        ? '章节规划完成'
+        : '未分层';
+  const outlineStageDescription = outlineStage === 'rough'
+    ? '先完善主线粗纲，再逐段展开为细纲。'
+    : outlineStage === 'detailed'
+      ? '细纲已就绪，可继续生成章节规划。'
+      : outlineStage === 'chapters'
+        ? '章节级大纲已形成，可直接进入正文创作。'
+        : '当前大纲尚未进入分层阶段。';
+  const outlineStageRank = outlineStage === 'rough' ? 1 : outlineStage === 'detailed' ? 2 : outlineStage === 'chapters' ? 3 : 0;
+
+  const outlineMetrics = (() => {
+    const metrics = {
+      rough: 0,
+      detailed: 0,
+      chapter: 0,
+      total: 0,
+      expanded: 0,
+    };
+
+    const walk = (nodes: OutlineNode[]) => {
+      nodes.forEach((node) => {
+        metrics.total += 1;
+        if (node.isExpanded) {
+          metrics.expanded += 1;
+        }
+        if (node.level === 'rough') metrics.rough += 1;
+        if (node.level === 'detailed') metrics.detailed += 1;
+        if (node.level === 'chapter') metrics.chapter += 1;
+        if (node.children?.length) {
+          walk(node.children);
+        }
+      });
+    };
+
+    walk(outlineNodes);
+    return metrics;
+  })();
+  const outlineLevelFilterOptions: Array<{ id: OutlineLevelFilter; label: string; count: number }> = [
+    { id: 'all', label: '全部', count: outlineMetrics.total },
+    { id: 'rough', label: '粗纲', count: outlineMetrics.rough },
+    { id: 'detailed', label: '细纲', count: outlineMetrics.detailed },
+    { id: 'chapter', label: '章节', count: outlineMetrics.chapter },
+  ];
+  const normalizedOutlineSearch = outlineSearchKeyword.trim().toLowerCase();
+  const isOutlineFiltered = outlineLevelFilter !== 'all' || normalizedOutlineSearch.length > 0;
+
+  const visibleOutlineNodes = (() => {
+    if (!isOutlineFiltered) {
+      return outlineNodes;
+    }
+
+    const filterRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      const result: OutlineNode[] = [];
+
+      for (const node of nodes) {
+        const levelMatched = outlineLevelFilter === 'all' || node.level === outlineLevelFilter;
+        const keywordMatched =
+          normalizedOutlineSearch.length === 0 ||
+          `${node.id} ${node.title} ${node.content}`.toLowerCase().includes(normalizedOutlineSearch);
+        const filteredChildren = node.children?.length ? filterRecursive(node.children) : undefined;
+
+        if ((levelMatched && keywordMatched) || (filteredChildren && filteredChildren.length > 0)) {
+          result.push({
+            ...node,
+            children: filteredChildren,
+            isExpanded: filteredChildren && filteredChildren.length > 0 ? true : node.isExpanded,
+          });
+        }
+      }
+
+      return result;
+    };
+
+    return filterRecursive(outlineNodes);
+  })();
+
+  const visibleOutlineNodeCount = (() => {
+    const countRecursive = (nodes: OutlineNode[]): number => {
+      return nodes.reduce((sum, node) => sum + 1 + countRecursive(node.children || []), 0);
+    };
+    return countRecursive(visibleOutlineNodes);
+  })();
 
   return (
     <div className="min-h-screen p-4 md:p-6 xl:p-8 max-w-[1500px] mx-auto space-y-7 animate-fade-in">
@@ -1443,163 +1558,265 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               {novel?.type === 'long' && (
                 <div className="max-w-5xl mx-auto space-y-6">
                   {outlineNodes.length > 0 && (
-                    <Card className="p-6 md:p-8 rounded-3xl space-y-6 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500/30 to-transparent" />
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
-                            <span className="text-2xl">🌳</span>
-                            大纲结构
-                          </h3>
-                          <p className="text-sm text-gray-400">
-                            {novel.outlineStage === 'rough' && '粗纲阶段 - 可展开生成细纲'}
-                            {novel.outlineStage === 'detailed' && '细纲阶段 - 可展开生成章节'}
-                            {novel.outlineStage === 'chapters' && '章节大纲已完成'}
-                            {(!novel.outlineStage || novel.outlineStage === 'none') && '已生成大纲'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {outlineSelectionMode ? (
-                            <>
-                              <span className="text-xs text-gray-400 mr-1">
-                                已选 {selectedOutlineIds.size} 个
-                              </span>
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={handleBatchRegenerate}
-                                disabled={selectedOutlineIds.size === 0}
-                                className="text-xs px-3 py-1 h-7 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
-                              >
-                                批量重新生成
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setOutlineSelectionMode(false);
-                                  setSelectedOutlineIds(new Set());
-                                }}
-                                className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10"
-                              >
-                                取消
-                              </Button>
-                              <div className="w-px h-4 bg-gray-700 mx-1" />
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setOutlineSelectionMode(true)}
-                                className="text-xs px-2 py-1 h-7 text-gray-400 hover:text-white hover:bg-white/10"
-                              >
-                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                </svg>
-                                批量选择
-                              </Button>
-                              <div className="w-px h-4 bg-gray-700 mx-1" />
-                            </>
-                          )}
-                          <div className="flex items-center gap-2 mr-2">
-                            {/* Primary Progression Action */}
-                            {novel.outlineStage === 'rough' && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleRegenerateOutline('detailed')}
-                                isLoading={regeneratingOutline === 'detailed'}
-                                className="h-7 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
-                              >
-                                ✨ 生成全部细纲
-                              </Button>
-                            )}
-                            {novel.outlineStage === 'detailed' && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleRegenerateOutline('chapters')}
-                                isLoading={regeneratingOutline === 'chapters'}
-                                className="h-7 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
-                              >
-                                ✨ 生成全部章节
-                              </Button>
-                            )}
+                    <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/55 overflow-hidden">
+                      <div className="p-5 md:p-6 border-b border-zinc-800/70 space-y-5">
+                        <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
+                          <div className="space-y-4 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-xl md:text-2xl font-bold text-zinc-100">大纲规划</h3>
+                              <Badge variant={outlineStage === 'chapters' ? 'success' : 'info'} className="px-3 py-1">
+                                {outlineStageText}
+                              </Badge>
+                              <Badge variant="outline" className="px-3 py-1 border-zinc-700/80 bg-zinc-900/70 text-zinc-300">
+                                主节点 {outlineNodes.length}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-zinc-400 max-w-2xl">{outlineStageDescription}</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/70 px-3 py-2">
+                                <div className="text-[11px] text-zinc-500">粗纲</div>
+                                <div className="text-sm font-semibold text-zinc-100">{outlineMetrics.rough}</div>
+                              </div>
+                              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/70 px-3 py-2">
+                                <div className="text-[11px] text-zinc-500">细纲</div>
+                                <div className="text-sm font-semibold text-zinc-100">{outlineMetrics.detailed}</div>
+                              </div>
+                              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/70 px-3 py-2">
+                                <div className="text-[11px] text-zinc-500">章节节点</div>
+                                <div className="text-sm font-semibold text-zinc-100">{outlineMetrics.chapter}</div>
+                              </div>
+                              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/70 px-3 py-2">
+                                <div className="text-[11px] text-zinc-500">已展开</div>
+                                <div className="text-sm font-semibold text-zinc-100">{outlineMetrics.expanded}</div>
+                              </div>
+                            </div>
+                          </div>
 
-                            {/* Regeneration Toolbar */}
-                            <div className="flex items-center bg-white/5 rounded-lg border border-white/10 h-7 overflow-hidden">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRegenerateOutline('rough')}
-                                disabled={regeneratingOutline !== null}
-                                className="h-full rounded-none border-0 border-r border-white/5 px-2 text-[10px] text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
-                                title="重新生成粗纲 (将重置所有内容)"
-                              >
-                                重置粗纲
-                              </Button>
-                              
-                              {(novel.outlineStage === 'detailed' || novel.outlineStage === 'chapters') && (
+                          <div className="flex flex-col gap-3 2xl:min-w-[460px]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {outlineSelectionMode ? (
+                                <>
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={handleBatchRegenerate}
+                                    disabled={selectedOutlineIds.size === 0}
+                                    className="h-8 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+                                  >
+                                    批量重新生成
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setOutlineSelectionMode(false);
+                                      setSelectedOutlineIds(new Set());
+                                    }}
+                                    className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
+                                  >
+                                    取消选择
+                                  </Button>
+                                  <span className="text-xs text-zinc-500">已选 {selectedOutlineIds.size} 个</span>
+                                </>
+                              ) : (
                                 <Button
-                                  type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleRegenerateOutline('detailed')}
-                                  disabled={regeneratingOutline !== null}
-                                  className="h-full rounded-none border-0 border-r border-white/5 px-2 text-[10px] text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
-                                  title="重新生成细纲 (将重置细纲和章节)"
+                                  onClick={() => setOutlineSelectionMode(true)}
+                                  className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
                                 >
-                                  重置细纲
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                  </svg>
+                                  批量选择
                                 </Button>
                               )}
-                              
-                              {novel.outlineStage === 'chapters' && (
+
+                              {outlineStage === 'rough' && (
                                 <Button
-                                  type="button"
-                                  variant="ghost"
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleRegenerateOutline('detailed')}
+                                  isLoading={regeneratingOutline === 'detailed'}
+                                  className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+                                >
+                                  生成全部细纲
+                                </Button>
+                              )}
+                              {outlineStage === 'detailed' && (
+                                <Button
+                                  variant="primary"
                                   size="sm"
                                   onClick={() => handleRegenerateOutline('chapters')}
-                                  disabled={regeneratingOutline !== null}
-                                  className="h-full rounded-none border-0 px-2 text-[10px] text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
-                                  title="重新生成章节"
+                                  isLoading={regeneratingOutline === 'chapters'}
+                                  className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
                                 >
-                                  重置章节
+                                  生成全部章节
                                 </Button>
                               )}
                             </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex items-center rounded-xl border border-zinc-700/70 bg-zinc-900/70 overflow-hidden">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRegenerateOutline('rough')}
+                                  disabled={regeneratingOutline !== null}
+                                  className="h-8 rounded-none border-0 border-r border-zinc-800 px-3 text-[11px] text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+                                  title="重新生成粗纲 (将重置所有内容)"
+                                >
+                                  重置粗纲
+                                </Button>
+                                {(outlineStage === 'detailed' || outlineStage === 'chapters') && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRegenerateOutline('detailed')}
+                                    disabled={regeneratingOutline !== null}
+                                    className="h-8 rounded-none border-0 border-r border-zinc-800 px-3 text-[11px] text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+                                    title="重新生成细纲 (将重置细纲和章节)"
+                                  >
+                                    重置细纲
+                                  </Button>
+                                )}
+                                {outlineStage === 'chapters' && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRegenerateOutline('chapters')}
+                                    disabled={regeneratingOutline !== null}
+                                    className="h-8 rounded-none border-0 px-3 text-[11px] text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+                                    title="重新生成章节"
+                                  >
+                                    重置章节
+                                  </Button>
+                                )}
+                              </div>
+                              <Badge variant="outline" className="border-zinc-700/70 bg-zinc-900/65 text-zinc-400 px-2.5 py-1">
+                                总节点 {outlineMetrics.total}
+                              </Badge>
+                            </div>
                           </div>
-                          <Badge 
-                            variant={novel.outlineStage === 'chapters' ? 'success' : 'info'}
-                            className="px-3 py-1"
-                          >
-                            {outlineNodes.length} 个主节点
-                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <div className={`rounded-xl border px-3 py-2 ${outlineStageRank >= 1 ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-zinc-800/80 bg-zinc-900/60'}`}>
+                            <div className="text-[11px] text-zinc-500">第 1 步</div>
+                            <div className="text-sm font-semibold text-zinc-100">粗纲</div>
+                            <div className="text-xs text-zinc-400">确定主线结构</div>
+                          </div>
+                          <div className={`rounded-xl border px-3 py-2 ${outlineStageRank >= 2 ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-zinc-800/80 bg-zinc-900/60'}`}>
+                            <div className="text-[11px] text-zinc-500">第 2 步</div>
+                            <div className="text-sm font-semibold text-zinc-100">细纲</div>
+                            <div className="text-xs text-zinc-400">扩展情节与冲突</div>
+                          </div>
+                          <div className={`rounded-xl border px-3 py-2 ${outlineStageRank >= 3 ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-zinc-800/80 bg-zinc-900/60'}`}>
+                            <div className="text-[11px] text-zinc-500">第 3 步</div>
+                            <div className="text-sm font-semibold text-zinc-100">章节规划</div>
+                            <div className="text-xs text-zinc-400">落到章节级执行</div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-zinc-800/75 bg-zinc-950/35 p-3 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {outlineLevelFilterOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setOutlineLevelFilter(option.id)}
+                                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+                                  outlineLevelFilter === option.id
+                                    ? 'border-emerald-500/35 bg-emerald-500/20 text-emerald-200'
+                                    : 'border-zinc-700/80 bg-zinc-900/70 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                }`}
+                              >
+                                <span>{option.label}</span>
+                                <span className="rounded bg-black/30 px-1.5 py-0.5 text-[10px] text-zinc-300">{option.count}</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                            <div className="relative flex-1 min-w-0">
+                              <input
+                                type="text"
+                                value={outlineSearchKeyword}
+                                onChange={(event) => setOutlineSearchKeyword(event.target.value)}
+                                placeholder="搜索节点标题、内容或编号..."
+                                className="h-9 w-full rounded-xl border border-zinc-700/80 bg-zinc-900/75 pl-9 pr-3 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-colors focus:border-emerald-500/45 focus:ring-1 focus:ring-emerald-500/30"
+                              />
+                              <svg className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.35-4.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSetAllExpanded(true)}
+                                className="h-9 rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+                              >
+                                展开全部
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAllExpanded(false)}
+                                className="h-9 rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+                              >
+                                收起全部
+                              </button>
+                              {isOutlineFiltered && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOutlineLevelFilter('all');
+                                    setOutlineSearchKeyword('');
+                                  }}
+                                  className="h-9 rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+                                >
+                                  清除筛选
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-zinc-500">
+                            当前视图节点：{visibleOutlineNodeCount}/{outlineMetrics.total}
+                          </div>
                         </div>
                       </div>
-                      
-                      <OutlineTree 
-                        nodes={outlineNodes}
-                        onGenerateNext={handleGenerateNext}
-                        onRegenerate={handleRegenerateSingleNode}
-                        onToggle={handleToggle}
-                        onUpdateNode={(id, content) => {
-                          const updateNodes = (nodes: OutlineNode[]): OutlineNode[] => {
-                            return nodes.map(n => {
-                              if (n.id === id) return { ...n, content };
-                              if (n.children) return { ...n, children: updateNodes(n.children) };
-                              return n;
-                            });
-                          };
-                          setOutlineNodes(prev => updateNodes(prev));
-                        }}
-                        selectedIds={selectedOutlineIds}
-                        onSelect={handleOutlineSelect}
-                        selectionMode={outlineSelectionMode}
-                        readOnly={false}
-                      />
+
+                      <div className="p-4 md:p-6">
+                        <div className="rounded-2xl border border-zinc-800/70 bg-zinc-950/35 p-3 md:p-4 max-h-[72vh] overflow-y-auto custom-scrollbar">
+                          <OutlineTree 
+                            nodes={visibleOutlineNodes}
+                            onGenerateNext={handleGenerateNext}
+                            onRegenerate={handleRegenerateSingleNode}
+                            onToggle={handleToggle}
+                            onUpdateNode={(id, content) => {
+                              const updateNodes = (nodes: OutlineNode[]): OutlineNode[] => {
+                                return nodes.map(n => {
+                                  if (n.id === id) return { ...n, content };
+                                  if (n.children) return { ...n, children: updateNodes(n.children) };
+                                  return n;
+                                });
+                              };
+                              setOutlineNodes(prev => updateNodes(prev));
+                            }}
+                            selectedIds={selectedOutlineIds}
+                            onSelect={handleOutlineSelect}
+                            selectionMode={outlineSelectionMode}
+                            readOnly={false}
+                            className="space-y-3"
+                            emptyTitle={isOutlineFiltered ? '未匹配到大纲节点' : '暂无大纲数据'}
+                            emptyDescription={isOutlineFiltered ? '请调整筛选条件或清空关键词后重试。' : '点击上方按钮生成大纲'}
+                          />
+                        </div>
+                      </div>
                     </Card>
                   )}
                   
