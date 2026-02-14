@@ -38,6 +38,12 @@ export interface UpdateAgentInput {
   params?: AgentParams;
 }
 
+export interface BatchConfigureAgentModelInput {
+  ids: string[];
+  providerConfigId?: string;
+  model?: string;
+}
+
 export { BUILT_IN_AGENTS } from '@/src/constants/agents';
 
 const BUILT_IN_AGENT_NAMES = new Set(Object.values(BUILT_IN_AGENTS).map(agent => agent.name));
@@ -152,6 +158,64 @@ export async function updateAgent(id: string, userId: string, input: UpdateAgent
   
   const updated = await prisma.agentDefinition.update({ where: { id }, data: updateData });
   return toAgentDefinition(updated);
+}
+
+export async function batchConfigureAgentModel(
+  userId: string,
+  input: BatchConfigureAgentModelInput
+): Promise<{ updatedCount: number }> {
+  const ids = Array.from(
+    new Set(input.ids.map((id) => id.trim()).filter((id) => id.length > 0))
+  );
+
+  if (ids.length === 0) {
+    throw new Error('请至少选择一个助手');
+  }
+
+  const shouldUpdateProvider = input.providerConfigId !== undefined;
+  const shouldUpdateModel = input.model !== undefined;
+  if (!shouldUpdateProvider && !shouldUpdateModel) {
+    throw new Error('至少需要提供一个可更新字段');
+  }
+
+  if (input.providerConfigId && input.providerConfigId.trim()) {
+    const provider = await prisma.providerConfig.findFirst({
+      where: { id: input.providerConfigId.trim(), userId },
+      select: { id: true },
+    });
+    if (!provider) {
+      throw new Error('服务商不存在或无权限');
+    }
+  }
+
+  const existingCount = await prisma.agentDefinition.count({
+    where: {
+      userId,
+      id: { in: ids },
+    },
+  });
+
+  if (existingCount !== ids.length) {
+    throw new Error('包含不存在或无权限的助手');
+  }
+
+  const updateData: Prisma.AgentDefinitionUpdateManyMutationInput = {};
+  if (shouldUpdateProvider) {
+    updateData.providerConfigId = input.providerConfigId?.trim() || null;
+  }
+  if (shouldUpdateModel) {
+    updateData.model = input.model?.trim() || null;
+  }
+
+  const result = await prisma.agentDefinition.updateMany({
+    where: {
+      userId,
+      id: { in: ids },
+    },
+    data: updateData,
+  });
+
+  return { updatedCount: result.count };
 }
 
 export async function deleteAgent(id: string, userId: string): Promise<void> {

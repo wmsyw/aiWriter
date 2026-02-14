@@ -45,6 +45,8 @@ const outlineRoughInputSchema = z.object({
   specialRequirements: z.string().max(MAX_FIELD_LENGTH).optional(),
   creativeIntent: z.string().max(MAX_FIELD_LENGTH).optional(),
   agentId: z.string().optional(),
+  prev_volume_summary: z.string().max(MAX_FIELD_LENGTH * 4).optional(),
+  user_guidance: z.string().max(MAX_FIELD_LENGTH).optional(),
 });
 
 const outlineDetailedInputSchema = z.object({
@@ -64,6 +66,9 @@ const outlineDetailedInputSchema = z.object({
   next_block_content: z.string().optional(),
   regenerate_single: z.boolean().optional(),
   original_node_title: z.string().optional(),
+  parent_rough_node: z.unknown().optional(),
+  prev_detailed_node: z.unknown().optional(),
+  user_guidance: z.string().max(MAX_FIELD_LENGTH).optional(),
 });
 
 const outlineChaptersInputSchema = z.object({
@@ -85,6 +90,10 @@ const outlineChaptersInputSchema = z.object({
   parent_rough_content: z.string().optional(),
   regenerate_single: z.boolean().optional(),
   original_chapter_title: z.string().optional(),
+  prev_chapters_summary: z.string().max(MAX_FIELD_LENGTH * 4).optional(),
+  recent_chapters_content: z.string().max(MAX_FIELD_LENGTH * 4).optional(),
+  user_guidance: z.string().max(MAX_FIELD_LENGTH).optional(),
+  parent_detailed_node: z.unknown().optional(),
 });
 
 const characterBiosInputSchema = z.object({

@@ -271,6 +271,15 @@ export default function AgentsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [customModel, setCustomModel] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchSelectedIds, setBatchSelectedIds] = useState<Set<string>>(new Set());
+  const [batchProviderConfigId, setBatchProviderConfigId] = useState('');
+  const [batchModel, setBatchModel] = useState('');
+  const [batchUseCustomModel, setBatchUseCustomModel] = useState(false);
+  const [batchCustomModel, setBatchCustomModel] = useState('');
+  const [batchSaving, setBatchSaving] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchSuccessMessage, setBatchSuccessMessage] = useState<string | null>(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [viewingAgentKey, setViewingAgentKey] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
@@ -282,6 +291,7 @@ export default function AgentsPage() {
     return new Map(builtInInstances.map(agent => [agent.name, agent]));
   }, [builtInInstances]);
   const isEditingBuiltIn = Boolean(currentAgent.id && currentAgent.isBuiltIn);
+  const selectedBatchCount = batchSelectedIds.size;
   
   const viewingAgent = viewingAgentKey ? BUILT_IN_AGENTS[viewingAgentKey] : null;
   const viewingTemplate = useMemo(() => {
@@ -344,6 +354,8 @@ export default function AgentsPage() {
     }
     return builtInAgentsByCategory[activeCategory];
   }, [activeCategory, builtInAgentsByCategory]);
+  const batchAvailableModels =
+    providers.find((provider) => provider.id === batchProviderConfigId)?.models || [];
 
   const getProviderName = useCallback((providerConfigId?: string) => {
     if (!providerConfigId) return '默认服务商';
@@ -484,6 +496,85 @@ export default function AgentsPage() {
     }
   };
 
+  const handleOpenBatchModal = () => {
+    setBatchError(null);
+    setBatchSuccessMessage(null);
+    setBatchSelectedIds(new Set(agents.map((agent) => agent.id)));
+    setBatchProviderConfigId('');
+    setBatchModel('');
+    setBatchUseCustomModel(false);
+    setBatchCustomModel('');
+    setIsBatchModalOpen(true);
+  };
+
+  const handleCloseBatchModal = () => {
+    if (batchSaving) return;
+    setIsBatchModalOpen(false);
+    setBatchError(null);
+  };
+
+  const toggleBatchAgentSelection = (id: string, checked: boolean) => {
+    setBatchSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllBatchAgents = () => {
+    setBatchSelectedIds(new Set(agents.map((agent) => agent.id)));
+  };
+
+  const handleClearBatchAgents = () => {
+    setBatchSelectedIds(new Set());
+  };
+
+  const handleBatchConfigureSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBatchError(null);
+    setBatchSuccessMessage(null);
+
+    if (batchSelectedIds.size === 0) {
+      setBatchError('请至少选择一个助手');
+      return;
+    }
+
+    setBatchSaving(true);
+    try {
+      const modelValue = batchUseCustomModel ? batchCustomModel : batchModel;
+      const res = await fetch('/api/agents/batch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: Array.from(batchSelectedIds),
+          providerConfigId: batchProviderConfigId,
+          model: modelValue,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorPayload = await res.json().catch(() => null);
+        throw new Error(extractErrorMessage(errorPayload, '批量配置失败'));
+      }
+
+      const payload = await res.json().catch(() => ({ updatedCount: batchSelectedIds.size }));
+      const updatedCount =
+        typeof payload?.updatedCount === 'number' ? payload.updatedCount : batchSelectedIds.size;
+      setBatchSuccessMessage(`已批量更新 ${updatedCount} 个助手`);
+      await fetchData();
+      setIsBatchModalOpen(false);
+    } catch (error) {
+      console.error('Batch configure failed:', error);
+      setBatchError(error instanceof Error ? error.message : '批量配置失败');
+    } finally {
+      setBatchSaving(false);
+    }
+  };
+
   const updateParam = (key: string, value: number) => {
     setCurrentAgent(prev => ({
       ...prev,
@@ -544,20 +635,42 @@ export default function AgentsPage() {
             管理您的 AI 写作助手及其配置
           </motion.p>
         </div>
-        <Button 
-          variant="primary"
-          size="sm"
-          className="min-w-[108px]"
-          onClick={() => handleOpenModal()}
-          leftIcon={
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          }
-        >
-          新建助手
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="min-w-[132px]"
+            onClick={handleOpenBatchModal}
+            disabled={agents.length === 0}
+            leftIcon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            }
+          >
+            批量配置模型
+          </Button>
+          <Button 
+            variant="primary"
+            size="sm"
+            className="min-w-[108px]"
+            onClick={() => handleOpenModal()}
+            leftIcon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            }
+          >
+            新建助手
+          </Button>
+        </div>
       </div>
+
+      {batchSuccessMessage && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          {batchSuccessMessage}
+        </div>
+      )}
 
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -647,6 +760,181 @@ export default function AgentsPage() {
           </motion.div>
         </motion.div>
       </div>
+
+      <Modal
+        isOpen={isBatchModalOpen}
+        onClose={handleCloseBatchModal}
+        title="批量配置助手模型"
+        size="xl"
+      >
+        <form onSubmit={handleBatchConfigureSave} className="space-y-6">
+          <div className="rounded-lg border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-xs text-blue-200">
+            选择多个助手后可一次性统一设置服务商与模型。留空将清空对应字段，回到系统默认策略。
+          </div>
+
+          {batchError && (
+            <div className="rounded-lg border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {batchError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <label className="text-sm font-medium text-gray-300">选择助手</label>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                <span>已选 {selectedBatchCount} / {agents.length}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={handleSelectAllBatchAgents}
+                >
+                  全选
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={handleClearBatchAgents}
+                >
+                  清空
+                </Button>
+              </div>
+            </div>
+
+            <div className="max-h-[260px] overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-2 custom-scrollbar">
+              {agents.length === 0 ? (
+                <div className="px-3 py-6 text-center text-sm text-gray-500">暂无可配置助手</div>
+              ) : (
+                <div className="space-y-2">
+                  {agents.map((agent) => {
+                    const isSelected = batchSelectedIds.has(agent.id);
+                    return (
+                      <label
+                        key={agent.id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition-colors ${
+                          isSelected
+                            ? 'border-emerald-500/35 bg-emerald-500/10'
+                            : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(event) => toggleBatchAgentSelection(agent.id, event.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-emerald-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium text-white">{agent.name}</span>
+                            <Badge variant={agent.isBuiltIn ? 'info' : 'outline'} size="sm">
+                              {agent.isBuiltIn ? '内置' : '自定义'}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-gray-500">
+                            当前：{getProviderName(agent.providerConfigId)} · {agent.model || '默认模型'}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">服务商</label>
+              <select
+                value={batchProviderConfigId}
+                onChange={(event) => {
+                  setBatchProviderConfigId(event.target.value);
+                  setBatchModel('');
+                  setBatchCustomModel('');
+                  setBatchUseCustomModel(false);
+                }}
+                className="select-menu w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              >
+                <option value="">默认服务商</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} ({provider.providerType})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">模型</label>
+              <div className="space-y-2">
+                {batchAvailableModels.length > 0 && (
+                  <select
+                    value={batchUseCustomModel ? '__custom__' : batchModel}
+                    onChange={(event) => {
+                      if (event.target.value === '__custom__') {
+                        setBatchUseCustomModel(true);
+                        setBatchCustomModel('');
+                        setBatchModel('');
+                        return;
+                      }
+                      setBatchUseCustomModel(false);
+                      setBatchCustomModel('');
+                      setBatchModel(event.target.value);
+                    }}
+                    className="select-menu w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="">默认模型</option>
+                    {batchAvailableModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                    <option value="__custom__">自定义模型...</option>
+                  </select>
+                )}
+
+                {(batchAvailableModels.length === 0 || batchUseCustomModel) && (
+                  <Input
+                    value={batchUseCustomModel ? batchCustomModel : batchModel}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (batchUseCustomModel) {
+                        setBatchCustomModel(value);
+                      }
+                      setBatchModel(value);
+                    }}
+                    placeholder="留空则使用默认模型"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <ModalFooter className="mt-6">
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={handleCloseBatchModal}
+              disabled={batchSaving}
+            >
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              type="submit"
+              disabled={batchSaving || selectedBatchCount === 0}
+              isLoading={batchSaving}
+            >
+              批量保存
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
 
       <Modal
         isOpen={isModalOpen}

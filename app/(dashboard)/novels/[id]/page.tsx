@@ -261,6 +261,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
   const [outlineNodes, setOutlineNodes] = useState<OutlineNode[]>([]);
   const [regeneratingOutline, setRegeneratingOutline] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
+  const [continuingOutline, setContinuingOutline] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
   const [outlineSelectionMode, setOutlineSelectionMode] = useState(false);
   const [selectedOutlineIds, setSelectedOutlineIds] = useState<Set<string>>(new Set());
   const [outlineLevelFilter, setOutlineLevelFilter] = useState<OutlineLevelFilter>('all');
@@ -616,6 +617,102 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const collectNodeIds = (nodes: OutlineNode[]): Set<string> => {
+    const ids = new Set<string>();
+
+    const walk = (items: OutlineNode[]) => {
+      items.forEach((item) => {
+        if (item.id) {
+          ids.add(item.id);
+        }
+        if (item.children?.length) {
+          walk(item.children);
+        }
+      });
+    };
+
+    walk(nodes);
+    return ids;
+  };
+
+  const toUniqueNodeId = (baseId: string, existingIds: Set<string>, fallbackPrefix: string) => {
+    const normalizedBase = baseId.trim() || fallbackPrefix;
+    if (!existingIds.has(normalizedBase)) {
+      existingIds.add(normalizedBase);
+      return normalizedBase;
+    }
+
+    let cursor = 2;
+    while (existingIds.has(`${normalizedBase}-${cursor}`)) {
+      cursor += 1;
+    }
+    const uniqueId = `${normalizedBase}-${cursor}`;
+    existingIds.add(uniqueId);
+    return uniqueId;
+  };
+
+  const ensureUniqueIds = (
+    nodes: OutlineNode[],
+    existingIds: Set<string>,
+    fallbackPrefix: string
+  ): OutlineNode[] => {
+    return nodes.map((node, index) => {
+      const base = node.id || `${fallbackPrefix}-${index + 1}`;
+      const nextId = toUniqueNodeId(base, existingIds, `${fallbackPrefix}-${index + 1}`);
+      return {
+        ...node,
+        id: nextId,
+        children: node.children?.length
+          ? ensureUniqueIds(node.children, existingIds, nextId)
+          : node.children,
+      };
+    });
+  };
+
+  const forceLevel = (nodes: OutlineNode[], level: OutlineNode['level']): OutlineNode[] => {
+    return nodes.map((node) => ({
+      ...node,
+      level,
+      children: node.children?.length
+        ? forceLevel(
+            node.children,
+            level === 'rough' ? 'detailed' : level === 'detailed' ? 'chapter' : 'chapter'
+          )
+        : node.children,
+    }));
+  };
+
+  const parseGeneratedNodes = (raw: unknown, defaultLevel: OutlineNode['level']) => {
+    const parsed = typeof raw === 'string' ? safeParseJSON(raw) : raw;
+    const normalized = normalizeOutlineBlocksPayload(parsed || raw, defaultLevel).blocks;
+    return normalized as OutlineNode[];
+  };
+
+  const appendNodeChildren = (targetId: string, newChildren: OutlineNode[]) => {
+    setOutlineNodes((prev) => {
+      const existingIds = collectNodeIds(prev);
+      const normalizedChildren = ensureUniqueIds(newChildren, existingIds, `${targetId}-cont`);
+
+      const appendRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+        return nodes.map((node) => {
+          if (node.id === targetId) {
+            return {
+              ...node,
+              isExpanded: true,
+              children: [...(node.children || []), ...normalizedChildren],
+            };
+          }
+          if (node.children?.length) {
+            return { ...node, children: appendRecursive(node.children) };
+          }
+          return node;
+        });
+      };
+
+      return appendRecursive(prev);
+    });
+  };
+
   const runJob = async (type: string, input: Record<string, unknown>): Promise<any> => {
     const res = await fetch('/api/jobs', {
       method: 'POST',
@@ -747,6 +844,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       const context = roughNodes
         .map(n => `${n.id}. ${n.title}: ${n.content}`)
         .join('\n');
+      const existingDetailed = node.children || [];
+      const prevDetailedNode = existingDetailed.length > 0 ? existingDetailed[existingDetailed.length - 1] : null;
+      const guidance = prevDetailedNode
+        ? `请延续已生成细纲的叙事节奏与冲突升级，重点保持与前序节点“${prevDetailedNode.title}”的因果衔接。`
+        : '请先建立该分卷的开端、冲突与阶段目标，便于后续持续续写。';
 
       const output = await runJob('OUTLINE_DETAILED', {
         novelId: novel.id,
@@ -760,15 +862,26 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         next_block_content: nextBlock?.content || '',
         targetWords: novel.targetWords,
         chapterCount: novel.chapterCount,
+        parent_rough_node: {
+          id: node.id,
+          title: node.title,
+          content: node.content,
+        },
+        prev_detailed_node: prevDetailedNode
+          ? {
+              id: prevDetailedNode.id,
+              title: prevDetailedNode.title,
+              content: prevDetailedNode.content,
+            }
+          : undefined,
+        user_guidance: guidance,
       });
 
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      if (json && json.children) {
-        const normalizedChildren = json.children.map((child: any) => ({
-          ...child,
-          level: 'detailed' as const,
-        }));
+      const normalizedChildren = forceLevel(parseGeneratedNodes(output, 'detailed'), 'detailed');
+      if (normalizedChildren.length > 0) {
         updateNodeChildren(node.id, normalizedChildren);
+      } else {
+        alert('未解析到细纲节点，请重试');
       }
     } catch (error) {
       console.error('Failed to generate detailed outline', error);
@@ -789,6 +902,19 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       const context = allDetailed
         .map(detailed => `${detailed.id}. ${detailed.title}: ${detailed.content}`)
         .join('\n');
+      const allChapterNodes = allDetailed.flatMap((detailed) => detailed.children || []);
+      const prevChaptersSummary = allChapterNodes
+        .slice(-10)
+        .map((chapter, index) => `${index + 1}. ${chapter.title}: ${chapter.content.slice(0, 80)}`)
+        .join('\n');
+      const recentChaptersContent = allChapterNodes
+        .slice(-3)
+        .map((chapter) => `${chapter.title}\n${chapter.content}`)
+        .join('\n\n');
+      const prevChapter = allChapterNodes.length > 0 ? allChapterNodes[allChapterNodes.length - 1] : null;
+      const guidance = prevChapter
+        ? `请保证新章节与上一章节“${prevChapter.title}”顺承，并推进主线冲突。`
+        : '请先构建开篇章节组，明确引子、冲突和章节钩子节奏。';
 
       const output = await runJob('OUTLINE_CHAPTERS', {
         novelId: novel.id,
@@ -800,15 +926,21 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         parent_rough_content: parentRough?.content || '',
         targetWords: novel.targetWords,
         chapterCount: novel.chapterCount,
+        prev_chapters_summary: prevChaptersSummary,
+        recent_chapters_content: recentChaptersContent,
+        user_guidance: guidance,
+        parent_detailed_node: {
+          id: node.id,
+          title: node.title,
+          content: node.content,
+        },
       });
 
-      const json = typeof output === 'string' ? safeParseJSON(output) : output;
-      if (json && json.children) {
-        const normalizedChildren = json.children.map((child: any) => ({
-          ...child,
-          level: 'chapter' as const,
-        }));
+      const normalizedChildren = forceLevel(parseGeneratedNodes(output, 'chapter'), 'chapter');
+      if (normalizedChildren.length > 0) {
         updateNodeChildren(node.id, normalizedChildren);
+      } else {
+        alert('未解析到章节纲节点，请重试');
       }
     } catch (error) {
       console.error('Failed to generate chapters', error);
@@ -1185,6 +1317,167 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     });
   };
 
+  const handleContinueOutline = async (type: 'rough' | 'detailed' | 'chapters') => {
+    if (!novel || regeneratingOutline || continuingOutline) return;
+
+    setContinuingOutline(type);
+
+    try {
+      if (type === 'rough') {
+        const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
+        const previousVolumeSummary = roughNodes.length === 0
+          ? '无（当前为第一卷）'
+          : roughNodes
+              .slice(-3)
+              .map((node, index) => `第${roughNodes.length - Math.min(3, roughNodes.length) + index + 1}卷：${node.title}\n${node.content}`)
+              .join('\n\n');
+
+        const output = await runJob('OUTLINE_ROUGH', {
+          novelId: novel.id,
+          keywords: novel.keywords?.join(',') || '',
+          theme: novel.theme || '',
+          genre: novel.genre || '',
+          targetWords: novel.targetWords || 100,
+          chapterCount: novel.chapterCount || 100,
+          protagonist: novel.protagonist || '',
+          worldSetting: novel.worldSetting || '',
+          creativeIntent: novel.creativeIntent || '',
+          specialRequirements: novel.specialRequirements || '',
+          prev_volume_summary: previousVolumeSummary,
+          user_guidance: '请续写下一卷粗纲，必须承接前卷结尾伏笔并升级主线矛盾，保持世界观和人物动机连续。',
+        });
+
+        const generated = forceLevel(parseGeneratedNodes(output, 'rough'), 'rough');
+        if (generated.length === 0) {
+          throw new Error('未生成有效的粗纲节点');
+        }
+
+        setOutlineNodes((prev) => {
+          const existingIds = collectNodeIds(prev);
+          const uniqueNodes = ensureUniqueIds(generated, existingIds, `rough-${prev.length + 1}`);
+          return [...prev, ...uniqueNodes];
+        });
+      }
+
+      if (type === 'detailed') {
+        const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
+        const targetRough = roughNodes[roughNodes.length - 1];
+        if (!targetRough) {
+          throw new Error('请先生成粗纲后再续写细纲');
+        }
+
+        const roughIndex = roughNodes.findIndex((node) => node.id === targetRough.id);
+        const prevBlock = roughIndex > 0 ? roughNodes[roughIndex - 1] : null;
+        const nextBlock = roughIndex < roughNodes.length - 1 ? roughNodes[roughIndex + 1] : null;
+        const prevDetailed = targetRough.children && targetRough.children.length > 0
+          ? targetRough.children[targetRough.children.length - 1]
+          : null;
+        const roughContext = roughNodes
+          .map((node) => `${node.id}. ${node.title}: ${node.content}`)
+          .join('\n');
+
+        const output = await runJob('OUTLINE_DETAILED', {
+          novelId: novel.id,
+          target_id: targetRough.id,
+          target_title: targetRough.title,
+          target_content: targetRough.content,
+          rough_outline_context: roughContext,
+          prev_block_title: prevBlock?.title || '',
+          prev_block_content: prevBlock?.content || '',
+          next_block_title: nextBlock?.title || '',
+          next_block_content: nextBlock?.content || '',
+          targetWords: novel.targetWords || 100,
+          chapterCount: novel.chapterCount || 100,
+          parent_rough_node: {
+            id: targetRough.id,
+            title: targetRough.title,
+            content: targetRough.content,
+          },
+          prev_detailed_node: prevDetailed
+            ? {
+                id: prevDetailed.id,
+                title: prevDetailed.title,
+                content: prevDetailed.content,
+              }
+            : undefined,
+          user_guidance: prevDetailed
+            ? `请续写该分卷细纲，承接上一细纲节点“${prevDetailed.title}”并保持冲突升级。`
+            : '请从该分卷起始位置生成首批细纲节点，明确目标、冲突与阶段转折。',
+        });
+
+        const generated = forceLevel(parseGeneratedNodes(output, 'detailed'), 'detailed');
+        if (generated.length === 0) {
+          throw new Error('未生成有效的细纲节点');
+        }
+
+        appendNodeChildren(targetRough.id, generated);
+      }
+
+      if (type === 'chapters') {
+        const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
+        const detailedEntries = roughNodes.flatMap((roughNode) =>
+          (roughNode.children || []).map((detailedNode) => ({
+            roughNode,
+            detailedNode,
+          }))
+        );
+        const targetEntry = detailedEntries[detailedEntries.length - 1];
+        if (!targetEntry) {
+          throw new Error('请先生成细纲后再续写章节纲');
+        }
+
+        const allDetailed = detailedEntries.map((entry) => entry.detailedNode);
+        const allChapterNodes = allDetailed.flatMap((detailedNode) => detailedNode.children || []);
+        const prevChaptersSummary = allChapterNodes
+          .slice(-10)
+          .map((node, index) => `${index + 1}. ${node.title}: ${node.content.slice(0, 90)}`)
+          .join('\n');
+        const recentChaptersContent = allChapterNodes
+          .slice(-3)
+          .map((node) => `${node.title}\n${node.content}`)
+          .join('\n\n');
+        const detailedContext = allDetailed
+          .map((node) => `${node.id}. ${node.title}: ${node.content}`)
+          .join('\n');
+        const prevChapter = allChapterNodes.length > 0 ? allChapterNodes[allChapterNodes.length - 1] : null;
+
+        const output = await runJob('OUTLINE_CHAPTERS', {
+          novelId: novel.id,
+          target_id: targetEntry.detailedNode.id,
+          target_title: targetEntry.detailedNode.title,
+          target_content: targetEntry.detailedNode.content,
+          detailed_outline_context: detailedContext,
+          parent_rough_title: targetEntry.roughNode.title,
+          parent_rough_content: targetEntry.roughNode.content,
+          targetWords: novel.targetWords || 100,
+          chapterCount: novel.chapterCount || 100,
+          prev_chapters_summary: prevChaptersSummary,
+          recent_chapters_content: recentChaptersContent,
+          parent_detailed_node: {
+            id: targetEntry.detailedNode.id,
+            title: targetEntry.detailedNode.title,
+            content: targetEntry.detailedNode.content,
+          },
+          user_guidance: prevChapter
+            ? `请续写章节纲，首章需要自然承接上一章“${prevChapter.title}”结尾并推动主线。`
+            : '请为该细纲生成首批章节纲，确保每章都有开场冲突与章末钩子。',
+        });
+
+        const generated = forceLevel(parseGeneratedNodes(output, 'chapter'), 'chapter');
+        if (generated.length === 0) {
+          throw new Error('未生成有效的章节纲节点');
+        }
+
+        appendNodeChildren(targetEntry.detailedNode.id, generated);
+      }
+    } catch (error) {
+      console.error('Failed to continue outline', error);
+      alert(error instanceof Error ? error.message : '续写失败，请重试');
+    } finally {
+      setContinuingOutline(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -1290,6 +1583,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     walk(outlineNodes);
     return metrics;
   })();
+  const isOutlineMutating = regeneratingOutline !== null || continuingOutline !== null;
+  const canContinueDetailed = outlineMetrics.rough > 0;
+  const canContinueChapters = outlineMetrics.detailed > 0;
+
   const outlineLevelFilterOptions: Array<{ id: OutlineLevelFilter; label: string; count: number }> = [
     { id: 'all', label: '全部', count: outlineMetrics.total },
     { id: 'rough', label: '粗纲', count: outlineMetrics.rough },
@@ -1600,7 +1897,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                     variant="primary"
                                     size="sm"
                                     onClick={handleBatchRegenerate}
-                                    disabled={selectedOutlineIds.size === 0}
+                                    disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
                                     className="h-8 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
                                   >
                                     批量重新生成
@@ -1612,6 +1909,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                       setOutlineSelectionMode(false);
                                       setSelectedOutlineIds(new Set());
                                     }}
+                                    disabled={isOutlineMutating}
                                     className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
                                   >
                                     取消选择
@@ -1623,6 +1921,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setOutlineSelectionMode(true)}
+                                  disabled={isOutlineMutating}
                                   className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
                                 >
                                   <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1638,6 +1937,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                   size="sm"
                                   onClick={() => handleRegenerateOutline('detailed')}
                                   isLoading={regeneratingOutline === 'detailed'}
+                                  disabled={isOutlineMutating}
                                   className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
                                 >
                                   生成全部细纲
@@ -1649,6 +1949,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                   size="sm"
                                   onClick={() => handleRegenerateOutline('chapters')}
                                   isLoading={regeneratingOutline === 'chapters'}
+                                  disabled={isOutlineMutating}
                                   className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
                                 >
                                   生成全部章节
@@ -1657,13 +1958,51 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex items-center rounded-xl border border-emerald-500/25 bg-emerald-500/8 overflow-hidden">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleContinueOutline('rough')}
+                                  isLoading={continuingOutline === 'rough'}
+                                  disabled={regeneratingOutline !== null || continuingOutline !== null}
+                                  className="h-8 rounded-none border-0 border-r border-emerald-500/20 px-3 text-[11px] text-emerald-300 hover:bg-emerald-500/16 hover:text-emerald-200 disabled:opacity-50"
+                                  title="基于当前结尾追加下一卷粗纲"
+                                >
+                                  续写粗纲
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleContinueOutline('detailed')}
+                                  isLoading={continuingOutline === 'detailed'}
+                                  disabled={regeneratingOutline !== null || continuingOutline !== null || !canContinueDetailed}
+                                  className="h-8 rounded-none border-0 border-r border-emerald-500/20 px-3 text-[11px] text-emerald-300 hover:bg-emerald-500/16 hover:text-emerald-200 disabled:opacity-50"
+                                  title="承接最后一卷，追加细纲节点"
+                                >
+                                  续写细纲
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleContinueOutline('chapters')}
+                                  isLoading={continuingOutline === 'chapters'}
+                                  disabled={regeneratingOutline !== null || continuingOutline !== null || !canContinueChapters}
+                                  className="h-8 rounded-none border-0 px-3 text-[11px] text-emerald-300 hover:bg-emerald-500/16 hover:text-emerald-200 disabled:opacity-50"
+                                  title="承接最近章节，追加章节纲"
+                                >
+                                  续写章节
+                                </Button>
+                              </div>
                               <div className="flex items-center rounded-xl border border-zinc-700/70 bg-zinc-900/70 overflow-hidden">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleRegenerateOutline('rough')}
-                                  disabled={regeneratingOutline !== null}
+                                  disabled={isOutlineMutating}
                                   className="h-8 rounded-none border-0 border-r border-zinc-800 px-3 text-[11px] text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
                                   title="重新生成粗纲 (将重置所有内容)"
                                 >
@@ -1675,7 +2014,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleRegenerateOutline('detailed')}
-                                    disabled={regeneratingOutline !== null}
+                                    disabled={isOutlineMutating}
                                     className="h-8 rounded-none border-0 border-r border-zinc-800 px-3 text-[11px] text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
                                     title="重新生成细纲 (将重置细纲和章节)"
                                   >
@@ -1688,7 +2027,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleRegenerateOutline('chapters')}
-                                    disabled={regeneratingOutline !== null}
+                                    disabled={isOutlineMutating}
                                     className="h-8 rounded-none border-0 px-3 text-[11px] text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
                                     title="重新生成章节"
                                   >
