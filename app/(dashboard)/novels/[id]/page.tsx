@@ -35,7 +35,7 @@ import {
   Badge, 
   Skeleton 
 } from '@/app/components/ui';
-import { ConfirmModal } from '@/app/components/ui/Modal';
+import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
 import { 
   staggerContainer, 
   staggerItem, 
@@ -141,6 +141,7 @@ type OutlineLevelFilter = (typeof OUTLINE_LEVEL_FILTERS)[number]['id'];
 type DisplayTab = 'chapters' | 'outline' | 'workbench' | 'settings';
 type OutlineMutationKind = 'rough' | 'detailed' | 'chapters';
 type OutlineDeviationSeverity = 'healthy' | 'info' | 'warning' | 'critical';
+type ContinueSelectionType = 'detailed' | 'chapters';
 
 const TAB_META: Record<DisplayTab, { label: string; icon: string; hint: string }> = {
   chapters: {
@@ -308,6 +309,17 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [selectedOutlineIds, setSelectedOutlineIds] = useState<Set<string>>(new Set());
   const [outlineLevelFilter, setOutlineLevelFilter] = useState<OutlineLevelFilter>('all');
   const [outlineSearchKeyword, setOutlineSearchKeyword] = useState('');
+  const [continueSelectionState, setContinueSelectionState] = useState<{
+    isOpen: boolean;
+    type: ContinueSelectionType | null;
+    roughId: string;
+    detailedId: string;
+  }>({
+    isOpen: false,
+    type: null,
+    roughId: '',
+    detailedId: '',
+  });
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -1573,7 +1585,63 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     });
   };
 
-  const handleContinueOutline = async (type: OutlineMutationKind) => {
+  const buildDetailedEntries = () => {
+    const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
+    return roughNodes.flatMap((roughNode) =>
+      (roughNode.children || [])
+        .filter((detailedNode) => detailedNode.level === 'detailed')
+        .map((detailedNode) => ({
+          roughNode,
+          detailedNode,
+        }))
+    );
+  };
+
+  const openContinueSelectionModal = (type: ContinueSelectionType) => {
+    const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
+    const detailedEntries = buildDetailedEntries();
+
+    if (type === 'detailed') {
+      const targetRough = roughNodes[roughNodes.length - 1];
+      if (!targetRough) {
+        setError('请先生成粗纲后再续写细纲');
+        return;
+      }
+      setContinueSelectionState({
+        isOpen: true,
+        type,
+        roughId: targetRough.id,
+        detailedId: '',
+      });
+      return;
+    }
+
+    const targetEntry = detailedEntries[detailedEntries.length - 1];
+    if (!targetEntry) {
+      setError('请先生成细纲后再续写章节纲');
+      return;
+    }
+    setContinueSelectionState({
+      isOpen: true,
+      type,
+      roughId: targetEntry.roughNode.id,
+      detailedId: targetEntry.detailedNode.id,
+    });
+  };
+
+  const closeContinueSelectionModal = () => {
+    setContinueSelectionState({
+      isOpen: false,
+      type: null,
+      roughId: '',
+      detailedId: '',
+    });
+  };
+
+  const handleContinueOutline = async (
+    type: OutlineMutationKind,
+    options?: { roughId?: string; detailedId?: string },
+  ) => {
     if (!novel || regeneratingOutline || continuingOutline) return;
 
     setContinuingOutline(type);
@@ -1617,9 +1685,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
       if (type === 'detailed') {
         const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
-        const targetRough = roughNodes[roughNodes.length - 1];
+        const targetRough = options?.roughId
+          ? roughNodes.find((node) => node.id === options.roughId)
+          : roughNodes[roughNodes.length - 1];
         if (!targetRough) {
-          throw new Error('请先生成粗纲后再续写细纲');
+          throw new Error('未找到目标粗纲，请重新选择后再续写细纲');
         }
 
         const roughIndex = roughNodes.findIndex((node) => node.id === targetRough.id);
@@ -1670,16 +1740,12 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       }
 
       if (type === 'chapters') {
-        const roughNodes = outlineNodes.filter((node) => node.level === 'rough');
-        const detailedEntries = roughNodes.flatMap((roughNode) =>
-          (roughNode.children || []).map((detailedNode) => ({
-            roughNode,
-            detailedNode,
-          }))
-        );
-        const targetEntry = detailedEntries[detailedEntries.length - 1];
+        const detailedEntries = buildDetailedEntries();
+        const targetEntry = options?.detailedId
+          ? detailedEntries.find((entry) => entry.detailedNode.id === options.detailedId)
+          : detailedEntries[detailedEntries.length - 1];
         if (!targetEntry) {
-          throw new Error('请先生成细纲后再续写章节纲');
+          throw new Error('未找到目标细纲，请重新选择后再续写章节纲');
         }
 
         const allDetailed = detailedEntries.map((entry) => entry.detailedNode);
@@ -1735,6 +1801,28 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setContinuingOutline(null);
     }
+  };
+
+  const handleConfirmContinueSelection = async () => {
+    const { type, roughId, detailedId } = continueSelectionState;
+    if (!type) return;
+
+    if (type === 'detailed') {
+      if (!roughId) {
+        setError('请选择续写细纲的粗纲目标');
+        return;
+      }
+      closeContinueSelectionModal();
+      await handleContinueOutline('detailed', { roughId });
+      return;
+    }
+
+    if (!detailedId) {
+      setError('请选择续写章节纲的细纲目标');
+      return;
+    }
+    closeContinueSelectionModal();
+    await handleContinueOutline('chapters', { detailedId });
   };
 
   if (isLoading) {
@@ -2076,6 +2164,31 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     return countRecursive(visibleOutlineNodes);
   })();
 
+  const continueRoughOptions = outlineNodes
+    .filter((node) => node.level === 'rough')
+    .map((roughNode, index) => ({
+      id: roughNode.id,
+      label: `${index + 1}. ${roughNode.title || `粗纲 ${index + 1}`}`,
+      detailedCount: roughNode.children?.length || 0,
+    }));
+  const continueDetailedOptions = outlineNodes.flatMap((roughNode, roughIndex) =>
+    (roughNode.children || [])
+      .filter((detailedNode) => detailedNode.level === 'detailed')
+      .map((detailedNode, detailedIndex) => ({
+        id: detailedNode.id,
+        roughId: roughNode.id,
+        label: `${roughIndex + 1}-${detailedIndex + 1}. ${roughNode.title || `粗纲 ${roughIndex + 1}`} / ${detailedNode.title || '未命名细纲'}`,
+      }))
+  );
+  const isContinueSelectionSubmitting = continueSelectionState.type
+    ? continuingOutline === continueSelectionState.type
+    : false;
+  const canConfirmContinueSelection = continueSelectionState.type === 'detailed'
+    ? Boolean(continueSelectionState.roughId)
+    : continueSelectionState.type === 'chapters'
+      ? Boolean(continueSelectionState.detailedId)
+      : false;
+
   const outlineActionPanel = (
     <div className="space-y-3">
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 p-3 space-y-2.5">
@@ -2087,7 +2200,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             </Badge>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
           {outlineSelectionMode ? (
             <>
               <Button
@@ -2095,7 +2208,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 size="sm"
                 onClick={handleBatchRegenerate}
                 disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
-                className="h-8 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+                className="h-8 w-full justify-start text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
               >
                 批量重新生成
               </Button>
@@ -2104,7 +2217,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 size="sm"
                 onClick={handleBatchDelete}
                 disabled={selectedOutlineIds.size === 0 || isOutlineMutating}
-                className="h-8 text-xs border border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/22 hover:text-red-100 disabled:opacity-50"
+                className="h-8 w-full justify-start text-xs border border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/22 hover:text-red-100 disabled:opacity-50"
               >
                 批量删除
               </Button>
@@ -2116,7 +2229,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   setSelectedOutlineIds(new Set());
                 }}
                 disabled={isOutlineMutating}
-                className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
+                className="h-8 w-full justify-start text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
               >
                 取消选择
               </Button>
@@ -2127,7 +2240,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               size="sm"
               onClick={() => setOutlineSelectionMode(true)}
               disabled={isOutlineMutating}
-              className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
+              className="h-8 w-full justify-start text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
             >
               <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -2143,7 +2256,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               onClick={() => handleRegenerateOutline('detailed')}
               isLoading={regeneratingOutline === 'detailed'}
               disabled={isOutlineMutating}
-              className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+              className="h-8 w-full justify-start text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
             >
               生成全部细纲
             </Button>
@@ -2155,7 +2268,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               onClick={() => handleRegenerateOutline('chapters')}
               isLoading={regeneratingOutline === 'chapters'}
               disabled={isOutlineMutating}
-              className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
+              className="h-8 w-full justify-start text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30"
             >
               生成全部章节
             </Button>
@@ -2165,7 +2278,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
       <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-3 space-y-2.5">
         <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-300/80">续写追加</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -2173,7 +2286,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             onClick={() => handleContinueOutline('rough')}
             isLoading={continuingOutline === 'rough'}
             disabled={isOutlineMutating}
-            className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
+            className="h-8 w-full justify-start border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
             title="基于当前结尾追加下一卷粗纲"
           >
             续写粗纲
@@ -2182,10 +2295,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => handleContinueOutline('detailed')}
+            onClick={() => openContinueSelectionModal('detailed')}
             isLoading={continuingOutline === 'detailed'}
             disabled={isOutlineMutating || !canContinueDetailed}
-            className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
+            className="h-8 w-full justify-start border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
             title="承接最后一卷，追加细纲节点"
           >
             续写细纲
@@ -2194,10 +2307,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => handleContinueOutline('chapters')}
+            onClick={() => openContinueSelectionModal('chapters')}
             isLoading={continuingOutline === 'chapters'}
             disabled={isOutlineMutating || !canContinueChapters}
-            className="h-8 border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
+            className="h-8 w-full justify-start border border-emerald-500/25 bg-emerald-500/[0.08] text-[11px] text-emerald-200 hover:bg-emerald-500/20 hover:text-emerald-100 disabled:opacity-50"
             title="承接最近章节，追加章节纲"
           >
             续写章节
@@ -2207,14 +2320,14 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
 
       <div className="rounded-2xl border border-zinc-700/75 bg-zinc-950/45 p-3 space-y-2.5">
         <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">阶段重建</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => handleRegenerateOutline('rough')}
             disabled={isOutlineMutating}
-            className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+            className="h-8 w-full justify-start border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
             title="重新生成粗纲 (将重置所有内容)"
           >
             重置粗纲
@@ -2226,7 +2339,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               size="sm"
               onClick={() => handleRegenerateOutline('detailed')}
               disabled={isOutlineMutating}
-              className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+              className="h-8 w-full justify-start border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
               title="重新生成细纲 (将重置细纲和章节)"
             >
               重置细纲
@@ -2239,7 +2352,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               size="sm"
               onClick={() => handleRegenerateOutline('chapters')}
               disabled={isOutlineMutating}
-              className="h-8 border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
+              className="h-8 w-full justify-start border border-zinc-700/80 bg-zinc-900/70 px-3 text-[11px] text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 disabled:opacity-50"
               title="重新生成章节"
             >
               重置章节
@@ -2568,7 +2681,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               {novel?.type === 'long' && (
                 <div className="max-w-[1360px] mx-auto space-y-6">
                   {outlineNodes.length > 0 && (
-                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_310px] gap-4 items-start">
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_262px] gap-4 items-start">
                     <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/55 overflow-hidden">
                       <div className="p-5 md:p-6 border-b border-zinc-800/70 space-y-5">
                         <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
@@ -2665,7 +2778,13 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                                   size="sm"
                                   onClick={() => {
                                     if (outlineDeviation.action?.mode === 'continue') {
-                                      handleContinueOutline(outlineDeviation.action.target);
+                                      if (outlineDeviation.action.target === 'detailed') {
+                                        openContinueSelectionModal('detailed');
+                                      } else if (outlineDeviation.action.target === 'chapters') {
+                                        openContinueSelectionModal('chapters');
+                                      } else {
+                                        handleContinueOutline(outlineDeviation.action.target);
+                                      }
                                     } else {
                                       handleRegenerateOutline(outlineDeviation.action.target);
                                     }
@@ -3650,6 +3769,81 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         confirmText={confirmState.confirmText}
         variant={confirmState.variant}
       />
+
+      <Modal
+        isOpen={continueSelectionState.isOpen}
+        onClose={closeContinueSelectionModal}
+        title={continueSelectionState.type === 'detailed' ? '选择续写细纲目标' : '选择续写章节纲目标'}
+        size="lg"
+      >
+        <div className="px-6 py-5 space-y-4">
+          {continueSelectionState.type === 'detailed' ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-200">选择粗纲范围</label>
+              <select
+                value={continueSelectionState.roughId}
+                onChange={(event) =>
+                  setContinueSelectionState((prev) => ({
+                    ...prev,
+                    roughId: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 text-sm text-zinc-200 outline-none transition-colors focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/30"
+              >
+                <option value="" className="bg-zinc-900">请选择粗纲</option>
+                {continueRoughOptions.map((option) => (
+                  <option key={option.id} value={option.id} className="bg-zinc-900">
+                    {option.label}（已含细纲 {option.detailedCount}）
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-500">
+                将在所选粗纲下继续追加新的细纲节点，不影响其他粗纲分支。
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-200">选择细纲范围</label>
+              <select
+                value={continueSelectionState.detailedId}
+                onChange={(event) =>
+                  setContinueSelectionState((prev) => ({
+                    ...prev,
+                    detailedId: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 text-sm text-zinc-200 outline-none transition-colors focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/30"
+              >
+                <option value="" className="bg-zinc-900">请选择细纲</option>
+                {continueDetailedOptions.map((option) => (
+                  <option key={option.id} value={option.id} className="bg-zinc-900">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-500">
+                将在所选细纲下继续追加章节纲节点，并同步到章节列表。
+              </p>
+            </div>
+          )}
+
+          <div className="pt-2 flex items-center justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={closeContinueSelectionModal} disabled={isContinueSelectionSubmitting}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmContinueSelection}
+              isLoading={isContinueSelectionSubmitting}
+              disabled={!canConfirmContinueSelection || isContinueSelectionSubmitting}
+              className="min-w-[110px]"
+            >
+              开始续写
+            </Button>
+          </div>
+        </div>
+      </Modal>
       </div>
     </div>
   );

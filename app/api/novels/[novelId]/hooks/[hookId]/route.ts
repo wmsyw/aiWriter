@@ -2,14 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
-import { getHook, referenceHook, resolveHook, abandonHook } from '@/src/server/services/hooks';
+import {
+  getHook,
+  referenceHook,
+  resolveHook,
+  abandonHook,
+  updateHookMetadata,
+} from '@/src/server/services/hooks';
 
-const updateSchema = z.object({
-  action: z.enum(['reference', 'resolve', 'abandon']),
-  chapterNumber: z.number().int().positive().optional(),
-  context: z.string().optional(),
-  reason: z.string().optional(),
-});
+const updateSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('reference'),
+    chapterNumber: z.number().int().positive(),
+    context: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('resolve'),
+    chapterNumber: z.number().int().positive(),
+    context: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('abandon'),
+    reason: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('update_meta'),
+    type: z.enum(['foreshadowing', 'chekhov_gun', 'mystery', 'promise', 'setup']).optional(),
+    description: z.string().min(1).optional(),
+    plantedInChapter: z.number().int().positive().optional(),
+    plantedContext: z.string().nullable().optional(),
+    importance: z.enum(['critical', 'major', 'minor']).optional(),
+    expectedResolutionBy: z.number().int().positive().nullable().optional(),
+    reminderThreshold: z.number().int().positive().max(200).optional(),
+    relatedCharacters: z.array(z.string().trim().min(1)).max(30).optional(),
+    relatedOrganizations: z.array(z.string().trim().min(1)).max(30).optional(),
+    notes: z.string().nullable().optional(),
+  }),
+]);
 
 export async function GET(
   _request: NextRequest,
@@ -58,19 +87,27 @@ export async function PATCH(
 
     switch (data.action) {
       case 'reference':
-        if (!data.chapterNumber) {
-          return NextResponse.json({ error: 'chapterNumber is required for reference action' }, { status: 400 });
-        }
         await referenceHook(hookId, data.chapterNumber, data.context);
         break;
       case 'resolve':
-        if (!data.chapterNumber) {
-          return NextResponse.json({ error: 'chapterNumber is required for resolve action' }, { status: 400 });
-        }
         await resolveHook(hookId, data.chapterNumber, data.context);
         break;
       case 'abandon':
         await abandonHook(hookId, data.reason);
+        break;
+      case 'update_meta':
+        await updateHookMetadata(hookId, {
+          type: data.type,
+          description: data.description,
+          plantedInChapter: data.plantedInChapter,
+          plantedContext: data.plantedContext,
+          importance: data.importance,
+          expectedResolutionBy: data.expectedResolutionBy,
+          reminderThreshold: data.reminderThreshold,
+          relatedCharacters: data.relatedCharacters,
+          relatedOrganizations: data.relatedOrganizations,
+          notes: data.notes,
+        });
         break;
     }
 

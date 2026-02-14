@@ -31,6 +31,7 @@ export const PlantHookInputSchema = z.object({
   plantedContext: z.string().optional(),
   importance: z.enum(['critical', 'major', 'minor']).default('minor'),
   expectedResolutionBy: z.number().int().positive().optional(),
+  reminderThreshold: z.number().int().positive().max(200).optional(),
   relatedCharacters: z.array(z.string()).default([]),
   relatedOrganizations: z.array(z.string()).default([]),
   notes: z.string().optional(),
