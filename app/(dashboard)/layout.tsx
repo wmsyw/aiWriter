@@ -5,13 +5,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getJobStatusLabel, getJobStatusClassName, getJobTypeLabel } from '@/app/components/JobStatusBadge';
 import { Button } from '@/app/components/ui/Button';
-
-interface Notification {
-  id: string;
-  type: string;
-  status: string;
-  createdAt: string;
-}
+import PageTransition from '@/app/components/PageTransition';
+import {
+  countActiveJobs,
+  JobQueueItem,
+  mergeJobsById,
+  parseJobsListResponse,
+  parseJobsStreamPayload,
+} from '@/src/shared/jobs';
 
 interface UserInfo {
   id: string;
@@ -20,6 +21,8 @@ interface UserInfo {
 }
 
 const SIDEBAR_STORAGE_KEY = 'aiwriter.sidebarCollapsed';
+const MAX_NOTIFICATION_JOBS = 30;
+const NOTIFICATION_PREVIEW_COUNT = 5;
 
 const PATH_LABELS: Record<string, string> = {
   dashboard: '工作台',
@@ -41,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<JobQueueItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -92,8 +95,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       try {
         const res = await fetch('/api/jobs');
         if (res.ok) {
-          const jobs = await res.json();
-          setNotifications((Array.isArray(jobs) ? jobs : []).slice(0, 5));
+          const payload = await res.json();
+          const parsed = parseJobsListResponse(payload);
+          setNotifications(parsed.jobs.slice(0, MAX_NOTIFICATION_JOBS));
         }
       } catch (error) {
         console.error('Failed to fetch notifications', error);
@@ -105,10 +109,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     
     eventSource.addEventListener('jobs', (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.jobs && Array.isArray(data.jobs)) {
-          setNotifications(data.jobs.slice(0, 5));
-        }
+        const messageEvent = event as MessageEvent<string>;
+        const payload = JSON.parse(messageEvent.data);
+        const parsed = parseJobsStreamPayload(payload);
+        if (!parsed) return;
+
+        setNotifications((prev) => {
+          const mergedJobs = parsed.isInitial
+            ? parsed.jobs
+            : mergeJobsById(prev, parsed.jobs);
+          return mergedJobs.slice(0, MAX_NOTIFICATION_JOBS);
+        });
       } catch (error) {
         console.error('Failed to parse SSE data', error);
       }
@@ -147,7 +158,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
-  const unreadCount = notifications.filter(n => n.status === 'queued' || n.status === 'running').length;
+  const unreadCount = countActiveJobs(notifications);
 
   const navItems = [
     { name: '工作台', href: '/dashboard', icon: (
@@ -385,7 +396,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       暂无通知
                     </div>
                   ) : (
-                    notifications.map((n) => (
+                    notifications.slice(0, NOTIFICATION_PREVIEW_COUNT).map((n) => (
                       <Link
                         key={n.id}
                         href="/jobs"
@@ -409,11 +420,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <div className="flex-1 p-4 lg:p-7 animate-fade-in">
-          <div className="page-shell dashboard-page">
-            {children}
-          </div>
-        </div>
+        <PageTransition
+          wrapperClassName="flex-1 p-4 lg:p-7"
+          pageClassName="page-shell dashboard-page"
+        >
+          {children}
+        </PageTransition>
       </main>
     </div>
   );

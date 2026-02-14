@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { calculateOutlineParams } from '@/src/shared/outline-calculator';
 import OutlineTree, { OutlineNode } from '@/app/components/OutlineTree';
 import { Button } from '@/app/components/ui/Button';
+import {
+  buildOutlineMarkdown,
+  normalizeOutlineBlocksPayload,
+  pickBestOutlineBlocks,
+  type OutlineBlocksPayload,
+} from '@/src/shared/outline-planning';
+import { pollJobUntilTerminal } from '@/app/lib/jobs/polling';
+import { parseJobResponse } from '@/src/shared/jobs';
 
 interface OutlineData {
   outline: string;
@@ -73,66 +81,29 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
     }
   }, [isOpen, novel]);
   const [generatedOutline, setGeneratedOutline] = useState('');
-  const [roughOutline, setRoughOutline] = useState<any>(null);
-  const [detailedOutline, setDetailedOutline] = useState<any>(null);
-  const [chapterOutline, setChapterOutline] = useState<any>(null);
+  const [roughOutline, setRoughOutline] = useState<OutlineBlocksPayload | null>(null);
+  const [detailedOutline, setDetailedOutline] = useState<OutlineBlocksPayload | null>(null);
+  const [chapterOutline, setChapterOutline] = useState<OutlineBlocksPayload | null>(null);
   const [stage, setStage] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
-  const normalizeOutlineData = (data: any, defaultLevel: 'rough' | 'detailed' | 'chapter' = 'rough', parentId = 'root'): OutlineNode[] => {
-    if (!data) return [];
-    
-    const items = Array.isArray(data) ? data : 
-                 (data.blocks || data.children || data.chapters || data.events || data.story_arcs || []);
-    
-    if (!Array.isArray(items)) return [];
-
-    return items.map((item: any, index: number) => {
-      let level = item.level as 'rough' | 'detailed' | 'chapter';
-      
-      if (!level) {
-        if (item.chapters || item.events) level = 'rough';
-        else if (defaultLevel === 'chapter' && !item.children) level = 'chapter';
-        else level = defaultLevel;
-      }
-
-      if (defaultLevel === 'detailed' && (item.children || item.events)) {
-         level = 'rough';
-      }
-      if (defaultLevel === 'chapter') {
-        if (item.children || item.blocks || item.events) level = 'rough';
-      }
-
-      const id = item.id || `${parentId}-${index}`;
-      
-      const childData = item.children || item.blocks || item.events || item.chapters || item.story_arcs;
-      let children: OutlineNode[] | undefined;
-      
-      if (childData) {
-        let childLevel: 'rough' | 'detailed' | 'chapter' = 'detailed';
-        if (level === 'detailed') childLevel = 'chapter';
-        if (level === 'rough') childLevel = 'detailed';
-        
-        children = normalizeOutlineData(childData, childLevel, id);
-      }
-
-      return {
-        id,
-        title: item.title || item.name || item.headline || item.chapter_title || `Node ${index + 1}`,
-        content: item.content || item.description || item.summary || item.text || item.outline || '',
-        level: level || defaultLevel,
-        children,
-        isExpanded: !collapsedNodes.has(id)
-      };
-    });
-  };
-
   const treeNodes = useMemo(() => {
-    if (chapterOutline) return normalizeOutlineData(chapterOutline, 'chapter');
-    if (detailedOutline) return normalizeOutlineData(detailedOutline, 'detailed');
-    if (roughOutline) return normalizeOutlineData(roughOutline, 'rough');
-    return [];
+    const normalized = pickBestOutlineBlocks({
+      outlineChapters: chapterOutline,
+      outlineDetailed: detailedOutline,
+      outlineRough: roughOutline,
+    });
+
+    const applyCollapseState = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map((node) => ({
+        ...node,
+        isExpanded: !collapsedNodes.has(node.id),
+        children: node.children ? applyCollapseState(node.children as OutlineNode[]) : undefined,
+      }));
+    };
+
+    return applyCollapseState(normalized as OutlineNode[]);
   }, [chapterOutline, detailedOutline, roughOutline, collapsedNodes]);
 
   const handleToggleNode = (id: string) => {
@@ -167,26 +138,6 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
 
   if (!isOpen) return null;
 
-  const pollJob = (id: string) => new Promise<any>((resolve, reject) => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/jobs/${id}`);
-        if (!res.ok) return;
-        const { job } = await res.json();
-        if (job.status === 'succeeded') {
-          clearInterval(interval);
-          resolve(job.output);
-        } else if (job.status === 'failed') {
-          clearInterval(interval);
-          reject(new Error(job.error || '大纲生成失败'));
-        }
-      } catch (error) {
-        clearInterval(interval);
-        reject(error);
-      }
-    }, 2000);
-  });
-
   const runJob = async (type: string, input: Record<string, unknown>) => {
     const res = await fetch('/api/jobs', {
       method: 'POST',
@@ -198,8 +149,18 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
       throw new Error('生成失败');
     }
 
-    const { job } = await res.json();
-    return pollJob(job.id);
+    const payload = await res.json();
+    const job = parseJobResponse(payload);
+    if (!job) {
+      throw new Error('任务创建失败：返回数据异常');
+    }
+
+    return pollJobUntilTerminal(job.id, {
+      intervalMs: 2000,
+      maxAttempts: 300,
+      timeoutMessage: '大纲生成超时，请稍后重试',
+      failedMessage: '大纲生成失败',
+    });
   };
 
   const handleGenerate = async () => {
@@ -215,8 +176,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         ...formData,
         novelId,
       });
-      // 适配单卷输出：如果是单对象，包装成 blocks 数组
-      const normalizedRough = roughOutput.blocks || Array.isArray(roughOutput) ? roughOutput : { blocks: [roughOutput] };
+      const normalizedRough = normalizeOutlineBlocksPayload(roughOutput, 'rough');
       setRoughOutline(normalizedRough);
 
       setStage('detailed');
@@ -227,8 +187,7 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         chapterCount: formData.chapterCount,
         detailedNodeCount: effectiveDetailedNodeCount,
       });
-      // 适配细纲输出
-      const normalizedDetailed = detailedOutput.blocks || detailedOutput.children ? detailedOutput : { blocks: [detailedOutput] };
+      const normalizedDetailed = normalizeOutlineBlocksPayload(detailedOutput, 'rough');
       setDetailedOutline(normalizedDetailed);
 
       setStage('chapters');
@@ -239,13 +198,9 @@ export default function OutlineGeneratorModal({ isOpen, onClose, onGenerated, no
         chapterCount: formData.chapterCount,
         chaptersPerNode: effectiveChaptersPerNode,
       });
-      const normalizedChapters = chaptersOutput.blocks || chaptersOutput.events ? chaptersOutput : { blocks: [chaptersOutput] };
+      const normalizedChapters = normalizeOutlineBlocksPayload(chaptersOutput, 'rough');
       setChapterOutline(normalizedChapters);
-
-      const outlineText = typeof normalizedChapters === 'string'
-        ? normalizedChapters
-        : JSON.stringify(normalizedChapters, null, 2);
-      setGeneratedOutline(outlineText);
+      setGeneratedOutline(buildOutlineMarkdown(normalizedChapters.blocks));
     } catch (error) {
       console.error('Failed to start outline generation', error);
       setToast({ 

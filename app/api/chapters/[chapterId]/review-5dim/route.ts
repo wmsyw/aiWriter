@@ -28,17 +28,10 @@ export async function GET(
 
   const chapterData = chapter as unknown as Record<string, unknown>;
   const reviewFeedback = chapterData.reviewFeedback;
-  
-  if (!reviewFeedback) {
-    return NextResponse.json({ 
-      hasReview: false, 
-      message: 'No review available. Use POST to trigger a review.' 
-    });
-  }
 
-  return NextResponse.json({ 
-    hasReview: true,
-    feedback: reviewFeedback,
+  return NextResponse.json({
+    hasReview: !!reviewFeedback,
+    feedback: reviewFeedback ?? null,
     pendingReview: chapterData.pendingReview ?? false,
     lastReviewAt: chapterData.lastReviewAt ?? null,
     approvedAt: chapterData.approvedAt ?? null,

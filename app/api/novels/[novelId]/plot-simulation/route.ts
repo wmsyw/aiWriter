@@ -8,6 +8,8 @@ const simulateSchema = z.object({
   currentChapter: z.number().int().positive(),
   steps: z.number().int().positive().max(10).optional().default(5),
   iterations: z.number().int().positive().max(500).optional().default(100),
+  branchCount: z.number().int().positive().max(5).optional().default(4),
+  focusHooks: z.boolean().optional().default(true),
 });
 
 const branchSchema = z.object({
@@ -76,8 +78,12 @@ export async function POST(
       const result = await simulatePlotForward(
         novelId,
         data.currentChapter,
-        data.steps,
-        data.iterations
+        {
+          steps: data.steps,
+          iterations: data.iterations,
+          branchCount: data.branchCount,
+          focusHooks: data.focusHooks,
+        }
       );
       return NextResponse.json(result);
     }

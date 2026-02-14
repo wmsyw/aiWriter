@@ -8,16 +8,39 @@ import Modal, { ConfirmModal, ModalFooter } from '@/app/components/ui/Modal';
 import { Button } from '@/app/components/ui/Button';
 import GlassCard from '@/app/components/ui/GlassCard';
 import { useFetch } from '@/src/hooks/useFetch';
-
-type MaterialType = 'character' | 'location' | 'plotPoint' | 'worldbuilding' | 'organization' | 'item' | 'custom';
+import { pollJobUntilTerminal } from '@/app/lib/jobs/polling';
+import { parseJobResponse } from '@/src/shared/jobs';
+import {
+  buildMaterialsStats,
+  filterMaterials,
+  getMaterialExcerpt,
+  getMaterialTypeLabel,
+  type MaterialType,
+} from '@/src/shared/materials';
 
 interface Material {
   id: string;
   type: MaterialType;
   name: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'object' && value !== null) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+function toStringRecord(value: unknown): Record<string, string> {
+  const record = toRecord(value);
+  if (!record) return {};
+
+  return Object.fromEntries(
+    Object.entries(record).map(([key, entry]) => [key, String(entry ?? '')])
+  );
 }
 
 const TABS: { id: MaterialType | 'all'; label: string }[] = [
@@ -97,12 +120,6 @@ export default function MaterialsPage() {
       return;
     }
 
-    if (count < 2) {
-      setToast({ message: '当前列表素材不足2个，无需去重', type: 'info' });
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
     setConfirmState({
       isOpen: true,
       title: '确认智能去重',
@@ -119,7 +136,11 @@ export default function MaterialsPage() {
           });
           
           if (res.ok) {
-            const { job } = await res.json();
+            const payload = await res.json();
+            const job = parseJobResponse(payload);
+            if (!job) {
+              throw new Error('任务创建失败：返回数据异常');
+            }
             setActiveSearch({ jobId: job.id, keyword: '智能去重' });
             setToast({ message: 'AI去重任务已开始...', type: 'info' });
             clearSelection();
@@ -171,42 +192,52 @@ export default function MaterialsPage() {
 
   useEffect(() => {
     if (!activeSearch) return;
-    
-    const pollInterval = setInterval(async () => {
+
+    const controller = new AbortController();
+
+    void (async () => {
       try {
-        const res = await fetch(`/api/jobs/${activeSearch.jobId}`);
-        if (res.ok) {
-          const { job } = await res.json();
-          if (job.status === 'succeeded') {
-            clearInterval(pollInterval);
-            setActiveSearch(null);
-            setToast({ message: `"${activeSearch.keyword}" 任务完成`, type: 'success' });
-            refetch();
-            setTimeout(() => setToast(null), 4000);
-          } else if (job.status === 'failed') {
-            clearInterval(pollInterval);
-            setActiveSearch(null);
-            setToast({ message: `"${activeSearch.keyword}" 任务失败`, type: 'error' });
-            setTimeout(() => setToast(null), 4000);
-          }
-        }
+        await pollJobUntilTerminal(activeSearch.jobId, {
+          intervalMs: 2000,
+          maxAttempts: 300,
+          signal: controller.signal,
+          timeoutMessage: '任务超时，请稍后重试',
+          failedMessage: `"${activeSearch.keyword}" 任务失败`,
+        });
+        if (controller.signal.aborted) return;
+
+        setActiveSearch(null);
+        setToast({ message: `"${activeSearch.keyword}" 任务完成`, type: 'success' });
+        refetch();
+        setTimeout(() => setToast(null), 4000);
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Poll failed:', error);
+        setActiveSearch(null);
+        setToast({
+          message: error instanceof Error ? error.message : `"${activeSearch.keyword}" 任务失败`,
+          type: 'error',
+        });
+        setTimeout(() => setToast(null), 4000);
       }
-    }, 2000);
-    
-    return () => clearInterval(pollInterval);
+    })();
+
+    return () => controller.abort();
   }, [activeSearch, refetch]);
 
   const materialsList = Array.isArray(materials) ? materials : [];
 
   const filteredMaterials = useMemo(() => {
-    return materialsList.filter(material => {
-      const matchesTab = activeTab === 'all' || material.type === activeTab;
-      const matchesSearch = (material.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesTab && matchesSearch;
+    return filterMaterials(materialsList, {
+      activeTab,
+      searchQuery,
     });
   }, [materialsList, activeTab, searchQuery]);
+
+  const materialsStats = useMemo(
+    () => buildMaterialsStats(materialsList, filteredMaterials, selectedIds.size),
+    [materialsList, filteredMaterials, selectedIds.size]
+  );
 
   const handleOpenCreate = () => {
     setEditingMaterial(null);
@@ -342,6 +373,25 @@ export default function MaterialsPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="glass-input w-full pl-10 pr-4 py-2 rounded-xl text-sm"
           />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-[11px] uppercase tracking-wider text-zinc-500">素材总数</div>
+          <div className="mt-1 text-xl font-semibold text-white">{materialsStats.total}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-[11px] uppercase tracking-wider text-zinc-500">筛选命中</div>
+          <div className="mt-1 text-xl font-semibold text-emerald-300">{materialsStats.filtered}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-[11px] uppercase tracking-wider text-zinc-500">当前类型数</div>
+          <div className="mt-1 text-xl font-semibold text-sky-300">{materialsStats.activeTypeCount}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-[11px] uppercase tracking-wider text-zinc-500">已选素材</div>
+          <div className="mt-1 text-xl font-semibold text-amber-300">{materialsStats.selected}</div>
         </div>
       </div>
 
@@ -511,33 +561,6 @@ function MaterialCard({
     }
   };
 
-  const getExcerpt = (data: Record<string, any>) => {
-    const parts: string[] = [];
-    if (typeof data.description === 'string' && data.description) {
-      parts.push(data.description);
-    }
-    if (data.attributes && typeof data.attributes === 'object') {
-      Object.values(data.attributes).forEach(v => {
-        if (typeof v === 'string' && v) parts.push(v);
-      });
-    }
-    const text = parts.join(' ');
-    return text.length > 100 ? text.slice(0, 100) + '...' : text || '暂无详情';
-  };
-
-  const getTypeLabel = (type: MaterialType) => {
-    const labels: Record<MaterialType, string> = {
-      character: '角色',
-      location: '地点',
-      organization: '组织',
-      item: '道具',
-      plotPoint: '情节点',
-      worldbuilding: '世界观',
-      custom: '自定义',
-    };
-    return labels[type] || type;
-  };
-
   return (
     <GlassCard 
       variant="interactive"
@@ -566,7 +589,7 @@ function MaterialCard({
             )}
           </div>
           <span className="text-xs font-medium text-gray-500 bg-white/5 px-2 py-1 rounded-lg">
-            {getTypeLabel(material.type)}
+            {getMaterialTypeLabel(material.type)}
           </span>
         </div>
         
@@ -575,7 +598,7 @@ function MaterialCard({
         </h3>
         
         <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">
-          {getExcerpt(material.data)}
+          {getMaterialExcerpt(material.data)}
         </p>
       </div>
     </GlassCard>
@@ -600,9 +623,13 @@ function MaterialModal({
   onToast: (msg: string, type: 'info' | 'success' | 'error') => void;
 }) {
   const [type, setType] = useState<MaterialType>(initialData?.type || defaultType);
-  const [name, setName] = useState(initialData?.name || '');
-  const [description, setDescription] = useState(initialData?.data?.description || '');
-  const [attributes, setAttributes] = useState<Record<string, string>>(initialData?.data?.attributes || {});
+  const [name, setName] = useState<string>(initialData?.name || '');
+  const [description, setDescription] = useState<string>(
+    typeof initialData?.data?.description === 'string' ? initialData.data.description : ''
+  );
+  const [attributes, setAttributes] = useState<Record<string, string>>(
+    toStringRecord(initialData?.data?.attributes)
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [enhancingJobId, setEnhancingJobId] = useState<string | null>(null);
   const [newAttrKey, setNewAttrKey] = useState('');
@@ -611,38 +638,44 @@ function MaterialModal({
   useEffect(() => {
     if (!enhancingJobId) return;
 
-    let cancelled = false;
+    const controller = new AbortController();
 
-    const poll = async () => {
+    void (async () => {
       try {
-        const jobRes = await fetch(`/api/jobs/${enhancingJobId}`);
-        if (cancelled) return;
-        
-        if (jobRes.ok) {
-          const { job: jobStatus } = await jobRes.json();
-          if (jobStatus.status === 'succeeded') {
-            setEnhancingJobId(null);
-            const result = jobStatus.output;
-            if (result?.description) setDescription(result.description);
-            if (result?.attributes) setAttributes(prev => ({ ...prev, ...result.attributes }));
-          } else if (jobStatus.status === 'failed') {
-            setEnhancingJobId(null);
-            onToast('AI完善失败，请重试', 'error');
-          } else if (!cancelled) {
-            setTimeout(poll, 2000);
-          }
-        } else if (!cancelled) {
-          setTimeout(poll, 2000);
+        const result = await pollJobUntilTerminal<Record<string, unknown>>(enhancingJobId, {
+          intervalMs: 2000,
+          maxAttempts: 300,
+          signal: controller.signal,
+          timeoutMessage: 'AI完善超时，请稍后重试',
+          failedMessage: 'AI完善失败，请重试',
+        });
+        if (controller.signal.aborted) return;
+
+        setEnhancingJobId(null);
+
+        const output = toRecord(result);
+        if (typeof output?.description === 'string') {
+          setDescription(output.description);
+        }
+
+        const outputAttributes = toRecord(output?.attributes);
+        if (outputAttributes) {
+          setAttributes((prev) => ({
+            ...prev,
+            ...Object.fromEntries(
+              Object.entries(outputAttributes).map(([key, value]) => [key, String(value ?? '')])
+            ),
+          }));
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Poll enhance job failed:', error);
-        if (!cancelled) setTimeout(poll, 2000);
+        setEnhancingJobId(null);
+        onToast(error instanceof Error ? error.message : 'AI完善失败，请重试', 'error');
       }
-    };
+    })();
 
-    poll();
-
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, [enhancingJobId, onToast]);
 
   const isEnhancing = enhancingJobId !== null;
@@ -667,7 +700,11 @@ function MaterialModal({
       });
       
       if (res.ok) {
-        const { job } = await res.json();
+        const payload = await res.json();
+        const job = parseJobResponse(payload);
+        if (!job) {
+          throw new Error('任务创建失败：返回数据异常');
+        }
         setEnhancingJobId(job.id);
       }
     } catch (error) {
@@ -746,10 +783,10 @@ function MaterialModal({
             <select
               value={type}
               onChange={(e) => setType(e.target.value as MaterialType)}
-              className="glass-input w-full px-4 py-3 rounded-xl appearance-none"
+              className="select-menu w-full px-4 py-3 rounded-xl appearance-none"
             >
               {TABS.filter(t => t.id !== 'all').map(t => (
-                <option key={t.id} value={t.id} className="bg-[#1a1a2e]">{t.label}</option>
+                <option key={t.id} value={t.id}>{t.label}</option>
               ))}
             </select>
           </div>

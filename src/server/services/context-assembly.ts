@@ -64,7 +64,7 @@ export async function getRecentChapters(
     where: {
       novelId,
       order: { lt: currentChapterOrder },
-      generationStage: 'approved',
+      generationStage: { in: ['approved', 'humanized', 'completed'] },
     },
     select: {
       order: true,

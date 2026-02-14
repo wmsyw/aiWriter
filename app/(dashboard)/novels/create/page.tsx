@@ -10,198 +10,38 @@ import { Card, CardContent } from '@/app/components/ui/Card';
 import { Select } from '@/app/components/ui/Select';
 import { Progress } from '@/app/components/ui/Progress';
 import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
-import InspirationModal, { Inspiration } from './InspirationModal';
+import InspirationModal from './InspirationModal';
+import {
+  formatKeywordsInput,
+  getInspirationPresetsByGenre,
+  parseKeywordsInput,
+  type Inspiration,
+  type InspirationPreset,
+} from '@/src/shared/inspiration';
 import {
   WIZARD_PHASE_LABEL,
   WIZARD_PHASE_PROGRESS,
   mapJobStatusToWizardPhase,
   type WizardPhase,
 } from '@/src/shared/wizard-phase';
+import { pollJobUntilTerminal } from '@/app/lib/jobs/polling';
+import { parseJobResponse } from '@/src/shared/jobs';
 
 const GENRES = ['玄幻', '仙侠', '都市', '历史', '科幻', '游戏', '悬疑', '奇幻', '武侠', '言情', '其他'];
 const OUTLINE_MODES = [
   { id: 'simple', label: '简版大纲' },
   { id: 'detailed', label: '详细大纲' },
 ];
-
-// 每个频道的热门主题灵感预设 - 2024-2025年热门题材
-const INSPIRATION_PRESETS: Record<string, Array<{
-  name: string;
-  theme: string;
-  keywords: string[];
-  protagonist: string;
-  worldSetting: string;
-}>> = {
-  '玄幻': [
-    {
-      name: '诡秘复苏',
-      theme: '诡异降临，规则怪谈',
-      keywords: ['规则怪谈', '诡异', '都市异能', '序列'],
-      protagonist: '获得诡异能力的普通人，在规则中求生',
-      worldSetting: '诡异复苏的现代世界，规则即是生存法则',
-    },
-    {
-      name: '万古神帝',
-      theme: '天骄争霸，万界称尊',
-      keywords: ['天骄', '神体', '万界', '称帝'],
-      protagonist: '拥有无上神体的天骄，从低谷崛起',
-      worldSetting: '万族林立、强者如云的修炼大世界',
-    },
-  ],
-  '仙侠': [
-    {
-      name: '修仙模拟器',
-      theme: '无限重生，完美人生',
-      keywords: ['模拟器', '无限流', '重生', '完美'],
-      protagonist: '获得人生模拟器的修士，可预演推衍',
-      worldSetting: '正邪对立的传统修仙世界',
-    },
-    {
-      name: '剑道第一仙',
-      theme: '剑道独尊，一剑破万法',
-      keywords: ['剑道', '一剑破万法', '逍遥', '天骄'],
-      protagonist: '专注剑道的纯粹剑修，以剑证道',
-      worldSetting: '百花齐放的修真界，剑道式微待复兴',
-    },
-  ],
-  '都市': [
-    {
-      name: '从外卖员开始',
-      theme: '草根逆袭，商业帝国',
-      keywords: ['系统', '逆袭', '商战', '暴富'],
-      protagonist: '获得金手指的普通打工人',
-      worldSetting: '竞争激烈的现代都市商业战场',
-    },
-    {
-      name: '我能看见战力值',
-      theme: '都市异能，守护者',
-      keywords: ['异能', '觉醒', '都市', '战力'],
-      protagonist: '能看到他人属性面板的觉醒者',
-      worldSetting: '异能觉醒的近未来都市',
-    },
-  ],
-  '历史': [
-    {
-      name: '家父汉武帝',
-      theme: '皇子争霸，王朝崛起',
-      keywords: ['皇子', '争霸', '历史', '权谋'],
-      protagonist: '穿越成皇子，运用现代知识',
-      worldSetting: '风起云涌的大争之世',
-    },
-    {
-      name: '科技改变历史',
-      theme: '工业革命，文明跃升',
-      keywords: ['科技', '种田', '发展', '争霸'],
-      protagonist: '带着现代知识改变历史进程的穿越者',
-      worldSetting: '等待开发的古代王朝',
-    },
-  ],
-  '科幻': [
-    {
-      name: '机械飞升',
-      theme: '赛博朋克，人机融合',
-      keywords: ['赛博朋克', '改造', '义体', '飞升'],
-      protagonist: '在义体改造中追寻人性的佣兵',
-      worldSetting: '巨型企业统治的赛博朋克未来',
-    },
-    {
-      name: '星门文明',
-      theme: '星际探索，文明对决',
-      keywords: ['星际', '文明', '虫族', '舰队'],
-      protagonist: '指挥人类舰队对抗异族的统帅',
-      worldSetting: '星门连接万千星域的宇宙时代',
-    },
-  ],
-  '游戏': [
-    {
-      name: '全民领主',
-      theme: '领地经营，争霸天下',
-      keywords: ['领主', '建设', '争霸', '全民'],
-      protagonist: '获得稀有初始的新晋领主',
-      worldSetting: '全球穿越的领主争霸游戏世界',
-    },
-    {
-      name: '无限副本',
-      theme: '无限流，副本求生',
-      keywords: ['无限流', '副本', '恐怖', '求生'],
-      protagonist: '在诡异副本中挣扎求生的玩家',
-      worldSetting: '被神秘游戏选中的现实世界',
-    },
-  ],
-  '悬疑': [
-    {
-      name: '诡秘侦探',
-      theme: '灵异探案，真相追寻',
-      keywords: ['灵异', '探案', '悬疑', '诡秘'],
-      protagonist: '能看到死亡线索的特殊侦探',
-      worldSetting: '灵异事件频发的现代都市暗面',
-    },
-    {
-      name: '规则怪谈',
-      theme: '规则即生存，打破规则',
-      keywords: ['规则', '怪谈', '恐怖', '生存'],
-      protagonist: '在规则怪谈中寻找真相的普通人',
-      worldSetting: '规则与怪谈交织的异常世界',
-    },
-  ],
-  '奇幻': [
-    {
-      name: '魔法工业',
-      theme: '魔法与科技的碰撞',
-      keywords: ['魔法', '工业', '革命', '领主'],
-      protagonist: '用科学思维解析魔法的穿越者',
-      worldSetting: '魔法与蒸汽交织的奇幻大陆',
-    },
-    {
-      name: '巫师之路',
-      theme: '巫师晋升，真理探索',
-      keywords: ['巫师', '晋升', '真理', '冷静'],
-      protagonist: '理性冷静追求真理的巫师学徒',
-      worldSetting: '巫师塔林立的黑暗中世纪',
-    },
-  ],
-  '武侠': [
-    {
-      name: '江湖烟雨',
-      theme: '快意恩仇，侠之大者',
-      keywords: ['江湖', '门派', '武学', '侠义'],
-      protagonist: '被卷入江湖恩怨的少年侠客',
-      worldSetting: '门派林立、武学昌盛的江湖',
-    },
-    {
-      name: '武道巅峰',
-      theme: '武道探索，天下第一',
-      keywords: ['武道', '突破', '宗师', '争锋'],
-      protagonist: '追求武道极致的天才武者',
-      worldSetting: '高手如云的武林盛世',
-    },
-  ],
-  '言情': [
-    {
-      name: '重生复仇',
-      theme: '重生虐渣，逆袭人生',
-      keywords: ['重生', '复仇', '虐渣', '逆袭'],
-      protagonist: '重生后看透一切的复仇女主',
-      worldSetting: '豪门恩怨的现代都市',
-    },
-    {
-      name: '穿书女配',
-      theme: '穿书改命，反派大佬',
-      keywords: ['穿书', '女配', '反派', '改命'],
-      protagonist: '穿越成炮灰女配的现代人',
-      worldSetting: '小说世界的剧情漩涡中心',
-    },
-  ],
-  '其他': [
-    {
-      name: '自由创作',
-      theme: '不拘一格',
-      keywords: ['创新', '融合', '独特'],
-      protagonist: '由你定义的独特主角',
-      worldSetting: '由你构建的新世界',
-    },
-  ],
+const DEFAULT_CONTINUITY_GATE = {
+  enabled: true,
+  passScore: 6.8,
+  rejectScore: 4.9,
+  maxRepairAttempts: 1,
 };
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 interface SeedOutputWorld {
   world_setting?: string;
@@ -235,7 +75,7 @@ function NovelWizardContent() {
   const [wizardPhase, setWizardPhase] = useState<WizardPhase>('idle');
 // Unused outline states removed
   const [autoGenerating, setAutoGenerating] = useState(false);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingAbortRef = useRef<AbortController | null>(null);
 
   const [formData, setFormData] = useState({
     title: presetTitle,
@@ -253,6 +93,10 @@ function NovelWizardContent() {
     creativeIntent: '',
     specialRequirements: '',
     outlineMode: 'simple',
+    continuityGateEnabled: DEFAULT_CONTINUITY_GATE.enabled,
+    continuityPassScore: DEFAULT_CONTINUITY_GATE.passScore,
+    continuityRejectScore: DEFAULT_CONTINUITY_GATE.rejectScore,
+    continuityMaxRepairAttempts: DEFAULT_CONTINUITY_GATE.maxRepairAttempts,
   });
 
 // Outline state removed
@@ -285,9 +129,8 @@ function NovelWizardContent() {
 // Helper functions removed
 
   useEffect(() => () => {
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-    }
+    pollingAbortRef.current?.abort();
+    pollingAbortRef.current = null;
   }, []);
 
   const keywordsDisplay = useMemo(() => formData.keywords.join('、'), [formData.keywords]);
@@ -296,10 +139,9 @@ function NovelWizardContent() {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  const getKeywordsArray = () => {
-    return formData.keywords.length > 0
-      ? formData.keywords
-      : formData.keywordsInput.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  const resolveKeywords = () => {
+    const parsed = parseKeywordsInput(formData.keywordsInput);
+    return parsed.length > 0 ? parsed : formData.keywords;
   };
 
   const updateWizardPhase = (phase: WizardPhase, message: string) => {
@@ -325,14 +167,14 @@ function NovelWizardContent() {
     return saveNovel(false, { preserveStatus: true });
   };
 
-  const applyPreset = (preset: { name: string; theme: string; keywords: string[]; protagonist: string; worldSetting: string }) => {
+  const applyPreset = (preset: InspirationPreset) => {
     setFormData(prev => ({
       ...prev,
       theme: preset.theme,
       protagonist: preset.protagonist,
       worldSetting: preset.worldSetting,
       keywords: preset.keywords,
-      keywordsInput: preset.keywords.join(', '),
+      keywordsInput: formatKeywordsInput(preset.keywords),
     }));
   };
 
@@ -344,12 +186,12 @@ function NovelWizardContent() {
       protagonist: inspiration.protagonist,
       worldSetting: inspiration.worldSetting,
       keywords: inspiration.keywords,
-      keywordsInput: inspiration.keywords.join(', '),
+      keywordsInput: formatKeywordsInput(inspiration.keywords),
     }));
     setIsInspirationModalOpen(false);
   };
   
-  const currentGenrePresets = INSPIRATION_PRESETS[formData.genre] || INSPIRATION_PRESETS['其他'] || [];
+  const currentGenrePresets = getInspirationPresetsByGenre(formData.genre);
 
   const persistWizardStep = async (nextStep: number, overrideStatus?: 'draft' | 'in_progress' | 'completed') => {
     if (!novelId) {
@@ -379,9 +221,18 @@ function NovelWizardContent() {
     setIsSaving(true);
     updateWizardPhase('saving', '保存基础信息中...');
 
-    const normalizedKeywords = formData.keywordsInput
-      ? formData.keywordsInput.split(',').map(item => item.trim()).filter(Boolean)
-      : formData.keywords;
+    const normalizedKeywords = resolveKeywords();
+    const continuityPassScore = Number(
+      clamp(formData.continuityPassScore, 4.5, 9.5).toFixed(2)
+    );
+    const continuityRejectScore = Number(
+      clamp(formData.continuityRejectScore, 3.5, continuityPassScore - 0.4).toFixed(2)
+    );
+    const continuityMaxRepairAttempts = clamp(
+      Math.floor(formData.continuityMaxRepairAttempts || 0),
+      0,
+      5
+    );
 
     const payload = {
       title: formData.title,
@@ -399,6 +250,14 @@ function NovelWizardContent() {
       specialRequirements: formData.specialRequirements || undefined,
       outlineMode: formData.outlineMode,
       inspirationData: normalizedKeywords.length ? { keywords: normalizedKeywords } : undefined,
+      workflowConfig: {
+        continuityGate: {
+          enabled: formData.continuityGateEnabled,
+          passScore: continuityPassScore,
+          rejectScore: continuityRejectScore,
+          maxRepairAttempts: continuityMaxRepairAttempts,
+        },
+      },
     };
 
     let currentNovelId = novelId;
@@ -442,43 +301,6 @@ function NovelWizardContent() {
 
   const handleSaveBasicInfo = () => saveNovel(true);
 
-  const pollJobResult = (
-    jobId: string,
-    onStatusChange?: (status: string) => void,
-  ) => new Promise<any>((resolve, reject) => {
-    let attempts = 0;
-    let lastStatus = '';
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (!res.ok) return;
-        const { job } = await res.json();
-        if (job?.status && job.status !== lastStatus) {
-          lastStatus = job.status;
-          onStatusChange?.(job.status);
-        }
-        if (job.status === 'succeeded') {
-          resolve(job.output);
-          return;
-        }
-        if (job.status === 'failed') {
-          reject(new Error(job.error || '生成失败'));
-          return;
-        }
-      } catch (error) {
-        reject(error);
-        return;
-      }
-      if (attempts < 300) {
-        pollTimerRef.current = setTimeout(poll, 2000);
-      } else {
-        reject(new Error('生成超时 (超过10分钟)'));
-      }
-    };
-    poll();
-  });
-
   const runJob = async (
     type: string,
     input: Record<string, unknown>,
@@ -497,9 +319,32 @@ function NovelWizardContent() {
         : '生成失败';
       throw new Error(errorMsg);
     }
-    const { job } = await res.json();
+    const payload = await res.json();
+    const job = parseJobResponse(payload);
+    if (!job) {
+      throw new Error('任务创建失败：返回数据异常');
+    }
+
+    pollingAbortRef.current?.abort();
+    const controller = new AbortController();
+    pollingAbortRef.current = controller;
+
     updateWizardPhase('queued', '任务已入队，等待调度...');
-    return pollJobResult(job.id, onStatusChange);
+
+    try {
+      return await pollJobUntilTerminal(job.id, {
+        intervalMs: 2000,
+        maxAttempts: 300,
+        signal: controller.signal,
+        timeoutMessage: '生成超时 (超过10分钟)',
+        failedMessage: '生成失败',
+        onStatusChange: (status) => onStatusChange?.(status),
+      });
+    } finally {
+      if (pollingAbortRef.current === controller) {
+        pollingAbortRef.current = null;
+      }
+    }
   };
 
   const startNovelSeed = async (overrideId?: string): Promise<SeedOutput | undefined> => {
@@ -513,7 +358,7 @@ function NovelWizardContent() {
         title: formData.title,
         theme: formData.theme,
         genre: formData.genre,
-        keywords: formData.keywordsInput || formData.keywords.join(', '),
+        keywords: formatKeywordsInput(resolveKeywords()),
         protagonist: formData.protagonist,
         creativeIntent: formData.creativeIntent,
         specialRequirements: formData.specialRequirements,
@@ -792,7 +637,7 @@ function NovelWizardContent() {
                       <Input
                         value={formData.keywordsInput}
                         onChange={e => setField('keywordsInput', e.target.value)}
-                        onBlur={() => setField('keywords', formData.keywordsInput.split(/[,，、]/).map(item => item.trim()).filter(Boolean))}
+                        onBlur={(e) => setField('keywords', parseKeywordsInput(e.target.value))}
                         placeholder="热血, 系统, 穿越 (用逗号分隔)"
                       />
                       {keywordsDisplay && (
@@ -908,6 +753,54 @@ function NovelWizardContent() {
                             value={formData.outlineMode}
                             onChange={val => setField('outlineMode', val)}
                             options={OUTLINE_MODES.map(m => ({ value: m.id, label: m.label }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-gray-400">连续性门禁</label>
+                          <label className="inline-flex items-center gap-2 text-xs text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={formData.continuityGateEnabled}
+                              onChange={(e) => setField('continuityGateEnabled', e.target.checked)}
+                              className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-emerald-500"
+                            />
+                            启用
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                          <Input
+                            type="number"
+                            step={0.1}
+                            min={1}
+                            max={10}
+                            disabled={!formData.continuityGateEnabled}
+                            label="通过阈值"
+                            className="h-9 text-right font-mono text-emerald-300"
+                            value={formData.continuityPassScore}
+                            onChange={e => setField('continuityPassScore', Number(e.target.value))}
+                          />
+                          <Input
+                            type="number"
+                            step={0.1}
+                            min={1}
+                            max={10}
+                            disabled={!formData.continuityGateEnabled}
+                            label="拒绝阈值"
+                            className="h-9 text-right font-mono text-emerald-300"
+                            value={formData.continuityRejectScore}
+                            onChange={e => setField('continuityRejectScore', Number(e.target.value))}
+                          />
+                          <Input
+                            type="number"
+                            min={0}
+                            max={5}
+                            disabled={!formData.continuityGateEnabled}
+                            label="自动修复次数"
+                            className="h-9 text-right font-mono text-emerald-300"
+                            value={formData.continuityMaxRepairAttempts}
+                            onChange={e => setField('continuityMaxRepairAttempts', Number(e.target.value))}
                           />
                         </div>
                       </div>

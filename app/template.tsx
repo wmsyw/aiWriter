@@ -1,9 +1,11 @@
 'use client';
 
+import PageTransition from '@/app/components/PageTransition';
+
 export default function Template({ children }: { children: React.ReactNode }) {
   return (
-    <div className="animate-fade-in">
+    <PageTransition pageClassName="animate-fade-in">
       {children}
-    </div>
+    </PageTransition>
   );
 }

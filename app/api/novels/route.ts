@@ -10,6 +10,20 @@ import {
   withCreativeIntentField,
 } from '@/src/server/services/creative-intent';
 
+const continuityGateSchema = z.object({
+  enabled: z.boolean().optional(),
+  passScore: z.number().min(1).max(10).optional(),
+  rejectScore: z.number().min(1).max(10).optional(),
+  maxRepairAttempts: z.number().int().min(0).max(5).optional(),
+});
+
+const workflowConfigSchema = z.object({
+  continuityGate: continuityGateSchema.optional(),
+  review: z.object({
+    passThreshold: z.number().min(1).max(10).optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
 const createSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
@@ -25,6 +39,7 @@ const createSchema = z.object({
   creativeIntent: z.string().optional(),
   outlineMode: z.enum(['simple', 'detailed']).optional(),
   inspirationData: z.record(z.string(), z.unknown()).optional(),
+  workflowConfig: workflowConfigSchema.optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -74,8 +89,18 @@ export async function POST(request: NextRequest) {
       creativeIntent,
       outlineMode,
       inspirationData,
+      workflowConfig,
     } = parsed.data;
     const normalizedCreativeIntent = normalizeCreativeIntent(creativeIntent);
+    const initialWorkflowConfig = workflowConfig
+      ? (workflowConfig as Prisma.InputJsonValue)
+      : undefined;
+    const mergedWorkflowConfig = normalizedCreativeIntent !== undefined
+      ? mergeCreativeIntentIntoWorkflowConfig(
+          workflowConfig as Prisma.JsonValue | undefined,
+          normalizedCreativeIntent
+        )
+      : initialWorkflowConfig;
 
     const novel = await prisma.novel.create({
       data: {
@@ -93,9 +118,7 @@ export async function POST(request: NextRequest) {
         specialRequirements,
         outlineMode: outlineMode || 'simple',
         inspirationData: inspirationData ? (inspirationData as Prisma.InputJsonValue) : undefined,
-        workflowConfig: normalizedCreativeIntent
-          ? mergeCreativeIntentIntoWorkflowConfig(undefined, normalizedCreativeIntent)
-          : undefined,
+        workflowConfig: mergedWorkflowConfig,
         wizardStatus: 'draft',
         wizardStep: 0,
       },

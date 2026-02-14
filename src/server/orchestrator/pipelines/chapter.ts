@@ -368,6 +368,13 @@ const generateStage: Stage<GenerateInput, GenerateOutput> = {
 5. 章末留钩子，吸引读者继续
 6. 目标字数：${targetWords}字左右
 
+连续性硬约束（必须遵守）：
+1. 时间线必须承接上一章结尾，不得无解释跳时空或跳地点。
+2. 角色认知、关系、伤势、装备与能力延续前文，若变化必须给出因果。
+3. 前文未回收线索需要推进或明确延后，不能无故遗忘。
+4. 本章主冲突必须承接既有主线，不得与已给定设定冲突。
+5. 若上下文存在冲突信息，优先遵循最近章节事实并在文内做修正说明。
+
 ${input.authorStyle ? `作者风格参考：${input.authorStyle}` : ''}`;
 
     const userPrompt = `请创作第${input.chapterNumber}章${input.chapterTitle ? `「${input.chapterTitle}」` : ''}的完整内容。

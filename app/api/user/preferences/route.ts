@@ -44,7 +44,7 @@ const DEFAULT_PREFERENCES: Required<Omit<Preferences, 'webSearchApiKey' | 'defau
   writingStyle: 'popular',
   language: 'zh-CN',
   webSearchEnabled: false,
-  webSearchProvider: 'tavily',
+  webSearchProvider: 'model',
   webSearchApiKey: undefined,
   defaultProviderId: undefined,
   defaultModel: undefined,
@@ -69,6 +69,12 @@ function decryptStoredApiKey(ciphertext: string | undefined): string | undefined
   } catch {
     return undefined;
   }
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 export async function GET() {
@@ -123,6 +129,42 @@ export async function PUT(req: NextRequest) {
     ...existingPreferences, 
     ...otherUpdates 
   };
+
+  const hasDefaultProviderField = Object.prototype.hasOwnProperty.call(parsed.data, 'defaultProviderId');
+  const hasDefaultModelField = Object.prototype.hasOwnProperty.call(parsed.data, 'defaultModel');
+  const normalizedProviderId = normalizeOptionalString(parsed.data.defaultProviderId);
+  const normalizedDefaultModel = normalizeOptionalString(parsed.data.defaultModel);
+
+  if (hasDefaultProviderField) {
+    if (normalizedProviderId) {
+      const providerExists = await prisma.providerConfig.findFirst({
+        where: { id: normalizedProviderId, userId: session.userId },
+        select: { id: true },
+      });
+      if (!providerExists) {
+        return NextResponse.json({ error: { formErrors: ['默认服务商不存在或无权限访问'] } }, { status: 400 });
+      }
+      updatedPreferences.defaultProviderId = normalizedProviderId;
+      if (!hasDefaultModelField) {
+        delete updatedPreferences.defaultModel;
+      }
+    } else {
+      delete updatedPreferences.defaultProviderId;
+      delete updatedPreferences.defaultModel;
+    }
+  }
+
+  if (hasDefaultModelField) {
+    if (normalizedDefaultModel) {
+      const effectiveProviderId = normalizeOptionalString(updatedPreferences.defaultProviderId);
+      if (!effectiveProviderId) {
+        return NextResponse.json({ error: { formErrors: ['请先选择默认服务商，再设置默认模型'] } }, { status: 400 });
+      }
+      updatedPreferences.defaultModel = normalizedDefaultModel;
+    } else {
+      delete updatedPreferences.defaultModel;
+    }
+  }
   
   if (webSearchApiKey !== undefined) {
     if (webSearchApiKey === '' || webSearchApiKey.startsWith('********')) {

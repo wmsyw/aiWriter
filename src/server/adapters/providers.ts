@@ -449,19 +449,38 @@ async function generateOpenAIWithWebSearch(
   apiKey: string, 
   req: NormalizedRequest
 ): Promise<NormalizedResponse> {
-  const systemMessage = req.messages.find(m => m.role === 'system');
-  const userMessages = req.messages.filter(m => m.role !== 'system');
-  const lastUserMessage = userMessages.filter(m => m.role === 'user').pop();
+  const systemMessages = req.messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content)
+    .filter(Boolean);
+  const conversationMessages = req.messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: [{ type: 'input_text', text: message.content }],
+    }));
   
   const body: Record<string, unknown> = {
     model: req.model,
-    input: lastUserMessage?.content || '',
+    input: conversationMessages.length > 0
+      ? conversationMessages
+      : [{ role: 'user', content: [{ type: 'input_text', text: '' }] }],
     tools: [{ type: 'web_search' }],
     tool_choice: 'auto',
+    temperature: req.temperature,
+    max_output_tokens: req.maxTokens,
   };
   
-  if (systemMessage) {
-    body.instructions = systemMessage.content;
+  if (systemMessages.length > 0) {
+    body.instructions = systemMessages.join('\n\n');
+  }
+
+  if (req.responseFormat === 'json') {
+    body.text = {
+      format: {
+        type: 'json_object',
+      },
+    };
   }
   
   const res = await fetchWithRetry(`${baseURL}/responses`, {
@@ -478,11 +497,22 @@ async function generateOpenAIWithWebSearch(
   let content = '';
   const output = data?.output;
   if (Array.isArray(output)) {
-    const messageItem = output.find((item: { type: string }) => item.type === 'message');
-    if (messageItem?.content) {
-      const textBlock = messageItem.content.find((c: { type: string }) => c.type === 'output_text');
-      content = textBlock?.text || '';
+    const textBlocks: string[] = [];
+    for (const item of output) {
+      if (item?.type !== 'message' || !Array.isArray(item.content)) {
+        continue;
+      }
+      for (const block of item.content) {
+        if (block?.type === 'output_text' && typeof block.text === 'string') {
+          textBlocks.push(block.text);
+        }
+      }
     }
+    content = textBlocks.join('\n').trim();
+  }
+
+  if (!content && typeof data?.output_text === 'string') {
+    content = data.output_text.trim();
   }
   
   if (!content && data?.status !== 'completed') {

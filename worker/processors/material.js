@@ -1,30 +1,16 @@
 import { webSearch, formatSearchResultsForContext } from '../../src/server/services/web-search.js';
-import { decryptApiKey } from '../../src/core/crypto.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson } from '../utils/helpers.js';
 import { renderTemplateString } from '../../src/server/services/templates.js';
-
-async function getUserSearchConfig(prisma, userId) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { preferences: true },
-  });
-  const prefs = user?.preferences || {};
-  
-  let apiKey = process.env.WEB_SEARCH_API_KEY || null;
-  if (prefs.webSearchApiKeyCiphertext) {
-    try {
-      apiKey = decryptApiKey(prefs.webSearchApiKeyCiphertext);
-    } catch {
-      apiKey = null;
-    }
-  }
-  
-  return {
-    enabled: prefs.webSearchEnabled || false,
-    provider: prefs.webSearchProvider || 'exa',
-    apiKey,
-  };
-}
+import { DEFAULT_MATERIAL_SEARCH_CATEGORIES, normalizeMaterialSearchCategories } from '../../src/shared/material-search.js';
+import {
+  buildSearchQueries,
+  dedupeWebSearchResults,
+  formatWebSearchError,
+  getSearchFallbackProviders,
+  getUserSearchConfig,
+  hasAnySearchApiKey,
+  normalizeSearchKeyword,
+} from '../utils/web-search-runtime.js';
 
 const MATERIAL_SEARCH_PROMPT = `你是一位专业的小说创作素材收集助手。根据用户搜索的关键词和网络搜索结果，提取并整理有价值的创作素材。
 
@@ -60,7 +46,7 @@ const MATERIAL_SEARCH_PROMPT = `你是一位专业的小说创作素材收集助
 
 注意：
 1. 只提取与小说创作相关的有价值信息
-2. 根据搜索类别（评价、人物、情节、世界观、设定）决定提取重点
+2. 根据搜索类别（评价、人物、情节、世界观、组织、道具、设定）决定提取重点
 3. 每条素材都要标注来源URL
 4. 如果搜索结果与创作无关，返回 {"materials": [], "summary": "未找到相关素材"}`;
 
@@ -110,50 +96,62 @@ const FORMAT_EXTRACTION_PROMPT = `请将以下搜索结果整理为结构化的�
 
 export async function handleMaterialSearch(prisma, job, { jobId, userId, input }) {
   const { novelId, keyword, searchCategories, materialTypeFilter } = input;
+  const normalizedKeyword = normalizeSearchKeyword(keyword);
+  if (!normalizedKeyword) {
+    throw new Error('搜索关键词不能为空');
+  }
+  const normalizedCategories = normalizeMaterialSearchCategories(
+    Array.isArray(searchCategories) ? searchCategories : DEFAULT_MATERIAL_SEARCH_CATEGORIES
+  );
+  const searchQueries = buildSearchQueries(normalizedKeyword, normalizedCategories);
 
   const novel = await prisma.novel.findFirst({ where: { id: novelId, userId } });
   if (!novel) throw new Error('Novel not found');
 
-  const searchConfig = await getUserSearchConfig(prisma, userId);
+  const searchConfig = await getUserSearchConfig(prisma, userId, { defaultProvider: 'model' });
   
   if (!searchConfig.enabled) {
     throw new Error('请先在设置中启用网络搜索功能');
   }
   
-  if (searchConfig.provider !== 'model' && !searchConfig.apiKey) {
+  if (searchConfig.provider !== 'model' && !hasAnySearchApiKey(searchConfig.providerApiKeys)) {
     throw new Error('请先在设置中配置搜索API密钥');
   }
 
   let searchResults = [];
+  const searchErrors = [];
   
   if (searchConfig.provider !== 'model') {
-    const queries = [
-      keyword,
-      ...searchCategories.map(cat => `${keyword} ${cat}`),
-    ].slice(0, 3);
-    
     const resultsArrays = await Promise.all(
-      queries.map(async (query) => {
+      searchQueries.map(async (query) => {
         try {
-          const response = await webSearch(searchConfig.provider, searchConfig.apiKey, query, 5);
+          const response = await webSearch(searchConfig.provider, searchConfig.apiKey || '', query, 5, {
+            fallbackProviders: getSearchFallbackProviders(searchConfig.provider),
+            providerApiKeys: searchConfig.providerApiKeys,
+            timeoutMs: 30000,
+            allowEmptyResultFallback: true,
+          });
           return response.results;
         } catch (err) {
-          console.error(`Web search failed for query "${query}":`, err.message);
+          const message = formatWebSearchError(err);
+          searchErrors.push(message);
+          console.error(`Web search failed for query "${query}":`, err instanceof Error ? err.message : err);
           return [];
         }
       })
     );
-    
-    const uniqueMap = new Map();
-    resultsArrays.flat().forEach(item => uniqueMap.set(item.url, item));
-    searchResults = Array.from(uniqueMap.values());
+    searchResults = dedupeWebSearchResults(resultsArrays.flat());
   }
 
   if (searchResults.length === 0 && searchConfig.provider !== 'model') {
+    const uniqueErrors = [...new Set(searchErrors)];
+    const failureSummary = uniqueErrors.length > 0
+      ? `搜索失败：${uniqueErrors.slice(0, 2).join('；')}`
+      : '未找到相关搜索结果';
     return {
       materials: [],
-      summary: '未找到相关搜索结果',
-      searchQueries: [keyword],
+      summary: failureSummary,
+      searchQueries,
     };
   }
 
@@ -176,8 +174,8 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
   if (searchConfig.provider === 'model') {
     // Step 1: 搜索模式 - 使用 webSearch，不限制 JSON 格式
     const searchPrompt = renderTemplateString(WEB_SEARCH_PROMPT, {
-      keyword,
-      categories: searchCategories.join('、'),
+      keyword: normalizedKeyword,
+      categories: normalizedCategories.join('、'),
     });
     
     const { response: searchResponse } = await generateWithAgentRuntime({
@@ -198,7 +196,7 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
     // Step 2: 格式化模式 - 禁用搜索，强制 JSON 输出
     const formatPrompt = renderTemplateString(FORMAT_EXTRACTION_PROMPT, {
       raw_content: rawSearchContent,
-      keyword,
+      keyword: normalizedKeyword,
     });
     
     const { response: formatResponse } = await generateWithAgentRuntime({
@@ -248,14 +246,14 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
             novelId,
             userId,
             type: 'custom',
-            name: `搜索结果: ${keyword}`,
+            name: `搜索结果: ${normalizedKeyword}`,
             genre: novel.genre || '通用',
             searchGroup,
             data: {
               description: 'AI搜索完成但格式化失败，已保存原始搜索结果',
               rawSearchContent,
-              searchKeyword: keyword,
-              searchCategories,
+              searchKeyword: normalizedKeyword,
+              searchCategories: normalizedCategories,
               parseError: parsed.parseError,
             },
           },
@@ -273,8 +271,8 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
   } else {
     // 使用外部搜索结果（Tavily/Exa）
     const context = {
-      keyword,
-      categories: searchCategories.join('、'),
+      keyword: normalizedKeyword,
+      categories: normalizedCategories.join('、'),
       search_results: formatSearchResultsForContext(searchResults),
     };
 
@@ -358,8 +356,8 @@ export async function handleMaterialSearch(prisma, job, { jobId, userId, input }
           data: {
             description: mat.description || '',
             attributes: mat.attributes || {},
-            searchKeyword: keyword,
-            searchCategories,
+            searchKeyword: normalizedKeyword,
+            searchCategories: normalizedCategories,
           },
         },
       });

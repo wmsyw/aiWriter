@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   staggerContainer, 
   staggerItem, 
-  fadeIn, 
-  slideUp 
+  fadeIn
 } from '@/app/lib/animations';
 
 import { Button } from '@/app/components/ui/Button';
@@ -23,28 +22,14 @@ import {
   DialogTitle, 
   DialogFooter 
 } from '@/app/components/ui/Dialog';
-
-type ProviderConfig = {
-  id: string;
-  name: string;
-  providerType: string;
-  baseURL: string;
-  defaultModel?: string;
-  models?: string[];
-  createdAt: string;
-  updatedAt: string;
-  capabilities?: {
-    supportsStreaming: boolean;
-    supportsTools: boolean;
-    supportsFunctionCalling: boolean;
-    supportsModelWebSearch: boolean;
-    supportsVision: boolean;
-    supportsEmbeddings: boolean;
-    supportsImageGen: boolean;
-  };
-};
-
-type Tab = 'providers' | 'account' | 'preferences';
+import {
+  buildProviderVerifySignature,
+} from '@/src/shared/settings';
+import { usePasswordChange } from './hooks/usePasswordChange';
+import { useSettingsPreferences } from './hooks/useSettingsPreferences';
+import { PreferencesTab } from './components/PreferencesTab';
+import { AccountSecurityTab } from './components/AccountSecurityTab';
+import type { ProviderConfig, SettingsTab } from './types';
 
 const PROVIDER_TYPES = [
   { value: 'openai', label: 'OpenAI', defaultURL: 'https://api.openai.com/v1', defaultModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
@@ -54,7 +39,7 @@ const PROVIDER_TYPES = [
 ];
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('providers');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('providers');
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -79,87 +64,30 @@ export default function SettingsPage() {
     capabilities?: ProviderConfig['capabilities'];
   } | null>(null);
   const [lastVerifiedSignature, setLastVerifiedSignature] = useState<string | null>(null);
-
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-
-  const [preferences, setPreferences] = useState({
-    autoSave: true,
-    wordCount: true,
-    lineNumbers: false,
-    defaultWordCount: '2000',
-    writingStyle: 'popular',
-    language: 'zh-CN',
-    webSearchEnabled: false,
-    webSearchProvider: 'model' as 'tavily' | 'exa' | 'model',
-    webSearchApiKey: '',
-    defaultProviderId: '',
-    defaultModel: '',
-  });
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
-  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const currentVerifySignature = JSON.stringify({
-    providerId: editingProvider?.id || 'new',
-    providerType: formData.providerType.trim(),
-    baseURL: formData.baseURL.trim(),
-    model: (formData.defaultModel || formData.models[0] || '').trim(),
-    keyMode: formData.apiKey.trim() ? 'input' : (editingProvider ? 'stored' : 'missing'),
+  const {
+    passwordForm,
+    setPasswordForm,
+    passwordError,
+    passwordSuccess,
+    changingPassword,
+    handlePasswordChange,
+  } = usePasswordChange();
+  const {
+    preferences,
+    setPreferences,
+    preferencesSaveState,
+    preferencesSaveMessage,
+  } = useSettingsPreferences(providers);
+  const currentVerifySignature = buildProviderVerifySignature({
+    providerId: editingProvider?.id,
+    providerType: formData.providerType,
+    baseURL: formData.baseURL,
+    defaultModel: formData.defaultModel,
+    models: formData.models,
+    apiKeyInput: formData.apiKey,
+    hasStoredKey: Boolean(editingProvider?.id),
   });
   const isVerificationStale = !!lastVerifiedSignature && lastVerifiedSignature !== currentVerifySignature;
-
-  const savePreferences = useCallback(async (prefs: typeof preferences) => {
-    try {
-      await fetch('/api/user/preferences', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(prefs),
-      });
-    } catch (err) {
-      console.error('Failed to save preferences', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProviders();
-    const loadPreferences = async () => {
-      try {
-        const res = await fetch('/api/user/preferences');
-        if (res.ok) {
-          const data = await res.json();
-          setPreferences(prev => ({ ...prev, ...data }));
-        }
-      } catch (err) {
-        console.error('Failed to load preferences', err);
-      } finally {
-        setPreferencesLoaded(true);
-      }
-    };
-    loadPreferences();
-  }, []);
-
-  useEffect(() => {
-    if (!preferencesLoaded) return;
-
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
-
-    saveTimerRef.current = setTimeout(() => {
-      savePreferences(preferences);
-    }, 500);
-
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, [preferences, preferencesLoaded, savePreferences]);
 
   const fetchProviders = async () => {
     try {
@@ -172,6 +100,10 @@ export default function SettingsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    void fetchProviders();
+  }, []);
 
   const handleProviderTypeChange = (type: string) => {
     const provider = PROVIDER_TYPES.find(p => p.value === type);
@@ -347,67 +279,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError('');
-    setPasswordSuccess('');
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('两次输入的密码不一致');
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordError('新密码至少需要8个字符');
-      return;
-    }
-
-    setChangingPassword(true);
-
-    try {
-      const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        const errorMessage = typeof data.error === 'string'
-          ? data.error
-          : data.error?.formErrors?.join(', ') || '修改密码失败';
-        throw new Error(errorMessage);
-      }
-
-      setPasswordSuccess('密码修改成功');
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : '修改密码失败');
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
-  const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
-    <motion.button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      className={`relative w-12 h-6 rounded-full transition-colors ${checked ? 'bg-emerald-500' : 'bg-white/10'}`}
-      whileTap={{ scale: 0.95 }}
-    >
-      <motion.span
-        className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm"
-        animate={{ x: checked ? 24 : 0 }}
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-      />
-    </motion.button>
-  );
-
   const capabilityBadges = (capabilities?: ProviderConfig['capabilities']) => {
     if (!capabilities) return null;
     const tags = [
@@ -441,7 +312,7 @@ export default function SettingsPage() {
       initial="hidden"
       animate="visible"
     >
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)}>
         <TabsList variant="pills" className="bg-black/20 p-1 mb-8">
           <TabsTrigger value="providers" variant="pills" className="gap-2">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -601,292 +472,25 @@ export default function SettingsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="account" className="max-w-xl mx-auto space-y-6 focus:outline-none">
-          <div className="space-y-1 text-center mb-8">
-            <h2 className="text-2xl font-bold text-white tracking-tight">账号安全</h2>
-            <p className="text-gray-400">修改密码和账号安全设置</p>
-          </div>
-
-          <Card className="border-white/10 overflow-visible">
-            <CardHeader>
-              <CardTitle>修改密码</CardTitle>
-              <CardDescription>建议定期更换密码以保护账号安全</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePasswordChange} className="space-y-4">
-                <Input
-                  type="password"
-                  label="当前密码"
-                  value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
-                  required
-                />
-                <Input
-                  type="password"
-                  label="新密码"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
-                  required
-                  minLength={8}
-                />
-                <Input
-                  type="password"
-                  label="确认新密码"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                  required
-                />
-
-                {passwordError && (
-                  <motion.div 
-                    variants={fadeIn}
-                    initial="hidden"
-                    animate="visible"
-                    className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {passwordError}
-                  </motion.div>
-                )}
-
-                {passwordSuccess && (
-                  <motion.div 
-                    variants={fadeIn}
-                    initial="hidden"
-                    animate="visible"
-                    className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    {passwordSuccess}
-                  </motion.div>
-                )}
-
-                <div className="pt-2">
-                  <Button
-                    type="submit"
-                    isLoading={changingPassword}
-                    className="w-full"
-                  >
-                    修改密码
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+        <TabsContent value="account" className="focus:outline-none">
+          <AccountSecurityTab
+            passwordForm={passwordForm}
+            setPasswordForm={setPasswordForm}
+            passwordError={passwordError}
+            passwordSuccess={passwordSuccess}
+            changingPassword={changingPassword}
+            onSubmit={handlePasswordChange}
+          />
         </TabsContent>
 
-        <TabsContent value="preferences" className="max-w-2xl mx-auto space-y-6 focus:outline-none">
-          <div className="space-y-1 text-center mb-8">
-            <h2 className="text-2xl font-bold text-white tracking-tight">偏好设置</h2>
-            <p className="text-gray-400">自定义编辑器和界面设置</p>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>编辑器设置</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-white font-medium">自动保存</div>
-                  <div className="text-gray-400 text-sm">每隔一段时间自动保存章节内容</div>
-                </div>
-                <Toggle 
-                  checked={preferences.autoSave} 
-                  onChange={() => setPreferences(p => ({ ...p, autoSave: !p.autoSave }))} 
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-white font-medium">字数统计</div>
-                  <div className="text-gray-400 text-sm">在编辑器底部显示字数统计</div>
-                </div>
-                <Toggle 
-                  checked={preferences.wordCount} 
-                  onChange={() => setPreferences(p => ({ ...p, wordCount: !p.wordCount }))} 
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-white font-medium">行号显示</div>
-                  <div className="text-gray-400 text-sm">在编辑器左侧显示行号</div>
-                </div>
-                <Toggle 
-                  checked={preferences.lineNumbers} 
-                  onChange={() => setPreferences(p => ({ ...p, lineNumbers: !p.lineNumbers }))} 
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>AI 写作设置</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Select
-                label="默认生成字数"
-                value={preferences.defaultWordCount}
-                onChange={(val) => setPreferences(p => ({ ...p, defaultWordCount: val }))}
-                options={[
-                  { value: '500', label: '约 500 字' },
-                  { value: '1000', label: '约 1000 字' },
-                  { value: '2000', label: '约 2000 字' },
-                  { value: '3000', label: '约 3000 字' },
-                ]}
-              />
-              <Select
-                label="写作风格"
-                value={preferences.writingStyle}
-                onChange={(val) => setPreferences(p => ({ ...p, writingStyle: val }))}
-                options={[
-                  { value: 'literary', label: '文学性' },
-                  { value: 'popular', label: '通俗易懂' },
-                  { value: 'humorous', label: '幽默诙谐' },
-                  { value: 'serious', label: '严肃正式' },
-                ]}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>全局默认模型</CardTitle>
-              <CardDescription>当 AI 助手未指定模型时，将使用此默认模型</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Select
-                label="默认服务商"
-                value={preferences.defaultProviderId}
-                onChange={(val) => {
-                  const provider = providers.find(p => p.id === val);
-                  setPreferences(p => ({ 
-                    ...p, 
-                    defaultProviderId: val,
-                    defaultModel: provider?.defaultModel || (provider?.models?.[0]) || ''
-                  }));
-                }}
-                options={[
-                  { value: '', label: '未设置' },
-                  ...providers.map(p => ({ value: p.id, label: p.name }))
-                ]}
-              />
-              {preferences.defaultProviderId && (
-                <Select
-                  label="默认模型"
-                  value={preferences.defaultModel}
-                  onChange={(val) => setPreferences(p => ({ ...p, defaultModel: val }))}
-                  options={(() => {
-                    const provider = providers.find(p => p.id === preferences.defaultProviderId);
-                    const models = provider?.models || [];
-                    return models.map(m => ({ value: m, label: m }));
-                  })()}
-                />
-              )}
-              {!preferences.defaultProviderId && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm">
-                  请先选择服务商，然后选择默认模型
-                </div>
-              )}
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-sm">
-                <div className="flex items-start gap-2">
-                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <strong>模型优先级说明：</strong>
-                    <ul className="mt-1 space-y-0.5 list-disc list-inside text-blue-300/80">
-                      <li>AI 助手配置的模型优先级最高</li>
-                      <li>如果 AI 助手未指定模型，使用此全局默认模型</li>
-                      <li>如果 AI 助手指定了其他服务商，将使用该服务商的默认模型</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>网络搜索</CardTitle>
-              <CardDescription>启用后，AI 在生成涉及专业知识、时事热点等内容时会自动联网搜索</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-white font-medium">启用网络搜索</div>
-                  <div className="text-gray-400 text-sm">允许 AI 在写作时联网查询信息</div>
-                </div>
-                <Toggle 
-                  checked={preferences.webSearchEnabled} 
-                  onChange={() => setPreferences(p => ({ ...p, webSearchEnabled: !p.webSearchEnabled }))} 
-                />
-              </div>
-
-              <AnimatePresence>
-                {preferences.webSearchEnabled && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="space-y-6 overflow-hidden"
-                  >
-                    <Select
-                      label="搜索服务商"
-                      value={preferences.webSearchProvider}
-                      onChange={(val) => setPreferences(p => ({ ...p, webSearchProvider: val as 'tavily' | 'exa' | 'model' }))}
-                      options={[
-                        { value: 'model', label: '模型内置搜索 (推荐)' },
-                        { value: 'tavily', label: 'Tavily' },
-                        { value: 'exa', label: 'Exa AI' },
-                      ]}
-                    />
-                    
-                    {preferences.webSearchProvider === 'model' ? (
-                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
-                        使用 AI 模型自带的联网搜索功能，无需额外配置 API 密钥
-                      </div>
-                    ) : (
-                      <Input
-                        type="password"
-                        label="搜索 API 密钥"
-                        helperText={
-                          preferences.webSearchProvider === 'tavily' 
-                            ? "在 tavily.com 获取密钥" 
-                            : "在 exa.ai 获取密钥"
-                        }
-                        value={preferences.webSearchApiKey}
-                        onChange={(e) => setPreferences(p => ({ ...p, webSearchApiKey: e.target.value }))}
-                        placeholder={preferences.webSearchProvider === 'tavily' ? 'tvly-...' : 'exa-...'}
-                      />
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>界面设置</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                label="界面语言"
-                value={preferences.language}
-                onChange={(val) => setPreferences(p => ({ ...p, language: val }))}
-                options={[
-                  { value: 'zh-CN', label: '简体中文' },
-                  { value: 'zh-TW', label: '繁體中文' },
-                  { value: 'en', label: 'English' },
-                ]}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="preferences" className="focus:outline-none">
+          <PreferencesTab
+            providers={providers}
+            preferences={preferences}
+            setPreferences={setPreferences}
+            preferencesSaveState={preferencesSaveState}
+            preferencesSaveMessage={preferencesSaveMessage}
+          />
         </TabsContent>
       </Tabs>
 

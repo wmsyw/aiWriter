@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getJobStatusLabel, 
@@ -15,102 +15,29 @@ import {
 } from '@/app/components/ui';
 import { ModalFooter } from '@/app/components/ui/Modal';
 import { staggerContainer, staggerItem, fadeIn } from '@/app/lib/animations';
-
-interface Job {
-  id: string;
-  type: string;
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
-  input: Record<string, unknown>;
-  output?: Record<string, unknown>;
-  error?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { useJobsQueue } from '@/app/lib/hooks/useJobsQueue';
+import type { JobQueueItem, JobQueueStatus } from '@/src/shared/jobs';
 
 export default function JobsPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const { jobs, loading, cancelJob } = useJobsQueue();
+  const [filterStatus, setFilterStatus] = useState<'all' | JobQueueStatus>('all');
   const [filterType, setFilterType] = useState<string>('all');
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobQueueItem | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [useSSE, setUseSSE] = useState(true);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-
-  const fetchJobs = useCallback(async () => {
-    try {
-      const res = await fetch('/api/jobs');
-      if (res.ok) {
-        const data = await res.json();
-        setJobs(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch jobs', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const selectedJobId = selectedJob?.id;
 
   useEffect(() => {
-    if (!useSSE) {
-      fetchJobs();
-      pollTimerRef.current = setInterval(fetchJobs, 5000);
-      return () => {
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      };
+    if (!selectedJobId) {
+      return;
     }
 
-    const eventSource = new EventSource('/api/jobs/stream');
-    eventSourceRef.current = eventSource;
+    const latest = jobs.find((job) => job.id === selectedJobId) || null;
+    setSelectedJob(latest);
+  }, [jobs, selectedJobId]);
 
-    eventSource.addEventListener('jobs', (event) => {
-      try {
-        const messageEvent = event as MessageEvent;
-        const data = JSON.parse(messageEvent.data);
-        if (data.isInitial) {
-          setJobs(Array.isArray(data.jobs) ? data.jobs : []);
-        } else if (data.jobs && data.jobs.length > 0) {
-          setJobs(prev => {
-            const updated = [...prev];
-            for (const job of data.jobs) {
-              const idx = updated.findIndex(j => j.id === job.id);
-              if (idx >= 0) {
-                updated[idx] = job;
-              } else {
-                updated.unshift(job);
-              }
-            }
-            return updated;
-          });
-        }
-        setLoading(false);
-      } catch (e) {
-        console.error('SSE parse error:', e);
-      }
-    });
-
-    eventSource.onerror = () => {
-      console.warn('SSE connection failed, falling back to polling');
-      eventSource.close();
-      setUseSSE(false);
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [useSSE, fetchJobs]);
-
-  const handleCancel = async (jobId: string, e: React.MouseEvent) => {
+  const handleCancel = async (jobId: string, e: MouseEvent) => {
     e.stopPropagation();
-    try {
-      const res = await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' });
-      if (res.ok) {
-        fetchJobs();
-      }
-    } catch (error) {
-      console.error('Failed to cancel job', error);
-    }
+    await cancelJob(jobId);
   };
 
   const filteredJobs = jobs.filter(job => {
@@ -121,7 +48,7 @@ export default function JobsPage() {
 
   const uniqueTypes = Array.from(new Set(jobs.map(j => j.type)));
 
-  const openDrawer = (job: Job) => {
+  const openDrawer = (job: JobQueueItem) => {
     setSelectedJob(job);
     setIsDrawerOpen(true);
   };
@@ -130,6 +57,7 @@ export default function JobsPage() {
     switch (status) {
       case 'queued': return 'queued';
       case 'running': return 'running';
+      case 'processing': return 'running';
       case 'succeeded': return 'success';
       case 'failed': return 'error';
       case 'canceled': return 'warning';
@@ -174,25 +102,26 @@ export default function JobsPage() {
           <motion.div variants={fadeIn} className="flex gap-3">
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="glass-input h-9 rounded-xl px-3 text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | JobQueueStatus)}
+              className="select-menu h-9 rounded-xl px-3 text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
             >
-              <option value="all" className="bg-gray-900">全部状态</option>
-              <option value="queued" className="bg-gray-900">排队中</option>
-              <option value="running" className="bg-gray-900">执行中</option>
-              <option value="succeeded" className="bg-gray-900">已完成</option>
-              <option value="failed" className="bg-gray-900">失败</option>
-              <option value="canceled" className="bg-gray-900">已取消</option>
+              <option value="all">全部状态</option>
+              <option value="queued">排队中</option>
+              <option value="running">执行中</option>
+              <option value="processing">处理中</option>
+              <option value="succeeded">已完成</option>
+              <option value="failed">失败</option>
+              <option value="canceled">已取消</option>
             </select>
             
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="glass-input h-9 rounded-xl px-3 text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
+              className="select-menu h-9 rounded-xl px-3 text-sm bg-black/20 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50"
             >
-              <option value="all" className="bg-gray-900">全部类型</option>
+              <option value="all">全部类型</option>
               {uniqueTypes.map(type => (
-                <option key={type} value={type} className="bg-gray-900">{getJobTypeLabel(type)}</option>
+                <option key={type} value={type}>{getJobTypeLabel(type)}</option>
               ))}
             </select>
           </motion.div>
@@ -247,11 +176,11 @@ export default function JobsPage() {
                       </div>
 
                       <div className="flex items-center gap-4">
-                        <Badge variant={getStatusVariant(job.status) as any} animated={job.status === 'running'}>
+                        <Badge variant={getStatusVariant(job.status) as any} animated={job.status === 'running' || job.status === 'processing'}>
                           {getJobStatusLabel(job.status)}
                         </Badge>
                         
-                        {(job.status === 'queued' || job.status === 'running') && (
+                        {(job.status === 'queued' || job.status === 'running' || job.status === 'processing') && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -311,7 +240,11 @@ export default function JobsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-gray-500 mb-2">状态</div>
-                  <Badge variant={getStatusVariant(selectedJob.status) as any} size="lg" animated={selectedJob.status === 'running'}>
+                  <Badge
+                    variant={getStatusVariant(selectedJob.status) as any}
+                    size="lg"
+                    animated={selectedJob.status === 'running' || selectedJob.status === 'processing'}
+                  >
                     {getJobStatusLabel(selectedJob.status)}
                   </Badge>
                 </div>
@@ -335,7 +268,7 @@ export default function JobsPage() {
                   </CardContent>
                 </Card>
 
-                {selectedJob.output && (
+                {Boolean(selectedJob.output) && (
                   <Card className="bg-zinc-900/65 border-white/10">
                     <CardContent className="p-4">
                       <h3 className="text-sm font-bold text-green-400 mb-2 border-b border-white/5 pb-2">输出结果</h3>
@@ -346,7 +279,7 @@ export default function JobsPage() {
                   </Card>
                 )}
 
-                {selectedJob.error && (
+                {Boolean(selectedJob.error) && (
                   <Card className="bg-red-500/12 border-red-500/25">
                     <CardContent className="p-4">
                       <h3 className="text-sm font-bold text-red-400 mb-2 border-b border-red-500/20 pb-2">错误信息</h3>

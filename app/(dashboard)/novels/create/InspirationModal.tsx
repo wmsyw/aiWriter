@@ -7,16 +7,18 @@ import { Button } from '@/app/components/ui/Button';
 import { Input, Textarea } from '@/app/components/ui/Input';
 import { Select } from '@/app/components/ui/Select';
 import { useJobPolling } from '@/app/lib/hooks/useJobPolling';
-
-export interface Inspiration {
-  name: string;
-  theme: string;
-  keywords: string[];
-  protagonist: string;
-  worldSetting: string;
-  hook?: string;
-  potential?: string;
-}
+import { parseJobResponse } from '@/src/shared/jobs';
+import {
+  INSPIRATION_AUDIENCE_OPTIONS,
+  INSPIRATION_PERSPECTIVE_OPTIONS,
+  INSPIRATION_PROGRESS_MESSAGES,
+  INSPIRATION_STYLE_OPTIONS,
+  INSPIRATION_TONE_OPTIONS,
+  buildInspirationCacheKey,
+  buildInspirationKeywordsPrompt,
+  normalizeInspirationList,
+  type Inspiration,
+} from '@/src/shared/inspiration';
 
 interface InspirationModalProps {
   isOpen: boolean;
@@ -45,66 +47,6 @@ const itemVariants: Variants = {
   }
 };
 
-const PROGRESS_MESSAGES = [
-  '正在分析题材趋势...',
-  '正在研究热门元素...',
-  '正在构思主角设定...',
-  '正在编织世界观...',
-  '正在提炼核心卖点...',
-  '正在优化创意组合...',
-  '即将完成...',
-];
-
-const AUDIENCE_OPTIONS = [
-  { value: '全年龄', label: '全年龄' },
-  { value: '男性读者', label: '男性读者' },
-  { value: '女性读者', label: '女性读者' },
-  { value: '青少年', label: '青少年' },
-  { value: '成年读者', label: '成年读者' },
-];
-
-const STYLE_OPTIONS = [
-  { value: '', label: '不限风格' },
-  { value: '轻松幽默', label: '轻松幽默' },
-  { value: '热血燃向', label: '热血燃向' },
-  { value: '暗黑压抑', label: '暗黑压抑' },
-  { value: '温馨治愈', label: '温馨治愈' },
-  { value: '悬疑烧脑', label: '悬疑烧脑' },
-  { value: '史诗宏大', label: '史诗宏大' },
-  { value: '诙谐讽刺', label: '诙谐讽刺' },
-  { value: '细腻文艺', label: '细腻文艺' },
-  { value: '硬核写实', label: '硬核写实' },
-  { value: '荒诞离奇', label: '荒诞离奇' },
-  { value: '浪漫唯美', label: '浪漫唯美' },
-  { value: '冷峻凌厉', label: '冷峻凌厉' },
-];
-
-const TONE_OPTIONS = [
-  { value: '', label: '不限基调' },
-  { value: '爽文节奏', label: '爽文节奏' },
-  { value: '慢热养成', label: '慢热养成' },
-  { value: '虐心虐身', label: '虐心虐身' },
-  { value: '甜宠日常', label: '甜宠日常' },
-  { value: '权谋争斗', label: '权谋争斗' },
-  { value: '热血励志', label: '热血励志' },
-  { value: '沉郁悲壮', label: '沉郁悲壮' },
-  { value: '轻快欢脱', label: '轻快欢脱' },
-  { value: '紧张刺激', label: '紧张刺激' },
-  { value: '压抑窒息', label: '压抑窒息' },
-  { value: '豁达释然', label: '豁达释然' },
-  { value: '苦尽甘来', label: '苦尽甘来' },
-  { value: '黑色幽默', label: '黑色幽默' },
-];
-
-const PERSPECTIVE_OPTIONS = [
-  { value: '', label: '不限视角' },
-  { value: '第一人称', label: '第一人称' },
-  { value: '第三人称限制', label: '第三人称限制' },
-  { value: '第三人称全知', label: '第三人称全知' },
-  { value: '多视角切换', label: '多视角切换' },
-  { value: '群像文', label: '群像文' },
-];
-
 const CACHE_MAX_SIZE = 50;
 const inspirationCache = new Map<string, Inspiration[]>();
 
@@ -114,10 +56,6 @@ function setCacheWithLimit(key: string, value: Inspiration[]): void {
     if (firstKey) inspirationCache.delete(firstKey);
   }
   inspirationCache.set(key, value);
-}
-
-function getCacheKey(genre: string, targetWords: number, audience: string, keywords: string, style: string, tone: string, perspective: string): string {
-  return `${genre}:${targetWords}:${audience}:${keywords}:${style}:${tone}:${perspective}`;
 }
 
 export default function InspirationModal({
@@ -141,8 +79,33 @@ export default function InspirationModal({
   
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progressIndexRef = useRef(0);
+  const criteriaRef = useRef({
+    genre,
+    targetWords,
+    audience,
+    keywords,
+    style,
+    tone,
+    perspective,
+  });
 
   const { data, status, error, startPolling, stopPolling } = useJobPolling<Inspiration[]>();
+
+  useEffect(() => {
+    criteriaRef.current = {
+      genre,
+      targetWords,
+      audience,
+      keywords,
+      style,
+      tone,
+      perspective,
+    };
+  }, [genre, targetWords, audience, keywords, style, tone, perspective]);
+
+  const getCurrentCacheKey = useCallback(() => {
+    return buildInspirationCacheKey(criteriaRef.current);
+  }, []);
 
   const clearProgressInterval = useCallback(() => {
     if (progressIntervalRef.current) {
@@ -153,25 +116,29 @@ export default function InspirationModal({
 
   const startProgressMessages = useCallback(() => {
     progressIndexRef.current = 0;
-    setProgressMessage(PROGRESS_MESSAGES[0]);
+    setProgressMessage(INSPIRATION_PROGRESS_MESSAGES[0]);
     
     progressIntervalRef.current = setInterval(() => {
       progressIndexRef.current = Math.min(
         progressIndexRef.current + 1,
-        PROGRESS_MESSAGES.length - 1
+        INSPIRATION_PROGRESS_MESSAGES.length - 1
       );
-      setProgressMessage(PROGRESS_MESSAGES[progressIndexRef.current]);
+      setProgressMessage(INSPIRATION_PROGRESS_MESSAGES[progressIndexRef.current]);
     }, 3000);
   }, []);
 
   useEffect(() => {
     if (status === 'completed' && data) {
       clearProgressInterval();
-      const result = Array.isArray(data) ? data : [];
+      const result = normalizeInspirationList(data);
+      if (result.length === 0) {
+        setErrorMessage('AI 返回结果为空或格式异常，请重试');
+        setStep('settings');
+        return;
+      }
       setInspirations(result);
       
-      const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
-      setCacheWithLimit(cacheKey, result);
+      setCacheWithLimit(getCurrentCacheKey(), result);
       
       setStep('results');
     } else if (status === 'failed' && error) {
@@ -182,12 +149,11 @@ export default function InspirationModal({
         setErrorMessage('');
       }, 3000);
     }
-  }, [status, data, error, clearProgressInterval, genre, targetWords, audience, keywords, style, tone, perspective]);
+  }, [status, data, error, clearProgressInterval, getCurrentCacheKey]);
 
   useEffect(() => {
     if (isOpen) {
-      const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
-      const cached = inspirationCache.get(cacheKey);
+      const cached = inspirationCache.get(getCurrentCacheKey());
 
       if (cached && cached.length > 0) {
         setInspirations(cached);
@@ -208,8 +174,7 @@ export default function InspirationModal({
       stopPolling();
       clearProgressInterval();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, stopPolling, clearProgressInterval, getCurrentCacheKey]);
 
   const handleGenerate = async () => {
     setStep('generating');
@@ -217,13 +182,12 @@ export default function InspirationModal({
     setExpandedIndex(null);
     startProgressMessages();
 
-    const extraRequirements = [
-      style && `写作风格：${style}`,
-      tone && `情感基调：${tone}`,
-      perspective && `叙事视角：${perspective}`,
-    ].filter(Boolean).join('；');
-
-    const fullKeywords = [keywords, extraRequirements].filter(Boolean).join('。');
+    const fullKeywords = buildInspirationKeywordsPrompt({
+      keywords,
+      style,
+      tone,
+      perspective,
+    });
 
     try {
       const res = await fetch('/api/jobs', {
@@ -249,7 +213,11 @@ export default function InspirationModal({
         throw new Error(msg);
       }
       
-      const { job } = await res.json();
+      const payload = await res.json();
+      const job = parseJobResponse(payload);
+      if (!job) {
+        throw new Error('任务创建失败：返回数据异常');
+      }
       startPolling(job.id);
     } catch (err) {
       clearProgressInterval();
@@ -262,8 +230,7 @@ export default function InspirationModal({
   };
 
   const handleRetry = () => {
-    const cacheKey = getCacheKey(genre, targetWords, audience, keywords, style, tone, perspective);
-    inspirationCache.delete(cacheKey);
+    inspirationCache.delete(getCurrentCacheKey());
     setStep('settings');
     setInspirations([]);
     setExpandedIndex(null);
@@ -271,7 +238,8 @@ export default function InspirationModal({
 
   const handleCardClick = (idx: number) => {
     if (expandedIndex === idx) {
-      onSelect(inspirations[idx]);
+      const selected = inspirations[idx];
+      if (selected) onSelect(selected);
     } else {
       setExpandedIndex(idx);
     }
@@ -311,7 +279,7 @@ export default function InspirationModal({
                   <Select
                     value={audience}
                     onChange={setAudience}
-                    options={AUDIENCE_OPTIONS}
+                    options={INSPIRATION_AUDIENCE_OPTIONS}
                   />
                 </div>
               </div>
@@ -322,7 +290,7 @@ export default function InspirationModal({
                   <Select
                     value={style}
                     onChange={setStyle}
-                    options={STYLE_OPTIONS}
+                    options={INSPIRATION_STYLE_OPTIONS}
                   />
                 </div>
                 <div className="space-y-2">
@@ -330,7 +298,7 @@ export default function InspirationModal({
                   <Select
                     value={tone}
                     onChange={setTone}
-                    options={TONE_OPTIONS}
+                    options={INSPIRATION_TONE_OPTIONS}
                   />
                 </div>
                 <div className="space-y-2">
@@ -338,7 +306,7 @@ export default function InspirationModal({
                   <Select
                     value={perspective}
                     onChange={setPerspective}
-                    options={PERSPECTIVE_OPTIONS}
+                    options={INSPIRATION_PERSPECTIVE_OPTIONS}
                   />
                 </div>
               </div>

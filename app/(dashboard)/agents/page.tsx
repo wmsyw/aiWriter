@@ -717,11 +717,11 @@ export default function AgentsPage() {
               <select
                 value={currentAgent.providerConfigId || ''}
                 onChange={e => setCurrentAgent({...currentAgent, providerConfigId: e.target.value || undefined})}
-                className="w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                className="select-menu w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               >
-                <option value="" className="bg-gray-900">默认服务商</option>
+                <option value="">默认服务商</option>
                 {providers.map(p => (
-                  <option key={p.id} value={p.id} className="bg-gray-900">
+                  <option key={p.id} value={p.id}>
                     {p.name} ({p.providerType})
                   </option>
                 ))}
@@ -748,13 +748,13 @@ export default function AgentsPage() {
                             setCurrentAgent({...currentAgent, model: e.target.value});
                           }
                         }}
-                        className="w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        className="select-menu w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                       >
-                        <option value="" className="bg-gray-900">选择模型...</option>
+                        <option value="">选择模型...</option>
                         {availableModels.map((model: string) => (
-                          <option key={model} value={model} className="bg-gray-900">{model}</option>
+                          <option key={model} value={model}>{model}</option>
                         ))}
-                        <option value="__custom__" className="bg-gray-900">自定义模型...</option>
+                        <option value="__custom__">自定义模型...</option>
                       </select>
                     )}
                     {(availableModels.length === 0 || useCustomModel) && (
@@ -782,11 +782,11 @@ export default function AgentsPage() {
               value={currentAgent.templateId || ''}
               disabled={isEditingBuiltIn}
               onChange={e => setCurrentAgent({...currentAgent, templateId: e.target.value || undefined})}
-              className="w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              className="select-menu w-full h-10 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             >
-              <option value="" className="bg-gray-900">选择模板...</option>
+              <option value="">选择模板...</option>
               {templates.map(t => (
-                <option key={t.id} value={t.id} className="bg-gray-900">
+                <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
               ))}

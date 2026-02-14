@@ -2,13 +2,31 @@ import { renderTemplateString } from '../../src/server/services/templates.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
 import { saveVersion, saveBranchVersions, deleteUnusedBranches } from '../../src/server/services/versioning.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
-import { decryptApiKey } from '../../src/core/crypto.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime } from '../utils/helpers.js';
 import { checkBlockingPendingEntities } from '../../src/server/services/pending-entities.js';
 import { formatHooksForContext } from '../../src/server/services/hooks.js';
-import { assembleContextAsString } from '../../src/server/services/context-assembly.js';
+import { assembleTruncatedContext } from '../../src/server/services/context-assembly.js';
 import { enqueuePostGenerationJobs } from '../../src/server/services/post-generation-jobs.js';
+import {
+  buildChapterContinuityContext,
+  buildContinuityRules,
+  extractEndingSnippet,
+} from '../../src/shared/chapter-continuity.js';
+import { assessChapterContinuity } from '../../src/shared/chapter-continuity-gate.js';
+import { normalizeBranchCandidates } from '../../src/shared/chapter-branch-review.js';
+import { resolveContinuityGateConfig } from '../../src/shared/continuity-gate-config.js';
+import {
+  dedupeWebSearchResults,
+  formatWebSearchError,
+  getSearchFallbackProviders,
+  getUserSearchConfig,
+  hasAnySearchApiKey,
+} from '../utils/web-search-runtime.js';
+
+const CONTEXT_MAX_TOKENS = 28000;
+const CONTINUITY_RECENT_CHAPTERS = 6;
+const CONTINUITY_SUMMARY_CHAPTERS = 20;
 
 function toCleanList(value) {
   if (!Array.isArray(value)) return [];
@@ -123,38 +141,15 @@ function resolveOutlineAndChapterCard(chapter, rawOutline, rawChapterCard) {
   };
 }
 
-async function getUserSearchConfig(prisma, userId) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { preferences: true },
-  });
-  const prefs = user?.preferences || {};
-  
-  let apiKey = process.env.WEB_SEARCH_API_KEY || null;
-  if (prefs.webSearchApiKeyCiphertext) {
-    try {
-      apiKey = decryptApiKey(prefs.webSearchApiKeyCiphertext);
-    } catch {
-      apiKey = null;
-    }
-  }
-  
-  return {
-    enabled: prefs.webSearchEnabled || false,
-    provider: prefs.webSearchProvider || 'model',
-    apiKey,
-  };
-}
-
 async function performWebSearchIfNeeded(prisma, userId, content, novelTitle) {
-  const searchConfig = await getUserSearchConfig(prisma, userId);
+  const searchConfig = await getUserSearchConfig(prisma, userId, { defaultProvider: 'model' });
   if (!searchConfig.enabled) return null;
   
   if (searchConfig.provider === 'model') {
     return { useModelSearch: true };
   }
   
-  if (!searchConfig.apiKey) return null;
+  if (!hasAnySearchApiKey(searchConfig.providerApiKeys)) return null;
   if (!shouldSearchForTopic(content)) return null;
   
   const queries = extractSearchQueries(content, novelTitle);
@@ -163,15 +158,235 @@ async function performWebSearchIfNeeded(prisma, userId, content, novelTitle) {
   const allResults = [];
   for (const query of queries) {
     try {
-      const response = await webSearch(searchConfig.provider, searchConfig.apiKey, query, 3);
+      const response = await webSearch(searchConfig.provider, searchConfig.apiKey || '', query, 3, {
+        fallbackProviders: getSearchFallbackProviders(searchConfig.provider),
+        providerApiKeys: searchConfig.providerApiKeys,
+        timeoutMs: 30000,
+        allowEmptyResultFallback: true,
+      });
       allResults.push(...response.results);
     } catch (err) {
-      console.error(`Web search failed for query "${query}":`, err.message);
+      console.error(`Web search failed for query "${query}":`, err instanceof Error ? err.message : err);
+      console.warn(`[CHAPTER] ${formatWebSearchError(err)}`);
     }
   }
   
-  if (allResults.length === 0) return null;
-  return { context: formatSearchResultsForContext(allResults.slice(0, 5)) };
+  const dedupedResults = dedupeWebSearchResults(allResults);
+  if (dedupedResults.length === 0) return null;
+  return { context: formatSearchResultsForContext(dedupedResults.slice(0, 5)) };
+}
+
+function buildContextAssemblyConfig(chapterOrder) {
+  const availableChapters = Math.max(0, chapterOrder - 1);
+  const recentChaptersCount = availableChapters > 0
+    ? Math.min(CONTINUITY_RECENT_CHAPTERS, availableChapters)
+    : 1;
+  const summaryChaptersCount = availableChapters > recentChaptersCount
+    ? Math.min(CONTINUITY_SUMMARY_CHAPTERS, availableChapters - recentChaptersCount)
+    : 0;
+
+  return {
+    recentChaptersCount,
+    summaryChaptersCount,
+    maxTotalTokens: CONTEXT_MAX_TOKENS,
+  };
+}
+
+function buildContinuityGateRepairPrompt({
+  chapterOrder,
+  basePrompt,
+  draftContent,
+  continuityContext,
+  continuityRules,
+  assessment,
+}) {
+  const issueLines = assessment.issues.length
+    ? assessment.issues
+        .slice(0, 5)
+        .map((issue, index) => `${index + 1}. [${issue.severity}] ${issue.message}`)
+        .join('\n')
+    : '1. 承接前文不充分，请补强时间线与事件链衔接。';
+
+  return [
+    basePrompt,
+    '',
+    continuityContext ? continuityContext : '',
+    continuityRules || '',
+    '',
+    '## 当前草稿（待修复）',
+    draftContent,
+    '',
+    `## 连续性修复任务（第${chapterOrder}章）`,
+    `当前连续性得分：${assessment.score}，判定：${assessment.verdict}`,
+    issueLines,
+    '',
+    '请在保留本章核心事件和人物关系的前提下重写全文：',
+    '1. 开篇必须明确承接上一章结尾状态（时间、地点、冲突或人物状态）。',
+    '2. 对近章关键事件链至少体现延续或反馈，不得像新开一章。',
+    '3. 未回收线索至少推进一项，或给出清晰延后理由。',
+    '4. 输出完整章节正文，不要解释、不要列提纲。',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function buildContinuityGateErrorMessage(report) {
+  const issueText = (report.issues || [])
+    .slice(0, 3)
+    .map((item) => item.message)
+    .join('；');
+  const reason = issueText || '与前文承接不足';
+  return `连续性门禁未通过（得分 ${report.score}）：${reason}。请补充章节任务卡或迭代反馈后重试。`;
+}
+
+async function runContinuityGateWithRepair({
+  prisma,
+  userId,
+  jobId,
+  config,
+  adapter,
+  agent,
+  defaultModel,
+  webSearch,
+  chapterOrder,
+  basePrompt,
+  initialContent,
+  continuityData,
+  continuityRules,
+  gateConfig,
+}) {
+  if (!gateConfig.enabled) {
+    return {
+      content: initialContent,
+      assessment: {
+        score: 10,
+        verdict: 'pass',
+        issues: [],
+        metrics: {
+          openingCoverage: 1,
+          eventCoverage: 1,
+          hookCoverage: 1,
+          timelineCue: true,
+          signalTotals: { anchors: 0, events: 0, hooks: 0 },
+        },
+        matchedSignals: { anchors: [], events: [], hooks: [] },
+      },
+      repairAttempts: 0,
+      blocked: false,
+    };
+  }
+
+  let content = initialContent;
+  let repairAttempts = 0;
+  let assessment = assessChapterContinuity(
+    content,
+    continuityData.previousChapters,
+    continuityData.chapterSummaries,
+    {
+      passScore: gateConfig.passScore,
+      rejectScore: gateConfig.rejectScore,
+    }
+  );
+
+  while (assessment.verdict !== 'pass' && repairAttempts < gateConfig.maxRepairAttempts) {
+    const repairPrompt = buildContinuityGateRepairPrompt({
+      chapterOrder,
+      basePrompt,
+      draftContent: content,
+      continuityContext: continuityData.continuityContext,
+      continuityRules,
+      assessment,
+    });
+
+    const { response: repairedResponse } = await generateWithAgentRuntime({
+      prisma,
+      userId,
+      jobId,
+      config,
+      adapter,
+      agent,
+      defaultModel,
+      messages: [{ role: 'user', content: repairPrompt }],
+      webSearch,
+      temperature: 0.65,
+    });
+
+    content = repairedResponse.content;
+    repairAttempts += 1;
+    assessment = assessChapterContinuity(
+      content,
+      continuityData.previousChapters,
+      continuityData.chapterSummaries,
+      {
+        passScore: gateConfig.passScore,
+        rejectScore: gateConfig.rejectScore,
+      }
+    );
+  }
+
+  return {
+    content,
+    assessment,
+    repairAttempts,
+    blocked: assessment.verdict === 'reject',
+  };
+}
+
+function buildFallbackPreviousSummary(previousChapters) {
+  if (!Array.isArray(previousChapters) || previousChapters.length === 0) {
+    return '';
+  }
+
+  return previousChapters
+    .map((chapter) => {
+      const title = (chapter.title || '').trim() || `第${chapter.order}章`;
+      const ending = extractEndingSnippet(chapter.content || '', 180);
+      if (ending) {
+        return `第${chapter.order}章《${title}》结尾：${ending}`;
+      }
+      return `第${chapter.order}章《${title}》`;
+    })
+    .join('\n');
+}
+
+async function loadChapterContinuityData(prisma, novelId, chapterOrder) {
+  const [rawPreviousChapters, chapterSummaries] = await Promise.all([
+    prisma.chapter.findMany({
+      where: { novelId, order: { lt: chapterOrder } },
+      orderBy: { order: 'desc' },
+      take: CONTINUITY_RECENT_CHAPTERS,
+      select: {
+        order: true,
+        title: true,
+        content: true,
+      },
+    }),
+    prisma.chapterSummary.findMany({
+      where: {
+        novelId,
+        chapterNumber: { lt: chapterOrder },
+      },
+      orderBy: { chapterNumber: 'desc' },
+      take: CONTINUITY_SUMMARY_CHAPTERS,
+      select: {
+        chapterNumber: true,
+        oneLine: true,
+        keyEvents: true,
+        characterDevelopments: true,
+        hooksPlanted: true,
+        hooksReferenced: true,
+        hooksResolved: true,
+      },
+    }),
+  ]);
+
+  const previousChapters = [...rawPreviousChapters].sort((a, b) => a.order - b.order);
+  return {
+    previousSummaryFallback: buildFallbackPreviousSummary(previousChapters),
+    continuityContext: buildChapterContinuityContext(previousChapters, chapterSummaries),
+    previousChapters,
+    chapterSummaries,
+  };
 }
 
 export async function handleChapterGenerate(prisma, job, { jobId, userId, input }) {
@@ -216,20 +431,24 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
+  const continuityData = await loadChapterContinuityData(prisma, chapter.novelId, chapter.order);
+
   let enhancedContext = null;
   
   try {
-    enhancedContext = await assembleContextAsString(chapter.novelId, chapter.order);
+    enhancedContext = await assembleTruncatedContext(
+      chapter.novelId,
+      chapter.order,
+      CONTEXT_MAX_TOKENS,
+      buildContextAssemblyConfig(chapter.order)
+    );
+    if (enhancedContext?.warnings?.length) {
+      console.warn('Context assembly warnings:', enhancedContext.warnings.join('; '));
+    }
   } catch (err) {
     console.warn('Context assembly failed, using fallback:', err.message);
   }
-
-  const previousChapters = await prisma.chapter.findMany({
-    where: { novelId: chapter.novelId, order: { lt: chapter.order } },
-    orderBy: { order: 'desc' },
-    take: 3,
-  });
-  const previousSummary = enhancedContext?.context || previousChapters.map(c => `Chapter ${c.order}: ${c.title}`).join('\n');
+  const previousSummary = enhancedContext?.context || continuityData.previousSummaryFallback;
 
   const materials = await buildMaterialContext(chapter.novelId, userId, ['character', 'worldbuilding', 'plotPoint']);
 
@@ -261,7 +480,17 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     word_count_target: 2000,
     web_search_results: webSearchResult?.context || '',
     unresolved_hooks: hooksContext,
+    continuity_context: continuityData.continuityContext,
+    continuity_rules: buildContinuityRules(),
   };
+
+  const templateUsesContinuity = Boolean(
+    template?.content &&
+      (
+        template.content.includes('continuity_context') ||
+        template.content.includes('continuity_rules')
+      )
+  );
 
   let prompt = template
     ? renderTemplateString(template.content, context)
@@ -275,6 +504,13 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     prompt += `\n\n${resolved.chapterCardSection}`;
   }
 
+  if (!templateUsesContinuity) {
+    if (continuityData.continuityContext) {
+      prompt += `\n\n${continuityData.continuityContext}`;
+    }
+    prompt += `\n\n${buildContinuityRules()}`;
+  }
+
   if (hooksContext) {
     prompt = `${prompt}\n\n---\n\n${hooksContext}`;
   }
@@ -283,6 +519,7 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     prompt = `${WEB_SEARCH_PREFIX}${webSearchResult.context}\n\n---\n\n${prompt}`;
   }
 
+  const continuityRules = buildContinuityRules();
   const { response } = await generateWithAgentRuntime({
     prisma,
     userId,
@@ -296,13 +533,43 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     temperature: 0.8,
   });
 
+  const continuityGateConfig = resolveContinuityGateConfig(chapter.novel.workflowConfig, {
+    defaultReviewPassThreshold: 7.4,
+    defaultRejectScore: 4.9,
+    defaultMaxRepairAttempts: 1,
+  });
+  const continuityGate = await runContinuityGateWithRepair({
+    prisma,
+    userId,
+    jobId,
+    config,
+    adapter,
+    agent,
+    defaultModel,
+    webSearch: useModelSearch,
+    chapterOrder: chapter.order,
+    basePrompt: prompt,
+    initialContent: response.content,
+    continuityData,
+    continuityRules,
+    gateConfig: continuityGateConfig,
+  });
+
+  if (continuityGate.blocked) {
+    throw new Error(buildContinuityGateErrorMessage(continuityGate.assessment));
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.chapter.update({
       where: { id: chapterId },
-      data: { content: response.content, generationStage: 'generated' },
+      data: {
+        content: continuityGate.content,
+        generationStage: 'generated',
+        pendingReview: continuityGate.assessment.verdict !== 'pass',
+      },
     });
 
-    await saveVersion(chapterId, response.content, tx);
+    await saveVersion(chapterId, continuityGate.content, tx);
   });
   const postProcessSummary = await enqueuePostGenerationJobs(userId, chapterId);
   const analysisQueueError = postProcessSummary.failed.length
@@ -313,13 +580,22 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
   }
  
   return { 
-    content: response.content, 
-    wordCount: response.content.split(/\s+/).length,
+    content: continuityGate.content, 
+    wordCount: continuityGate.content.split(/\s+/).length,
     webSearchUsed: useModelSearch || !!webSearchResult?.context,
     analysisQueued: postProcessSummary.allQueued,
     analysisQueueError,
     postProcess: postProcessSummary,
     pendingEntitiesBlocking: false,
+    continuityGate: {
+      score: continuityGate.assessment.score,
+      verdict: continuityGate.assessment.verdict,
+      issues: continuityGate.assessment.issues,
+      metrics: continuityGate.assessment.metrics,
+      repairAttempts: continuityGate.repairAttempts,
+      passScore: continuityGateConfig.passScore,
+      rejectScore: continuityGateConfig.rejectScore,
+    },
   };
 }
 
@@ -365,20 +641,24 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
+  const continuityData = await loadChapterContinuityData(prisma, chapter.novelId, chapter.order);
+
   let enhancedContext;
   try {
-    enhancedContext = await assembleContextAsString(chapter.novelId, chapter.order);
+    enhancedContext = await assembleTruncatedContext(
+      chapter.novelId,
+      chapter.order,
+      CONTEXT_MAX_TOKENS,
+      buildContextAssemblyConfig(chapter.order)
+    );
+    if (enhancedContext?.warnings?.length) {
+      console.warn('Context assembly warnings for branches:', enhancedContext.warnings.join('; '));
+    }
   } catch (err) {
     console.warn('Failed to assemble enhanced context for branches, falling back to basic:', err.message);
     enhancedContext = null;
   }
-
-  const previousChapters = await prisma.chapter.findMany({
-    where: { novelId: chapter.novelId, order: { lt: chapter.order } },
-    orderBy: { order: 'desc' },
-    take: 3,
-  });
-  const previousSummary = enhancedContext?.context || previousChapters.map(c => `Chapter ${c.order}: ${c.title}`).join('\n');
+  const previousSummary = enhancedContext?.context || continuityData.previousSummaryFallback;
   const materials = await buildMaterialContext(chapter.novelId, userId, ['character', 'worldbuilding', 'plotPoint']);
 
   let hooksContext = '';
@@ -413,7 +693,17 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     selected_content: selectedContent || '',
     web_search_results: webSearchResult?.context || '',
     hooks_context: hooksContext || '',
+    continuity_context: continuityData.continuityContext,
+    continuity_rules: buildContinuityRules(),
   };
+
+  const templateUsesContinuity = Boolean(
+    template?.content &&
+      (
+        template.content.includes('continuity_context') ||
+        template.content.includes('continuity_rules')
+      )
+  );
 
   let basePrompt = template
     ? renderTemplateString(template.content, context)
@@ -425,6 +715,13 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
 
   if (resolved.chapterCardSection) {
     basePrompt += `\n\n${resolved.chapterCardSection}`;
+  }
+
+  if (!templateUsesContinuity) {
+    if (continuityData.continuityContext) {
+      basePrompt += `\n\n${continuityData.continuityContext}`;
+    }
+    basePrompt += `\n\n${buildContinuityRules()}`;
   }
 
   if (hooksContext) {
@@ -439,6 +736,11 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     basePrompt = ITERATION_PROMPT_TEMPLATE(iterationRound, selectedContent, feedback, basePrompt);
   }
 
+  const continuityGateConfig = resolveContinuityGateConfig(chapter.novel.workflowConfig, {
+    defaultReviewPassThreshold: 7.4,
+    defaultRejectScore: 4.9,
+    defaultMaxRepairAttempts: 1,
+  });
   const temperatures = [0.7, 0.8, 0.9];
 
   const branchPromises = Array.from({ length: branchCount }, (_, i) => 
@@ -464,6 +766,28 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
   );
 
   const branches = await Promise.all(branchPromises);
+  const branchesWithContinuity = branches.map((branch) => {
+    const continuity = assessChapterContinuity(
+      branch.content,
+      continuityData.previousChapters,
+      continuityData.chapterSummaries,
+      {
+        passScore: continuityGateConfig.passScore,
+        rejectScore: continuityGateConfig.rejectScore,
+      }
+    );
+
+    return {
+      ...branch,
+      continuity,
+    };
+  });
+  const sortedBranches = normalizeBranchCandidates(
+    branchesWithContinuity.map((branch) => ({
+      ...branch,
+      continuityScore: branch.continuity.score,
+    }))
+  );
 
   await deleteUnusedBranches(chapterId, chapter.currentVersionId);
 
@@ -471,10 +795,18 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
   await saveBranchVersions(chapterId, branches, parentVersion);
 
   return {
-    branches: branches.map(b => ({
+    branches: sortedBranches.map(b => ({
       branchNumber: b.branchNumber,
       preview: b.content.slice(0, 500),
       wordCount: b.content.split(/\s+/).length,
+      continuityScore: b.continuity.score,
+      continuityVerdict: b.continuity.verdict,
+      continuityIssues: b.continuity.issues.slice(0, 2).map((issue) => issue.message),
     })),
+    continuityGate: {
+      passScore: continuityGateConfig.passScore,
+      rejectScore: continuityGateConfig.rejectScore,
+      rejectedCount: branchesWithContinuity.filter((item) => item.continuity.verdict === 'reject').length,
+    },
   };
 }

@@ -56,8 +56,79 @@ interface ResolvedProvider {
 const providerCache = new Map<string, { provider: ResolvedProvider; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+interface UserPreferenceDefaults {
+  defaultProviderId?: string;
+  defaultModel?: string;
+}
+
+function toNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function extractProviderModels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const models = value
+    .map((item) => toNonEmptyString(item))
+    .filter((item): item is string => Boolean(item));
+  return [...new Set(models)];
+}
+
+function readUserPreferenceDefaults(rawPreferences: unknown): UserPreferenceDefaults {
+  if (!rawPreferences || typeof rawPreferences !== 'object' || Array.isArray(rawPreferences)) {
+    return {};
+  }
+
+  const prefs = rawPreferences as Record<string, unknown>;
+  return {
+    defaultProviderId: toNonEmptyString(prefs.defaultProviderId),
+    defaultModel: toNonEmptyString(prefs.defaultModel),
+  };
+}
+
+export function resolvePipelineModel(params: {
+  requestModel?: string;
+  preferredModel?: string;
+  providerDefaultModel?: string;
+  providerModels?: string[];
+}): string {
+  const providerModels = params.providerModels || [];
+  const requestModel = toNonEmptyString(params.requestModel);
+  if (requestModel) return requestModel;
+
+  const preferredModel = toNonEmptyString(params.preferredModel);
+  if (preferredModel) {
+    if (providerModels.length === 0 || providerModels.includes(preferredModel)) {
+      return preferredModel;
+    }
+  }
+
+  const providerDefaultModel = toNonEmptyString(params.providerDefaultModel);
+  if (providerDefaultModel) return providerDefaultModel;
+
+  if (providerModels.length > 0) return providerModels[0];
+  return 'gpt-4o';
+}
+
+async function loadUserPreferenceDefaults(userId: string): Promise<UserPreferenceDefaults> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  return readUserPreferenceDefaults(user?.preferences);
+}
+
 async function resolveProvider(config: PipelineAIConfig): Promise<ResolvedProvider> {
-  const cacheKey = `${config.userId}:${config.providerConfigId || 'default'}`;
+  let preferenceDefaults: UserPreferenceDefaults | null = null;
+
+  if (!config.providerConfigId || !config.model) {
+    preferenceDefaults = await loadUserPreferenceDefaults(config.userId);
+  }
+
+  const preferredProviderId = config.providerConfigId || preferenceDefaults?.defaultProviderId;
+  const preferredModel = config.model || preferenceDefaults?.defaultModel || 'default-model';
+  const cacheKey = `${config.userId}:${preferredProviderId || 'default-provider'}:${preferredModel}`;
   const cached = providerCache.get(cacheKey);
   
   if (cached && cached.expiresAt > Date.now()) {
@@ -66,14 +137,14 @@ async function resolveProvider(config: PipelineAIConfig): Promise<ResolvedProvid
 
   let providerConfig;
 
-  if (config.providerConfigId) {
+  if (preferredProviderId) {
     providerConfig = await prisma.providerConfig.findFirst({
       where: {
-        id: config.providerConfigId,
+        id: preferredProviderId,
         userId: config.userId,
       },
     });
-    if (!providerConfig) {
+    if (!providerConfig && config.providerConfigId) {
       throw new Error('Provider configuration not found or access denied.');
     }
   }
@@ -104,7 +175,12 @@ async function resolveProvider(config: PipelineAIConfig): Promise<ResolvedProvid
   const resolved: ResolvedProvider = {
     adapter,
     streamingAdapter,
-    model: config.model || providerConfig.defaultModel || 'gpt-4o',
+    model: resolvePipelineModel({
+      requestModel: config.model,
+      preferredModel: preferenceDefaults?.defaultModel,
+      providerDefaultModel: providerConfig.defaultModel || undefined,
+      providerModels: extractProviderModels(providerConfig.models),
+    }),
     providerType: providerConfig.providerType,
     baseURL: providerConfig.baseURL,
   };

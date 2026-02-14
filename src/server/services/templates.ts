@@ -88,12 +88,21 @@ export async function createTemplate(input: CreateTemplateInput): Promise<Prompt
     throw new Error(`Invalid template syntax: ${error.message}`);
   }
 
+  const lastTemplate = await prisma.promptTemplate.findFirst({
+    where: { userId: input.userId },
+    orderBy: { order: 'desc' },
+    select: { order: true },
+  });
+
+  const nextOrder = (lastTemplate?.order ?? -1) + 1;
+
   return prisma.promptTemplate.create({
     data: {
       userId: input.userId,
       name: input.name,
       content: input.content,
-      variables: input.variables as any || null,
+      variables: (input.variables as any) || null,
+      order: nextOrder,
     },
   }) as unknown as PromptTemplate;
 }
@@ -109,7 +118,7 @@ export async function getTemplate(id: string): Promise<PromptTemplate | null> {
 export async function listTemplates(userId: string): Promise<PromptTemplate[]> {
   return prisma.promptTemplate.findMany({
     where: { userId },
-    orderBy: { name: 'asc' },
+    orderBy: [{ order: 'asc' }, { updatedAt: 'desc' }],
   }) as unknown as PromptTemplate[];
 }
 

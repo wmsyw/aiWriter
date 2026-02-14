@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  getJobErrorMessage,
+  isTerminalJobStatus,
+  parseJobResponse,
+} from '@/src/shared/jobs';
 
 export type JobStatus = 'idle' | 'running' | 'completed' | 'failed';
 
@@ -59,7 +64,10 @@ export function useJobPolling<T = unknown>(
       }
 
       const result = await res.json();
-      const job = result.job;
+      const job = parseJobResponse(result);
+      if (!job) {
+        throw new Error('任务数据格式异常');
+      }
 
       if (job.status === 'succeeded') {
         setData(job.output as T);
@@ -68,8 +76,8 @@ export function useJobPolling<T = unknown>(
         return;
       }
 
-      if (job.status === 'failed') {
-        setError(job.error || '任务执行失败');
+      if (isTerminalJobStatus(job.status)) {
+        setError(getJobErrorMessage(job, '任务执行失败'));
         setStatus('failed');
         cleanup();
         return;

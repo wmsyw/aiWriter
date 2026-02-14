@@ -41,9 +41,18 @@ export async function handleReviewScore(prisma, job, { jobId, userId, input }) {
 
   const result = parseModelJson(response.content);
 
+  const hasReviewContent = result && typeof result === 'object';
+
   await prisma.chapter.update({
     where: { id: chapterId },
-    data: { generationStage: 'reviewed' },
+    data: {
+      generationStage: 'reviewed',
+      reviewFeedback: hasReviewContent ? result : null,
+      pendingReview: true,
+      approvedAt: null,
+      lastReviewAt: new Date(),
+      reviewIterations: { increment: 1 },
+    },
   });
 
   return result;

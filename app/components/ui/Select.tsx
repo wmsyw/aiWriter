@@ -63,7 +63,7 @@ const SelectContent = React.forwardRef<
       ref={ref}
       className={cn(
         'relative z-50 max-h-[300px] min-w-[8rem] overflow-hidden',
-        'bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/50 rounded-xl shadow-2xl shadow-black/50',
+        'select-popover-surface',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -75,7 +75,7 @@ const SelectContent = React.forwardRef<
       position={position}
       {...props}
     >
-      <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1 text-zinc-400">
+      <SelectPrimitive.ScrollUpButton className="select-popover-scroll-button">
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
       </SelectPrimitive.ScrollUpButton>
       <SelectPrimitive.Viewport
@@ -86,7 +86,7 @@ const SelectContent = React.forwardRef<
       >
         {children}
       </SelectPrimitive.Viewport>
-      <SelectPrimitive.ScrollDownButton className="flex cursor-default items-center justify-center py-1 text-zinc-400">
+      <SelectPrimitive.ScrollDownButton className="select-popover-scroll-button">
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
       </SelectPrimitive.ScrollDownButton>
     </SelectPrimitive.Content>
@@ -100,7 +100,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("px-2 py-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider", className)}
+    className={cn('select-popover-label', className)}
     {...props}
   />
 ))
@@ -114,7 +114,7 @@ const SelectSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-zinc-800", className)}
+    className={cn('select-popover-separator', className)}
     {...props}
   />
 ))
@@ -127,18 +127,13 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg',
-      'px-3 py-2.5 text-sm outline-none transition-all duration-200',
-      'text-zinc-400',
-      'focus:bg-zinc-800/80 focus:text-zinc-100 focus:translate-x-1',
-      'data-[state=checked]:bg-emerald-500/10 data-[state=checked]:text-emerald-400 data-[state=checked]:font-medium',
-      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'select-popover-item',
       className
     )}
     {...props}
   >
     <div className="flex items-center gap-2 flex-1">
-        {icon && <span className="text-zinc-500 group-focus:text-zinc-300">{icon}</span>}
+        {icon && <span className="text-zinc-500">{icon}</span>}
         <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </div>
     

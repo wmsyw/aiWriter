@@ -18,6 +18,44 @@ export const fadeIn: Variants = {
   exit: { opacity: 0, transition: { duration: 0.2 } },
 };
 
+export const pageTransition: Variants = {
+  initial: {
+    opacity: 0,
+    y: 10,
+    filter: 'blur(6px)',
+  },
+  animate: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: {
+      duration: 0.32,
+      ease: [0.16, 1, 0.3, 1],
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    filter: 'blur(4px)',
+    transition: {
+      duration: 0.2,
+      ease: [0.4, 0, 1, 1],
+    },
+  },
+};
+
+export const pageTransitionReduced: Variants = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: { duration: 0.18 },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.12 },
+  },
+};
+
 export const slideUp: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: smoothTransition },

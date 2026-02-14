@@ -9,6 +9,54 @@ import {
   withCreativeIntentField,
 } from '@/src/server/services/creative-intent';
 
+type JsonRecord = Record<string, unknown>;
+
+function asObject(value: unknown): JsonRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return { ...(value as JsonRecord) };
+}
+
+function mergeObjectsDeep(base: JsonRecord, patch: JsonRecord): JsonRecord {
+  const next: JsonRecord = { ...base };
+
+  for (const [key, patchValue] of Object.entries(patch)) {
+    const baseValue = next[key];
+    if (
+      patchValue &&
+      typeof patchValue === 'object' &&
+      !Array.isArray(patchValue) &&
+      baseValue &&
+      typeof baseValue === 'object' &&
+      !Array.isArray(baseValue)
+    ) {
+      next[key] = mergeObjectsDeep(
+        asObject(baseValue),
+        asObject(patchValue)
+      );
+      continue;
+    }
+    next[key] = patchValue;
+  }
+
+  return next;
+}
+
+const continuityGateSchema = z.object({
+  enabled: z.boolean().optional(),
+  passScore: z.number().min(1).max(10).optional(),
+  rejectScore: z.number().min(1).max(10).optional(),
+  maxRepairAttempts: z.number().int().min(0).max(5).optional(),
+});
+
+const workflowConfigSchema = z.object({
+  continuityGate: continuityGateSchema.optional(),
+  review: z.object({
+    passThreshold: z.number().min(1).max(10).optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -34,6 +82,7 @@ const updateSchema = z.object({
   wizardStatus: z.enum(['draft', 'in_progress', 'completed']).optional(),
   wizardStep: z.number().int().min(0).optional(),
   inspirationData: z.record(z.string(), z.unknown()).optional(),
+  workflowConfig: workflowConfigSchema.optional(),
 });
 
 export async function GET(
@@ -69,7 +118,7 @@ export async function PATCH(
   try {
     const body = await request.json();
     const data = updateSchema.parse(body);
-    const { creativeIntent, ...rest } = data;
+    const { creativeIntent, workflowConfig, ...rest } = data;
     const existing = await prisma.novel.findFirst({
       where: { id: novelId, userId: session.userId },
       select: { id: true, workflowConfig: true },
@@ -80,15 +129,45 @@ export async function PATCH(
 
     const normalizedCreativeIntent = normalizeCreativeIntent(creativeIntent);
     const shouldUpdateCreativeIntent = creativeIntent !== undefined;
+    const shouldUpdateWorkflowConfig = workflowConfig !== undefined;
+    const mergedWorkflowConfig = shouldUpdateWorkflowConfig
+      ? mergeObjectsDeep(
+          asObject(existing.workflowConfig),
+          workflowConfig as JsonRecord
+        )
+      : asObject(existing.workflowConfig);
+    let workflowConfigUpdate:
+      | Prisma.InputJsonValue
+      | typeof Prisma.JsonNull
+      | undefined;
+
+    if (shouldUpdateCreativeIntent) {
+      workflowConfigUpdate = mergeCreativeIntentIntoWorkflowConfig(
+        mergedWorkflowConfig as Prisma.JsonValue,
+        normalizedCreativeIntent
+      );
+    } else if (shouldUpdateWorkflowConfig) {
+      workflowConfigUpdate = Object.keys(mergedWorkflowConfig).length > 0
+        ? (mergedWorkflowConfig as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
+    }
+
+    const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(rest, key);
     const updateData = {
       ...rest,
-      inspirationData: rest.inspirationData ? (rest.inspirationData as Prisma.InputJsonValue) : undefined,
-      outlineRough: rest.outlineRough ? (rest.outlineRough as Prisma.InputJsonValue) : undefined,
-      outlineDetailed: rest.outlineDetailed ? (rest.outlineDetailed as Prisma.InputJsonValue) : undefined,
-      outlineChapters: rest.outlineChapters ? (rest.outlineChapters as Prisma.InputJsonValue) : undefined,
-      workflowConfig: shouldUpdateCreativeIntent
-        ? mergeCreativeIntentIntoWorkflowConfig(existing.workflowConfig, normalizedCreativeIntent)
+      inspirationData: hasOwn('inspirationData')
+        ? (rest.inspirationData ? (rest.inspirationData as Prisma.InputJsonValue) : Prisma.JsonNull)
         : undefined,
+      outlineRough: hasOwn('outlineRough')
+        ? (rest.outlineRough === null ? Prisma.JsonNull : (rest.outlineRough as Prisma.InputJsonValue))
+        : undefined,
+      outlineDetailed: hasOwn('outlineDetailed')
+        ? (rest.outlineDetailed === null ? Prisma.JsonNull : (rest.outlineDetailed as Prisma.InputJsonValue))
+        : undefined,
+      outlineChapters: hasOwn('outlineChapters')
+        ? (rest.outlineChapters === null ? Prisma.JsonNull : (rest.outlineChapters as Prisma.InputJsonValue))
+        : undefined,
+      workflowConfig: workflowConfigUpdate,
     };
 
     const novel = await prisma.novel.update({

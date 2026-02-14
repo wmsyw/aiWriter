@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { staggerContainer, staggerItem, fadeIn } from '@/app/lib/animations';
 import { Button } from '@/app/components/ui/Button';
@@ -9,220 +8,35 @@ import { Input, Textarea } from '@/app/components/ui/Input';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/Tabs';
 import { cn } from '@/app/lib/utils';
-
-type VariableValue = string | number | boolean | string[];
-
-interface Variable {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
-  description?: string;
-  required?: boolean;
-  defaultValue?: VariableValue;
-}
-
-interface Template {
-  id: string;
-  name: string;
-  content: string;
-  variables: Variable[];
-  updatedAt: string;
-}
+import { useTemplateEditor } from '@/src/hooks/useTemplateEditor';
 
 export default function TemplatesPage() {
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [previewData, setPreviewData] = useState<Record<string, VariableValue>>({});
-  const [previewResult, setPreviewResult] = useState<string>('');
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [charCount, setCharCount] = useState(0);
-
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
-  useEffect(() => {
-    if (selectedTemplate) {
-      setCharCount(selectedTemplate.content.length);
-    }
-  }, [selectedTemplate?.content]);
-
-  const fetchTemplates = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch('/api/templates');
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch templates:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreateNew = () => {
-    const newTemplate: Template = {
-      id: 'new',
-      name: '未命名模板',
-      content: '',
-      variables: [],
-      updatedAt: new Date().toISOString(),
-    };
-    setSelectedTemplate(newTemplate);
-    setHasChanges(true);
-    setPreviewResult('');
-  };
-
-  const handleSelectTemplate = (template: Template) => {
-    if (hasChanges) {
-      if (!confirm('有未保存的更改，确定要放弃吗？')) return;
-    }
-    setSelectedTemplate(JSON.parse(JSON.stringify(template)));
-    setHasChanges(false);
-    setPreviewResult('');
-    
-    const initialPreview: Record<string, any> = {};
-    template.variables?.forEach(v => {
-      initialPreview[v.name] = v.defaultValue || '';
-    });
-    setPreviewData(initialPreview);
-  };
-
-  const handleSave = async () => {
-    if (!selectedTemplate) return;
-
-    try {
-      setIsSaving(true);
-      const isNew = selectedTemplate.id === 'new';
-      const url = isNew ? '/api/templates' : `/api/templates/${selectedTemplate.id}`;
-      const method = isNew ? 'POST' : 'PUT';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: selectedTemplate.name,
-          content: selectedTemplate.content,
-          variables: selectedTemplate.variables,
-        }),
-      });
-
-      if (res.ok) {
-        const saved = await res.json();
-        setTemplates(prev => isNew ? [...prev, saved] : prev.map(t => t.id === saved.id ? saved : t));
-        setSelectedTemplate(saved);
-        setHasChanges(false);
-      }
-    } catch (error) {
-      console.error('Failed to save template:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleRunPreview = async () => {
-    if (!selectedTemplate || selectedTemplate.id === 'new') {
-      alert('请先保存模板后再进行预览。');
-      return;
-    }
-
-    try {
-      setIsPreviewLoading(true);
-      const res = await fetch(`/api/templates/${selectedTemplate.id}/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context: previewData }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setPreviewResult(data.rendered);
-      } else {
-        const err = await res.json();
-        setPreviewResult(`Error: ${err.error || 'Failed to render'}`);
-      }
-    } catch (error) {
-      console.error('Preview failed:', error);
-      setPreviewResult('Error: Failed to connect to server');
-    } finally {
-      setIsPreviewLoading(false);
-    }
-  };
-
-  const addVariable = () => {
-    if (!selectedTemplate) return;
-    const newVar: Variable = {
-      name: `variable_${selectedTemplate.variables.length + 1}`,
-      type: 'string',
-      description: '',
-      required: false
-    };
-    setSelectedTemplate({
-      ...selectedTemplate,
-      variables: [...(selectedTemplate.variables || []), newVar]
-    });
-    setHasChanges(true);
-  };
-
-  const updateVariable = (index: number, field: keyof Variable, value: VariableValue) => {
-    if (!selectedTemplate) return;
-    const newVars = [...(selectedTemplate.variables || [])];
-    newVars[index] = { ...newVars[index], [field]: value };
-    setSelectedTemplate({ ...selectedTemplate, variables: newVars });
-    setHasChanges(true);
-  };
-
-  const removeVariable = (index: number) => {
-    if (!selectedTemplate) return;
-    const newVars = [...(selectedTemplate.variables || [])];
-    newVars.splice(index, 1);
-    setSelectedTemplate({ ...selectedTemplate, variables: newVars });
-    setHasChanges(true);
-  };
-
-  const insertVariableToContent = (varName: string) => {
-    if (!selectedTemplate) return;
-    const tag = `{{ ${varName} }}`;
-    navigator.clipboard.writeText(tag);
-  };
-
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-    
-    const newTemplates = [...templates];
-    const draggedItem = newTemplates[draggedIndex];
-    newTemplates.splice(draggedIndex, 1);
-    newTemplates.splice(index, 0, draggedItem);
-    setTemplates(newTemplates);
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = async () => {
-    if (draggedIndex === null) return;
-    setDraggedIndex(null);
-    
-    const orderData = templates.map((t, i) => ({ id: t.id, order: i }));
-    try {
-      await fetch('/api/templates/reorder', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: orderData }),
-      });
-    } catch (error) {
-      console.error('Failed to save order:', error);
-      fetchTemplates();
-    }
-  };
+  const {
+    templates,
+    selectedTemplate,
+    isLoading,
+    previewData,
+    previewResult,
+    isPreviewLoading,
+    isSaving,
+    hasChanges,
+    draggedIndex,
+    charCount,
+    handleCreateNew,
+    handleSelectTemplate,
+    handleSave,
+    handleRunPreview,
+    addVariable,
+    updateVariable,
+    removeVariable,
+    insertVariableToContent,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    updateTemplateName,
+    updateTemplateContent,
+    updatePreviewValue,
+  } = useTemplateEditor();
 
   return (
     <motion.div 
@@ -277,7 +91,10 @@ export default function TemplatesPage() {
                   layoutId={template.id}
                   draggable
                   onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    handleDragOver(index);
+                  }}
                   onDragEnd={handleDragEnd}
                   className={cn(draggedIndex === index ? 'opacity-40 scale-95' : '')}
                 >
@@ -343,10 +160,7 @@ export default function TemplatesPage() {
                 <Input
                   type="text"
                   value={selectedTemplate.name}
-                  onChange={(e) => {
-                    setSelectedTemplate({ ...selectedTemplate, name: e.target.value });
-                    setHasChanges(true);
-                  }}
+                  onChange={(e) => updateTemplateName(e.target.value)}
                   className="text-sm font-medium bg-transparent border-transparent hover:border-white/5 focus:border-emerald-500/50 focus:bg-zinc-900/50 h-9 px-3 w-full max-w-md text-zinc-200 placeholder:text-zinc-600 transition-all duration-200 rounded-lg"
                   placeholder="模板名称"
                 />
@@ -392,10 +206,7 @@ export default function TemplatesPage() {
 
                 <Textarea
                   value={selectedTemplate.content}
-                  onChange={(e) => {
-                    setSelectedTemplate({ ...selectedTemplate, content: e.target.value });
-                    setHasChanges(true);
-                  }}
+                  onChange={(e) => updateTemplateContent(e.target.value)}
                   className="flex-1 w-full h-full bg-transparent border-none focus-visible:ring-0 p-6 font-mono text-sm resize-none leading-relaxed custom-scrollbar text-zinc-300 placeholder:text-zinc-700"
                   placeholder="在此编写模板内容... 使用 {{ 变量名 }} 插入动态内容。"
                   spellCheck={false}
@@ -528,7 +339,7 @@ export default function TemplatesPage() {
                           <select
                             value={variable.type}
                             onChange={(e) => updateVariable(idx, 'type', e.target.value)}
-                            className="appearance-none bg-zinc-900/50 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-zinc-300 border border-zinc-800 focus:border-emerald-500/30 transition-colors"
+                            className="select-menu appearance-none bg-zinc-900/50 w-full text-xs rounded-lg px-2 py-1.5 outline-none text-zinc-300 border border-zinc-800 focus:border-emerald-500/30 transition-colors"
                           >
                             <option value="string">文本 (String)</option>
                             <option value="number">数字 (Number)</option>
@@ -571,7 +382,7 @@ export default function TemplatesPage() {
                     <Input
                       type="text"
                       value={String(previewData[v.name] ?? '')}
-                      onChange={(e) => setPreviewData({ ...previewData, [v.name]: e.target.value })}
+                      onChange={(e) => updatePreviewValue(v.name, e.target.value)}
                       className="h-9 text-sm bg-zinc-950/50 border-zinc-800 text-zinc-300 focus:border-amber-500/50"
                       placeholder={`输入 ${v.name} 的值`}
                     />

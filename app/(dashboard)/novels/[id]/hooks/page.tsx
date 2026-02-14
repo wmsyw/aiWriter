@@ -7,12 +7,18 @@ import Modal, { ModalFooter } from '@/app/components/ui/Modal';
 import { Button } from '@/app/components/ui/Button';
 import HookTimeline from '@/app/components/HookTimeline';
 import { useFetch } from '@/src/hooks/useFetch';
+import {
+  buildOverdueHookMap,
+  filterAndSortHooks,
+  getHooksCurrentChapter,
+  type HookImportance,
+  type HookStatus,
+  type HookType,
+  type NarrativeHookRecord,
+  type OverdueHookWarningRecord,
+} from '@/src/shared/hooks';
 
-type HookStatus = 'planted' | 'referenced' | 'resolved' | 'abandoned';
-type HookType = 'foreshadowing' | 'chekhov_gun' | 'mystery' | 'promise' | 'setup';
-type HookImportance = 'critical' | 'major' | 'minor';
-
-interface NarrativeHook {
+interface NarrativeHook extends NarrativeHookRecord {
   id: string;
   type: HookType;
   description: string;
@@ -69,7 +75,19 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
   
   const { data: hooks, isLoading, refetch } = useFetch<NarrativeHook[]>(
     `/api/novels/${novelId}/hooks`,
-    { initialData: [] }
+    {
+      initialData: [],
+      transform: (payload) => {
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          Array.isArray((payload as { hooks?: unknown }).hooks)
+        ) {
+          return (payload as { hooks: NarrativeHook[] }).hooks;
+        }
+        return [];
+      },
+    }
   );
   
   const { data: reportData } = useFetch<{ report: HooksReport }>(
@@ -83,15 +101,36 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
   const [actionModal, setActionModal] = useState<{ hook: NarrativeHook; action: 'resolve' | 'abandon' | 'reference' } | null>(null);
 
   const hooksList = Array.isArray(hooks) ? hooks : [];
+  const currentChapter = useMemo(() => getHooksCurrentChapter(hooksList), [hooksList]);
+  const { data: overdueWarnings, refetch: refetchOverdue } = useFetch<OverdueHookWarningRecord[]>(
+    `/api/novels/${novelId}/hooks/overdue?currentChapter=${currentChapter}`,
+    {
+      initialData: [],
+      transform: (payload) => {
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          Array.isArray((payload as { warnings?: unknown }).warnings)
+        ) {
+          return (payload as { warnings: OverdueHookWarningRecord[] }).warnings;
+        }
+        return [];
+      },
+    }
+  );
   const report = reportData?.report;
+  const overdueMap = useMemo(
+    () => buildOverdueHookMap(Array.isArray(overdueWarnings) ? overdueWarnings : []),
+    [overdueWarnings]
+  );
 
   const filteredHooks = useMemo(() => {
-    return hooksList.filter(hook => {
-      const matchesTab = activeTab === 'all' || hook.status === activeTab;
-      const matchesSearch = (hook.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesTab && matchesSearch;
+    return filterAndSortHooks(hooksList, {
+      activeTab,
+      searchQuery,
+      overdueMap,
     });
-  }, [hooksList, activeTab, searchQuery]);
+  }, [hooksList, activeTab, searchQuery, overdueMap]);
 
   const handleCreate = async (data: Partial<NarrativeHook>) => {
     try {
@@ -102,6 +141,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
       });
       if (res.ok) {
         refetch();
+        refetchOverdue();
         setIsModalOpen(false);
       }
     } catch (error) {
@@ -118,6 +158,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
       });
       if (res.ok) {
         refetch();
+        refetchOverdue();
         setActionModal(null);
       }
     } catch (error) {
@@ -129,7 +170,10 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
     if (!confirm('确定要删除这个钩子吗？')) return;
     try {
       const res = await fetch(`/api/novels/${novelId}/hooks/${hookId}`, { method: 'DELETE' });
-      if (res.ok) refetch();
+      if (res.ok) {
+        refetch();
+        refetchOverdue();
+      }
     } catch (error) {
       console.error('Failed to delete hook:', error);
     }
@@ -244,6 +288,33 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
         </div>
       )}
 
+      {Array.isArray(overdueWarnings) && overdueWarnings.length > 0 && (
+        <div className="space-y-3 rounded-2xl border border-orange-500/25 bg-orange-500/8 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-orange-300">
+              逾期待回收钩子
+            </h3>
+            <span className="rounded-full border border-orange-500/35 bg-orange-500/15 px-2 py-0.5 text-xs text-orange-200">
+              {overdueWarnings.length} 个风险项
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {overdueWarnings.slice(0, 6).map((warning) => (
+              <div
+                key={warning.hookId}
+                className="rounded-xl border border-orange-500/20 bg-black/20 px-3 py-2"
+              >
+                <div className="text-sm font-medium text-orange-100">{warning.description}</div>
+                <div className="mt-1 text-xs text-orange-200/75">
+                  已超期 {warning.chaptersOverdue} 章 · 埋设于第 {warning.plantedChapter} 章
+                </div>
+                <div className="mt-1 text-xs text-zinc-400">{warning.suggestedAction}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <HookTimeline hooks={hooksList} />
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm sticky dashboard-sticky-offset z-20 shadow-xl shadow-black/20">
@@ -292,6 +363,7 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
             <HookCard 
               key={hook.id} 
               hook={hook}
+              overdueWarning={overdueMap.get(hook.id)}
               onResolve={() => setActionModal({ hook, action: 'resolve' })}
               onAbandon={() => setActionModal({ hook, action: 'abandon' })}
               onReference={() => setActionModal({ hook, action: 'reference' })}
@@ -343,12 +415,14 @@ function StatCard({ label, value, color, bg, border, icon }: { label: string; va
 
 function HookCard({ 
   hook, 
+  overdueWarning,
   onResolve, 
   onAbandon, 
   onReference,
   onDelete 
 }: { 
   hook: NarrativeHook; 
+  overdueWarning?: OverdueHookWarningRecord;
   onResolve: () => void;
   onAbandon: () => void;
   onReference: () => void;
@@ -409,6 +483,11 @@ function HookCard({
           <div>
             <p className="text-white font-medium text-lg leading-relaxed">{hook.description}</p>
             {hook.notes && <p className="text-gray-400 text-sm mt-2 italic">{hook.notes}</p>}
+            {overdueWarning && (
+              <div className="mt-3 rounded-lg border border-orange-500/25 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
+                已超期 {overdueWarning.chaptersOverdue} 章：{overdueWarning.suggestedAction}
+              </div>
+            )}
           </div>
           
           <div className="flex flex-wrap gap-2">

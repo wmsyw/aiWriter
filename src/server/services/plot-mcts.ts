@@ -51,6 +51,13 @@ export interface SimulationOptions {
   focusHooks?: boolean;
 }
 
+export interface PlotSimulationRunOptions {
+  steps?: number;
+  iterations?: number;
+  branchCount?: number;
+  focusHooks?: boolean;
+}
+
 const SCORING_WEIGHTS = {
   engagement: 0.3,
   consistency: 0.25,
@@ -196,7 +203,15 @@ ${hooksText || '(暂无)'}
         consistency: b.scores?.consistency || 0.5,
         novelty: b.scores?.novelty || 0.5,
         tensionArc: b.scores?.tensionArc || 0.5,
-        overallScore: calculateOverallScore(b.scores || { engagement: 0.5, consistency: 0.5, novelty: 0.5, tensionArc: 0.5 }),
+        overallScore: calculateOverallScore(
+          b.scores || {
+            engagement: 0.5,
+            consistency: 0.5,
+            novelty: 0.5,
+            tensionArc: 0.5,
+            hookResolution: 0.5,
+          }
+        ),
         risks: b.risks || [],
         opportunities: b.opportunities || [],
       }));
@@ -267,6 +282,7 @@ async function generateBranchFromTemplate(
     consistency: 0.5,
     novelty: 0.5,
     tensionArc: 0.5,
+    hookResolution: 0.5,
   };
   let risks: string[] = [];
   let opportunities: string[] = [];
@@ -278,7 +294,13 @@ async function generateBranchFromTemplate(
           `第${currentChapter + i + 1}章: ${c.title || '继续主线'}`
         );
         description = `严格按照大纲发展: ${upcomingOutline[0]?.events?.[0] || '推进主要情节'}`;
-        scores = { engagement: 0.6, consistency: 0.9, novelty: 0.3, tensionArc: 0.6 };
+        scores = {
+          engagement: 0.6,
+          consistency: 0.9,
+          novelty: 0.3,
+          tensionArc: 0.6,
+          hookResolution: 0.4,
+        };
         opportunities.push('稳定发展，保持一致性');
         risks.push('可能略显平淡');
       }
@@ -291,7 +313,13 @@ async function generateBranchFromTemplate(
         `第${currentChapter + 2}章: 对峙升级`,
         `第${currentChapter + 3}章: 决战时刻`,
       ];
-      scores = { engagement: 0.9, consistency: 0.6, novelty: 0.7, tensionArc: 0.9 };
+      scores = {
+        engagement: 0.9,
+        consistency: 0.6,
+        novelty: 0.7,
+        tensionArc: 0.9,
+        hookResolution: 0.25,
+      };
       opportunities.push('大幅提升读者参与度');
       risks.push('需要合理的冲突动机', '可能偏离大纲');
       break;
@@ -313,7 +341,13 @@ async function generateBranchFromTemplate(
           `第${currentChapter + 3}章: 突破自我`,
         ];
       }
-      scores = { engagement: 0.7, consistency: 0.8, novelty: 0.6, tensionArc: 0.5 };
+      scores = {
+        engagement: 0.7,
+        consistency: 0.8,
+        novelty: 0.6,
+        tensionArc: 0.5,
+        hookResolution: 0.35,
+      };
       opportunities.push('增强角色深度', '建立读者情感连接');
       risks.push('节奏可能放缓');
       break;
@@ -327,7 +361,13 @@ async function generateBranchFromTemplate(
           `第${currentChapter + 2}章: 真相浮现`,
           `第${currentChapter + 3}章: 伏笔收束`,
         ];
-        scores = { engagement: 0.8, consistency: 0.85, novelty: 0.5, tensionArc: 0.7 };
+        scores = {
+          engagement: 0.8,
+          consistency: 0.85,
+          novelty: 0.5,
+          tensionArc: 0.7,
+          hookResolution: 0.9,
+        };
         opportunities.push('满足读者期待', '证明叙事连贯性');
       } else {
         description = '埋设新伏笔';
@@ -336,7 +376,13 @@ async function generateBranchFromTemplate(
           `第${currentChapter + 2}章: 悬念加深`,
           `第${currentChapter + 3}章: 关键铺垫`,
         ];
-        scores = { engagement: 0.6, consistency: 0.7, novelty: 0.8, tensionArc: 0.5 };
+        scores = {
+          engagement: 0.6,
+          consistency: 0.7,
+          novelty: 0.8,
+          tensionArc: 0.5,
+          hookResolution: 0.2,
+        };
         opportunities.push('建立长期悬念');
         risks.push('需要后续章节配合解决');
       }
@@ -386,23 +432,46 @@ function calculateOverallScore(scores: {
   consistency: number;
   novelty: number;
   tensionArc: number;
+  hookResolution?: number;
 }): number {
-  return (
+  const baseScore =
     scores.engagement * SCORING_WEIGHTS.engagement +
     scores.consistency * SCORING_WEIGHTS.consistency +
     scores.novelty * SCORING_WEIGHTS.novelty +
-    scores.tensionArc * SCORING_WEIGHTS.tensionArc
-  );
+    scores.tensionArc * SCORING_WEIGHTS.tensionArc;
+
+  if (typeof scores.hookResolution === 'number' && Number.isFinite(scores.hookResolution)) {
+    return baseScore + scores.hookResolution * SCORING_WEIGHTS.hookResolution;
+  }
+
+  // 兼容旧评分结构：未提供 hookResolution 时，维持原有四维评分尺度。
+  const baseWeight =
+    SCORING_WEIGHTS.engagement +
+    SCORING_WEIGHTS.consistency +
+    SCORING_WEIGHTS.novelty +
+    SCORING_WEIGHTS.tensionArc;
+  return baseWeight > 0 ? baseScore / baseWeight : baseScore;
 }
 
 export async function simulatePlotForward(
   novelId: string,
   startChapter: number,
-  steps: number = 5,
-  iterations: number = 100,
+  options: PlotSimulationRunOptions = {},
   generator?: PlotGenerator
 ): Promise<PlotSimulationResult> {
-  const branches = await generatePlotBranches(novelId, startChapter, { branchCount: 4 }, generator);
+  const {
+    steps = 5,
+    iterations = 100,
+    branchCount = 4,
+    focusHooks = true,
+  } = options;
+
+  const branches = await generatePlotBranches(
+    novelId,
+    startChapter,
+    { branchCount, focusHooks },
+    generator
+  );
   const unresolvedHooks = await getUnresolvedHooks(novelId);
 
   const rootNode: PlotNode = {
@@ -438,7 +507,20 @@ export async function simulatePlotForward(
   }
 
   const sortedBranches = [...branches].sort((a, b) => b.overallScore - a.overallScore);
-  const bestPath = sortedBranches[0];
+  const fallbackPath: PlotBranch = {
+    id: 'fallback',
+    path: [],
+    description: '暂无可用剧情分支，请调整推演参数后重试。',
+    probability: 0,
+    engagement: 0,
+    consistency: 0,
+    novelty: 0,
+    tensionArc: 0,
+    overallScore: 0,
+    risks: ['当前上下文不足以给出可靠推演'],
+    opportunities: ['建议先补充近章节摘要或角色素材后再推演'],
+  };
+  const bestPath = sortedBranches[0] ?? fallbackPath;
   const alternativePaths = sortedBranches.slice(1);
 
   const deadEndWarnings = detectDeadEnds(branches, unresolvedHooks);

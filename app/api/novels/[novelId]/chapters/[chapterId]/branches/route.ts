@@ -4,6 +4,9 @@ import { prisma } from '@/src/server/db';
 import { getBranches, selectBranch } from '@/src/server/services/versioning';
 import { enqueuePostGenerationJobs } from '@/src/server/services/post-generation-jobs';
 import { z } from 'zod';
+import { assessChapterContinuity } from '@/src/shared/chapter-continuity-gate';
+import { normalizeBranchCandidates } from '@/src/shared/chapter-branch-review';
+import { resolveContinuityGateConfig } from '@/src/shared/continuity-gate-config';
 
 const selectBranchSchema = z.object({
   versionId: z.string().min(1),
@@ -26,8 +29,64 @@ export async function GET(
   const chapter = await prisma.chapter.findFirst({ where: { id: chapterId, novelId } });
   if (!chapter) return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
 
-  const branches = await getBranches(chapterId);
-  return NextResponse.json({ branches });
+  const continuityGateConfig = resolveContinuityGateConfig(novel.workflowConfig);
+  const [branches, rawPreviousChapters, chapterSummaries] = await Promise.all([
+    getBranches(chapterId),
+    prisma.chapter.findMany({
+      where: { novelId, order: { lt: chapter.order } },
+      orderBy: { order: 'desc' },
+      take: 6,
+      select: {
+        order: true,
+        title: true,
+        content: true,
+      },
+    }),
+    prisma.chapterSummary.findMany({
+      where: { novelId, chapterNumber: { lt: chapter.order } },
+      orderBy: { chapterNumber: 'desc' },
+      take: 20,
+      select: {
+        chapterNumber: true,
+        oneLine: true,
+        keyEvents: true,
+        characterDevelopments: true,
+        hooksPlanted: true,
+        hooksReferenced: true,
+        hooksResolved: true,
+      },
+    }),
+  ]);
+
+  const previousChapters = [...rawPreviousChapters].sort((a, b) => a.order - b.order);
+  const branchesWithContinuity = branches.map((branch) => {
+    const continuity = assessChapterContinuity(
+      branch.content,
+      previousChapters,
+      chapterSummaries,
+      {
+        passScore: continuityGateConfig.passScore,
+        rejectScore: continuityGateConfig.rejectScore,
+      }
+    );
+
+    return {
+      ...branch,
+      continuityScore: continuity.score,
+      continuityVerdict: continuity.verdict,
+      continuityIssues: continuity.issues.slice(0, 2).map((issue) => issue.message),
+    };
+  });
+
+  const branchesForDisplay = normalizeBranchCandidates(branchesWithContinuity);
+
+  return NextResponse.json({
+    branches: branchesForDisplay,
+    continuityGate: {
+      passScore: continuityGateConfig.passScore,
+      rejectScore: continuityGateConfig.rejectScore,
+    },
+  });
 }
 
 export async function POST(

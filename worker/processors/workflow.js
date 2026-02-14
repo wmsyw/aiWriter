@@ -492,6 +492,8 @@ ${hooksContext || '（暂无）'}
       reviewFeedback: parsed,
       outlineAdherence: parsed.dimensions?.outlineAdherence?.score || null,
       generationStage: 'reviewed',
+      pendingReview: true,
+      approvedAt: null,
       lastReviewAt: new Date(),
       reviewIterations: { increment: 1 },
     },
@@ -582,8 +584,12 @@ export async function handlePlotSimulate(prisma, job, { jobId, userId, input }) 
   const result = await simulatePlotForward(
     novelId,
     currentChapter,
-    steps || 5,
-    iterations || 100,
+    {
+      steps: steps || 5,
+      iterations: iterations || 100,
+      branchCount: input.branchCount || 4,
+      focusHooks: input.focusHooks !== false,
+    },
     generator
   );
 

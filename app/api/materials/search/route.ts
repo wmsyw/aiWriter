@@ -3,12 +3,21 @@ import { z } from 'zod';
 import { prisma } from '@/src/server/db';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { createJob } from '@/src/server/services/jobs';
+import {
+  DEFAULT_MATERIAL_SEARCH_CATEGORIES,
+  MATERIAL_SEARCH_CATEGORY_IDS,
+  MATERIAL_TYPE_FILTER_IDS,
+  normalizeMaterialSearchCategories,
+} from '@/src/shared/material-search';
+
+const searchCategorySchema = z.enum(MATERIAL_SEARCH_CATEGORY_IDS);
+const materialTypeSchema = z.enum(MATERIAL_TYPE_FILTER_IDS);
 
 const searchSchema = z.object({
   novelId: z.string(),
   keyword: z.string().min(1).max(200),
-  searchCategories: z.array(z.enum(['评价', '人物', '情节', '世界观', '设定'])).optional(),
-  materialTypeFilter: z.enum(['character', 'location', 'plotPoint', 'worldbuilding', 'custom']).optional(),
+  searchCategories: z.array(searchCategorySchema).optional(),
+  materialTypeFilter: materialTypeSchema.optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -30,7 +39,7 @@ export async function POST(request: NextRequest) {
     const job = await createJob(session.userId, 'MATERIAL_SEARCH', {
       novelId,
       keyword,
-      searchCategories: searchCategories || ['评价', '人物', '情节', '世界观'],
+      searchCategories: normalizeMaterialSearchCategories(searchCategories || DEFAULT_MATERIAL_SEARCH_CATEGORIES),
       materialTypeFilter,
     });
 

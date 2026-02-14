@@ -7,7 +7,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import OutlineGeneratorModal from './OutlineGeneratorModal';
 import OutlineTree from '@/app/components/OutlineTree';
-import PlotBranchingView, { type PlotBranch } from '@/app/components/PlotBranchingView';
+import {
+  buildOutlinePersistencePayload,
+  normalizeOutlineBlocksPayload,
+  pickBestOutlineBlocks,
+  type OutlinePlanningNode,
+} from '@/src/shared/outline-planning';
+import { pollJobUntilTerminal } from '@/app/lib/jobs/polling';
+import { parseJobResponse } from '@/src/shared/jobs';
+import PlotBranchingView, {
+  type HookOpportunity,
+  type PlotBranch,
+} from '@/app/components/PlotBranchingView';
+import {
+  buildPlotSimulationRequest,
+  getDefaultPlotSimulationControls,
+  normalizePlotSimulationControls,
+  normalizePlotSimulationPayload,
+  type PlotSimulationControls,
+} from '@/src/shared/plot-simulation';
 import { 
   Tabs, 
   TabsList, 
@@ -44,6 +62,22 @@ interface Chapter {
   lastReviewAt?: string;
 }
 
+interface ContinuityGateConfig {
+  enabled: boolean;
+  passScore: number;
+  rejectScore: number;
+  maxRepairAttempts: number;
+}
+
+interface NovelWorkflowConfig {
+  continuityGate?: Partial<ContinuityGateConfig>;
+  review?: {
+    passThreshold?: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 interface OutlineNode {
   id: string;
   title: string;
@@ -60,9 +94,9 @@ interface Novel {
   description?: string;
   type?: 'long';
   outline?: string;
-  outlineRough?: { blocks: OutlineNode[] };
-  outlineDetailed?: { blocks: OutlineNode[] };
-  outlineChapters?: { blocks: OutlineNode[] };
+  outlineRough?: { blocks: OutlineNode[] } | null;
+  outlineDetailed?: { blocks: OutlineNode[] } | null;
+  outlineChapters?: { blocks: OutlineNode[] } | null;
   outlineStage?: string;
   updatedAt: string;
   keywords?: string[];
@@ -74,6 +108,7 @@ interface Novel {
   worldSetting?: string;
   creativeIntent?: string;
   specialRequirements?: string;
+  workflowConfig?: NovelWorkflowConfig | null;
 }
 
 interface BlockingInfo {
@@ -94,6 +129,70 @@ const WORKFLOW_STEPS = [
   { id: 'humanized', label: '已润色' },
   { id: 'approved', label: '已定稿' },
 ] as const;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
+function toNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+}
+
+function toNonNegativeInt(value: unknown, fallback: number): number {
+  const parsed = toNumber(value, fallback);
+  return Math.max(0, Math.floor(parsed));
+}
+
+function resolveContinuityGateConfig(workflowConfig?: NovelWorkflowConfig | null): ContinuityGateConfig {
+  const workflow = asRecord(workflowConfig);
+  const review = asRecord(workflow.review);
+  const continuityGate = asRecord(workflow.continuityGate);
+
+  const reviewPassThreshold = toNumber(review.passThreshold, 6.8 + 0.6);
+  const defaultPassScore = clamp(reviewPassThreshold - 0.6, 5.8, 8.2);
+  const passScore = clamp(toNumber(continuityGate.passScore, defaultPassScore), 4.5, 9.5);
+  const rejectScore = clamp(toNumber(continuityGate.rejectScore, 4.9), 3.5, passScore - 0.4);
+  const maxRepairAttempts = clamp(toNonNegativeInt(continuityGate.maxRepairAttempts, 1), 0, 5);
+
+  return {
+    enabled: continuityGate.enabled !== false,
+    passScore: Number(passScore.toFixed(2)),
+    rejectScore: Number(rejectScore.toFixed(2)),
+    maxRepairAttempts,
+  };
+}
+
+function mergeContinuityGateConfig(
+  workflowConfig: NovelWorkflowConfig | null | undefined,
+  continuityGate: ContinuityGateConfig
+): NovelWorkflowConfig {
+  const workflow = asRecord(workflowConfig) as NovelWorkflowConfig;
+  return {
+    ...workflow,
+    continuityGate: {
+      enabled: continuityGate.enabled,
+      passScore: continuityGate.passScore,
+      rejectScore: continuityGate.rejectScore,
+      maxRepairAttempts: continuityGate.maxRepairAttempts,
+    },
+  };
+}
 
 export default function NovelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -117,6 +216,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [editedChapterCount, setEditedChapterCount] = useState<number>(100);
   const [editedKeywords, setEditedKeywords] = useState('');
   const [editedSpecialRequirements, setEditedSpecialRequirements] = useState('');
+  const [editedContinuityGateEnabled, setEditedContinuityGateEnabled] = useState(true);
+  const [editedContinuityPassScore, setEditedContinuityPassScore] = useState(6.8);
+  const [editedContinuityRejectScore, setEditedContinuityRejectScore] = useState(4.9);
+  const [editedContinuityMaxRepairAttempts, setEditedContinuityMaxRepairAttempts] = useState(1);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -138,6 +241,14 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   });
   
   const [plotBranches, setPlotBranches] = useState<PlotBranch[]>([]);
+  const [plotDeadEndWarnings, setPlotDeadEndWarnings] = useState<string[]>([]);
+  const [plotHookOpportunities, setPlotHookOpportunities] = useState<HookOpportunity[]>([]);
+  const [plotSelectedBranchId, setPlotSelectedBranchId] = useState<string | null>(null);
+  const [plotBestBranchId, setPlotBestBranchId] = useState<string | null>(null);
+  const [plotLastGeneratedAt, setPlotLastGeneratedAt] = useState<string | null>(null);
+  const [plotSimulationControls, setPlotSimulationControls] = useState<PlotSimulationControls>(
+    getDefaultPlotSimulationControls()
+  );
   const [isGeneratingPlot, setIsGeneratingPlot] = useState(false);
   const [outlineNodes, setOutlineNodes] = useState<OutlineNode[]>([]);
   const [regeneratingOutline, setRegeneratingOutline] = useState<'rough' | 'detailed' | 'chapters' | null>(null);
@@ -179,39 +290,18 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setEditedChapterCount(novelData.chapterCount ?? 100);
           setEditedKeywords(novelData.keywords?.join(', ') || '');
           setEditedSpecialRequirements(novelData.specialRequirements || '');
-          
-          if (novelData.outlineRough?.blocks) {
-            // Restore level property when loading from database
-            const blocks = novelData.outlineRough.blocks.map((b: any) => ({
-              ...b,
-              level: b.level || 'rough',
-              children: b.children?.map((c: any) => ({
-                ...c,
-                level: c.level || 'detailed',
-                children: c.children?.map((ch: any) => ({
-                  ...ch,
-                  level: ch.level || 'chapter',
-                })),
-              })),
-            }));
-            setOutlineNodes(blocks);
-          } else if (novelData.outlineDetailed?.blocks) {
-            const blocks = novelData.outlineDetailed.blocks.map((b: any) => ({
-              ...b,
-              level: b.level || 'detailed',
-              children: b.children?.map((c: any) => ({
-                ...c,
-                level: c.level || 'chapter',
-              })),
-            }));
-            setOutlineNodes(blocks);
-          } else if (novelData.outlineChapters?.blocks) {
-            const blocks = novelData.outlineChapters.blocks.map((b: any) => ({
-              ...b,
-              level: b.level || 'chapter',
-            }));
-            setOutlineNodes(blocks);
-          }
+          const continuityConfig = resolveContinuityGateConfig(novelData.workflowConfig);
+          setEditedContinuityGateEnabled(continuityConfig.enabled);
+          setEditedContinuityPassScore(continuityConfig.passScore);
+          setEditedContinuityRejectScore(continuityConfig.rejectScore);
+          setEditedContinuityMaxRepairAttempts(continuityConfig.maxRepairAttempts);
+
+          const bestBlocks = pickBestOutlineBlocks({
+            outlineChapters: novelData.outlineChapters,
+            outlineDetailed: novelData.outlineDetailed,
+            outlineRough: novelData.outlineRough,
+          });
+          setOutlineNodes(bestBlocks as OutlineNode[]);
         }
         
         if (chaptersRes.ok) {
@@ -305,6 +395,23 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         .split(',')
         .map(k => k.trim())
         .filter(k => k.length > 0);
+      const normalizedPassScore = Number(
+        clamp(toNumber(editedContinuityPassScore, 6.8), 4.5, 9.5).toFixed(2)
+      );
+      const normalizedRejectScore = Number(
+        clamp(toNumber(editedContinuityRejectScore, 4.9), 3.5, normalizedPassScore - 0.4).toFixed(2)
+      );
+      const normalizedMaxRepairAttempts = clamp(
+        toNonNegativeInt(editedContinuityMaxRepairAttempts, 1),
+        0,
+        5
+      );
+      const continuityGatePayload: ContinuityGateConfig = {
+        enabled: editedContinuityGateEnabled,
+        passScore: normalizedPassScore,
+        rejectScore: normalizedRejectScore,
+        maxRepairAttempts: normalizedMaxRepairAttempts,
+      };
       
       const res = await fetch(`/api/novels/${id}`, {
         method: 'PATCH',
@@ -321,10 +428,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           chapterCount: editedChapterCount,
           keywords: keywordsArray,
           specialRequirements: editedSpecialRequirements,
+          workflowConfig: {
+            continuityGate: continuityGatePayload,
+          },
         }),
       });
 
       if (res.ok) {
+        setEditedContinuityPassScore(normalizedPassScore);
+        setEditedContinuityRejectScore(normalizedRejectScore);
+        setEditedContinuityMaxRepairAttempts(normalizedMaxRepairAttempts);
         setNovel(prev => prev ? {
           ...prev,
           title: editedTitle,
@@ -338,6 +451,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           chapterCount: editedChapterCount,
           keywords: keywordsArray,
           specialRequirements: editedSpecialRequirements,
+          workflowConfig: mergeContinuityGateConfig(prev.workflowConfig, continuityGatePayload),
         } : null);
       } else {
         setError('保存设置失败');
@@ -384,15 +498,37 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     });
   };
 
+  const updatePlotSimulationControls = (
+    updates: Partial<PlotSimulationControls>
+  ) => {
+    setPlotSimulationControls((prev) =>
+      normalizePlotSimulationControls({
+        ...prev,
+        ...updates,
+      })
+    );
+  };
+
   const handleGeneratePlot = async () => {
     setIsGeneratingPlot(true);
     try {
       const currentChapter = chapters.length > 0 ? chapters[chapters.length - 1].order + 1 : 1;
-      
-      const res = await fetch(`/api/novels/${id}/plot-simulation?currentChapter=${currentChapter}`);
+      const requestBody = buildPlotSimulationRequest(currentChapter, plotSimulationControls);
+
+      const res = await fetch(`/api/novels/${id}/plot-simulation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
       if (res.ok) {
         const data = await res.json();
-        setPlotBranches(data.branches || []);
+        const normalized = normalizePlotSimulationPayload(data);
+        setPlotBranches(normalized.branches);
+        setPlotDeadEndWarnings(normalized.deadEndWarnings);
+        setPlotHookOpportunities(normalized.hookOpportunities);
+        setPlotBestBranchId(normalized.bestPathId);
+        setPlotSelectedBranchId(normalized.bestPathId);
+        setPlotLastGeneratedAt(new Date().toISOString());
       } else {
         setError('生成剧情推演失败');
       }
@@ -469,36 +605,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  const pollJobResult = (jobId: string) => new Promise<any>((resolve, reject) => {
-    let attempts = 0;
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (!res.ok) return;
-        const { job } = await res.json();
-        if (job.status === 'succeeded') {
-          resolve(job.output);
-          return;
-        }
-        if (job.status === 'failed') {
-          reject(new Error(job.error || '生成失败'));
-          return;
-        }
-      } catch (error) {
-        reject(error);
-        return;
-      }
-      if (attempts < 300) {
-        setTimeout(poll, 2000);
-      } else {
-        reject(new Error('生成超时 (超过10分钟)'));
-      }
-    };
-    poll();
-  });
-
-  const runJob = async (type: string, input: Record<string, unknown>) => {
+  const runJob = async (type: string, input: Record<string, unknown>): Promise<any> => {
     const res = await fetch('/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -511,55 +618,33 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         : '生成失败';
       throw new Error(errorMsg);
     }
-    const { job } = await res.json();
-    return pollJobResult(job.id);
+    const payload = await res.json();
+    const job = parseJobResponse(payload);
+    if (!job) {
+      throw new Error('任务创建失败：返回数据异常');
+    }
+
+    return pollJobUntilTerminal<any>(job.id, {
+      intervalMs: 2000,
+      maxAttempts: 300,
+      timeoutMessage: '生成超时 (超过10分钟)',
+      failedMessage: '生成失败',
+    });
   };
 
   const saveStructuredOutline = async (treeToSave: OutlineNode[]) => {
     if (!novel?.id) return;
-    
-    const serialized = treeToSave.map(node => {
-      let text = `# ${node.title}\n${node.content}\n`;
-      if (node.children && node.children.length > 0) {
-        node.children.forEach(child => {
-           text += `## ${child.title}\n${child.content}\n`;
-           if (child.children && child.children.length > 0) {
-             child.children.forEach(grandChild => {
-               text += `### ${grandChild.title}\n${grandChild.content}\n`;
-             });
-           }
-        });
-      }
-      return text;
-    }).join('\n\n');
 
-    setEditedOutline(serialized);
-
-    const hasDetailed = treeToSave.some(n => n.children && n.children.length > 0);
-    const hasChapters = treeToSave.some(n => 
-      n.children?.some(c => c.children && c.children.length > 0)
-    );
-
-    let outlineStage = 'none';
-    if (hasChapters) {
-      outlineStage = 'chapters';
-    } else if (hasDetailed) {
-      outlineStage = 'detailed';
-    } else if (treeToSave.length > 0) {
-      outlineStage = 'rough';
-    }
+    const outlinePayload = buildOutlinePersistencePayload(treeToSave as OutlinePlanningNode[]);
+    setEditedOutline(outlinePayload.outline);
 
     try {
       await fetch(`/api/novels/${novel.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outline: serialized,
-          outlineRough: treeToSave.length > 0 ? { blocks: treeToSave } : null,
-          outlineStage,
-        }),
+        body: JSON.stringify(outlinePayload),
       });
-      setNovel(prev => prev ? { ...prev, outline: serialized, outlineStage } : null);
+      setNovel(prev => prev ? { ...prev, ...outlinePayload } : null);
     } catch (error) {
       console.error('Failed to auto-save outline', error);
     }
@@ -1025,35 +1110,27 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               creativeIntent: novel.creativeIntent || '',
               specialRequirements: novel.specialRequirements || '',
             });
-            
-            const blocks = roughOutput?.blocks || (Array.isArray(roughOutput) ? roughOutput : []);
-            setOutlineNodes(blocks.map((b: any) => ({ ...b, level: 'rough', isExpanded: false })));
-            setNovel(prev => prev ? { ...prev, outlineRough: { blocks }, outlineStage: 'rough' } : null);
-            
+
+            const normalized = normalizeOutlineBlocksPayload(roughOutput, 'rough');
+            const persistence = buildOutlinePersistencePayload(normalized.blocks);
+            setOutlineNodes(normalized.blocks as OutlineNode[]);
+            setNovel(prev => prev ? { ...prev, ...persistence } : null);
+
           } else if (type === 'detailed') {
             const roughOutline = novel.outlineRough || { blocks: outlineNodes.filter(n => n.level === 'rough') };
-            
+
             const detailedOutput = await runJob('OUTLINE_DETAILED', {
               novelId: novel.id,
               roughOutline,
               targetWords: novel.targetWords || 100,
               chapterCount: novel.chapterCount || 100,
             });
-            
-            const storyArcs = detailedOutput?.story_arcs || [];
-            const updatedNodes = outlineNodes.map(node => {
-              if (node.level !== 'rough') return node;
-              const matchingArc = storyArcs.find((arc: any) => 
-                arc.arc_id === node.id || arc.arc_title?.includes(node.title)
-              );
-              if (matchingArc?.children) {
-                return { ...node, children: matchingArc.children.map((c: any) => ({ ...c, level: 'detailed' })), isExpanded: true };
-              }
-              return node;
-            });
-            setOutlineNodes(updatedNodes);
-            setNovel(prev => prev ? { ...prev, outlineDetailed: detailedOutput, outlineStage: 'detailed' } : null);
-            
+
+            const normalized = normalizeOutlineBlocksPayload(detailedOutput, 'rough');
+            const persistence = buildOutlinePersistencePayload(normalized.blocks);
+            setOutlineNodes(normalized.blocks as OutlineNode[]);
+            setNovel(prev => prev ? { ...prev, ...persistence } : null);
+
           } else if (type === 'chapters') {
             const detailedOutline = novel.outlineDetailed || { 
               story_arcs: outlineNodes.map(n => ({
@@ -1062,31 +1139,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 children: n.children || []
               }))
             };
-            
+
             const chaptersOutput = await runJob('OUTLINE_CHAPTERS', {
               novelId: novel.id,
               detailedOutline,
             });
-            
-            const events = chaptersOutput?.events || [];
-            const updateWithChapters = (nodes: OutlineNode[]): OutlineNode[] => {
-              return nodes.map(node => {
-                if (node.level === 'detailed') {
-                  const matchingEvent = events.find((e: any) => 
-                    e.event_id === node.id || e.event_title?.includes(node.title)
-                  );
-                  if (matchingEvent?.children) {
-                    return { ...node, children: matchingEvent.children.map((c: any) => ({ ...c, level: 'chapter' })), isExpanded: true };
-                  }
-                }
-                if (node.children) {
-                  return { ...node, children: updateWithChapters(node.children) };
-                }
-                return node;
-              });
-            };
-            setOutlineNodes(prev => updateWithChapters(prev));
-            setNovel(prev => prev ? { ...prev, outlineChapters: chaptersOutput, outlineStage: 'chapters' } : null);
+
+            const normalized = normalizeOutlineBlocksPayload(chaptersOutput, 'rough');
+            const persistence = buildOutlinePersistencePayload(normalized.blocks);
+            setOutlineNodes(normalized.blocks as OutlineNode[]);
+            setNovel(prev => prev ? { ...prev, ...persistence } : null);
           }
           
         } catch (error) {
@@ -1920,13 +1982,87 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </div>
 
                   <div className="flex-grow">
+                    <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <label className="space-y-1 text-xs text-zinc-400">
+                        <span>推演章节数</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={plotSimulationControls.steps}
+                          onChange={(event) =>
+                            updatePlotSimulationControls({
+                              steps: Number(event.target.value) || 1,
+                            })
+                          }
+                          className="glass-input w-full rounded-xl px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="space-y-1 text-xs text-zinc-400">
+                        <span>采样迭代</span>
+                        <input
+                          type="number"
+                          min={20}
+                          max={500}
+                          step={10}
+                          value={plotSimulationControls.iterations}
+                          onChange={(event) =>
+                            updatePlotSimulationControls({
+                              iterations: Number(event.target.value) || 20,
+                            })
+                          }
+                          className="glass-input w-full rounded-xl px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="space-y-1 text-xs text-zinc-400">
+                        <span>分支数量</span>
+                        <input
+                          type="number"
+                          min={2}
+                          max={5}
+                          value={plotSimulationControls.branchCount}
+                          onChange={(event) =>
+                            updatePlotSimulationControls({
+                              branchCount: Number(event.target.value) || 2,
+                            })
+                          }
+                          className="glass-input w-full rounded-xl px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={plotSimulationControls.focusHooks}
+                          onChange={(event) =>
+                            updatePlotSimulationControls({
+                              focusHooks: event.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 rounded border-white/20 bg-black/30 accent-emerald-500"
+                        />
+                        优先回收伏笔并评估连续性
+                      </label>
+                    </div>
+
                     {plotBranches.length > 0 ? (
                        <div className="mb-6">
-                          <PlotBranchingView branches={plotBranches} />
+                          <PlotBranchingView
+                            branches={plotBranches}
+                            deadEndWarnings={plotDeadEndWarnings}
+                            hookOpportunities={plotHookOpportunities}
+                            selectedBranchId={plotSelectedBranchId || undefined}
+                            onSelectBranch={(branchId) => setPlotSelectedBranchId(branchId)}
+                          />
+                          {plotLastGeneratedAt && (
+                            <div className="mt-3 text-xs text-zinc-500">
+                              最近推演：{new Date(plotLastGeneratedAt).toLocaleString()}
+                              {plotBestBranchId ? ' · 已自动选中最佳路线' : ''}
+                            </div>
+                          )}
                        </div>
                     ) : (
                       <div className="mb-6 text-sm text-zinc-400 flex items-center">
-                        点击推演，系统将分析当前剧情并预测 3 条发展路线。
+                        点击推演，系统将结合连贯性、张力和伏笔状态给出可执行路线。
                       </div>
                     )}
                   </div>
@@ -2099,6 +2235,79 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   </div>
                 </Card>
 
+                <Card className="p-8 rounded-3xl space-y-8">
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                      <span className="w-1 h-6 bg-amber-500 rounded-full"/>
+                      连续性门禁
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-zinc-100">启用章节连续性门禁</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            章节生成后会自动评分，低分将触发修复或拦截，减少前后文断层。
+                          </p>
+                        </div>
+                        <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
+                          <input
+                            type="checkbox"
+                            checked={editedContinuityGateEnabled}
+                            onChange={(event) => setEditedContinuityGateEnabled(event.target.checked)}
+                            className="h-4 w-4 rounded border-zinc-500 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40"
+                          />
+                          启用
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-400">通过阈值（1-10）</label>
+                          <input
+                            type="number"
+                            step={0.1}
+                            min={1}
+                            max={10}
+                            value={editedContinuityPassScore}
+                            onChange={(event) => setEditedContinuityPassScore(parseFloat(event.target.value) || 6.8)}
+                            disabled={!editedContinuityGateEnabled}
+                            className="glass-input w-full rounded-xl px-4 py-3 transition-colors focus:border-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-400">拒绝阈值（1-10）</label>
+                          <input
+                            type="number"
+                            step={0.1}
+                            min={1}
+                            max={10}
+                            value={editedContinuityRejectScore}
+                            onChange={(event) => setEditedContinuityRejectScore(parseFloat(event.target.value) || 4.9)}
+                            disabled={!editedContinuityGateEnabled}
+                            className="glass-input w-full rounded-xl px-4 py-3 transition-colors focus:border-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-400">自动修复次数</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={5}
+                            value={editedContinuityMaxRepairAttempts}
+                            onChange={(event) => setEditedContinuityMaxRepairAttempts(parseInt(event.target.value, 10) || 0)}
+                            disabled={!editedContinuityGateEnabled}
+                            className="glass-input w-full rounded-xl px-4 py-3 transition-colors focus:border-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-zinc-500">
+                        建议：通过阈值设为 6.5-7.2；拒绝阈值比通过阈值低至少 0.4；自动修复次数 1-2 次。
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
                 <div className="flex justify-end">
                   <Button 
                     variant="primary"
@@ -2179,31 +2388,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         novelId={novel?.id || ''}
         novel={novel}
         onGenerated={(data) => {
-          setNovel(prev => prev ? { 
-            ...prev, 
-            outline: data.outline,
-            outlineRough: data.outlineRough as { blocks: OutlineNode[] } | undefined,
-            outlineDetailed: data.outlineDetailed as { blocks: OutlineNode[] } | undefined,
-            outlineChapters: data.outlineChapters as { blocks: OutlineNode[] } | undefined,
-          } : null);
-          setEditedOutline(data.outline);
-          if (data.outlineChapters && typeof data.outlineChapters === 'object' && 'blocks' in (data.outlineChapters as any)) {
-            const blocks = (data.outlineChapters as any).blocks.map((b: any) => ({
-              ...b,
-              level: b.level || 'chapter',
-            }));
-            setOutlineNodes(blocks);
-          } else if (data.outlineDetailed && typeof data.outlineDetailed === 'object' && 'blocks' in (data.outlineDetailed as any)) {
-            const blocks = (data.outlineDetailed as any).blocks.map((b: any) => ({
-              ...b,
-              level: b.level || 'detailed',
-              children: b.children?.map((c: any) => ({
-                ...c,
-                level: c.level || 'chapter',
-              })),
-            }));
-            setOutlineNodes(blocks);
-          }
+          const bestBlocks = pickBestOutlineBlocks({
+            outlineChapters: data.outlineChapters,
+            outlineDetailed: data.outlineDetailed,
+            outlineRough: data.outlineRough,
+          });
+          const persistence = buildOutlinePersistencePayload(bestBlocks as OutlinePlanningNode[]);
+
+          setNovel(prev => prev ? { ...prev, ...persistence } : null);
+          setEditedOutline(persistence.outline);
+          setOutlineNodes(bestBlocks as OutlineNode[]);
           setShowOutlineGenerator(false);
         }}
       />

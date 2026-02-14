@@ -387,6 +387,85 @@
            transition-all duration-200 rounded-lg hover:border-zinc-700;
   }
 
+  .select-menu {
+    @apply bg-zinc-950/70 border border-zinc-700/70 text-zinc-100 rounded-lg
+           transition-all duration-200 hover:border-zinc-600
+           focus:border-emerald-500/50 focus:bg-zinc-950/85 focus:ring-2 focus:ring-emerald-500/25;
+    color-scheme: dark;
+  }
+
+  .select-menu option,
+  .select-menu optgroup {
+    background-color: #12151f;
+    color: #e4e4e7;
+  }
+
+  .select-menu option {
+    padding: 0.55rem 0.75rem;
+    line-height: 1.35;
+  }
+
+  .select-menu option:checked {
+    background-color: rgba(16, 185, 129, 0.24);
+    color: #a7f3d0;
+  }
+
+  .select-menu option:hover,
+  .select-menu option:focus {
+    background-color: rgba(63, 63, 70, 0.9);
+    color: #fafafa;
+  }
+
+  .select-menu option:disabled,
+  .select-menu optgroup:disabled {
+    color: #71717a;
+  }
+
+  .select-menu optgroup {
+    font-weight: 600;
+    color: #a1a1aa;
+  }
+
+  .select-popover-surface {
+    @apply bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/60 rounded-xl shadow-2xl shadow-black/55;
+    background-image: linear-gradient(
+      150deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0) 34%,
+      rgba(16, 185, 129, 0.06) 100%
+    );
+  }
+
+  .select-popover-scroll-button {
+    @apply flex cursor-default items-center justify-center py-1 text-zinc-500 transition-colors;
+  }
+
+  .select-popover-label {
+    @apply px-2 py-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider;
+  }
+
+  .select-popover-separator {
+    @apply -mx-1 my-1 h-px bg-zinc-800/80;
+  }
+
+  .select-popover-item {
+    @apply relative flex w-full cursor-pointer select-none items-center rounded-lg
+           px-3 py-2.5 text-sm text-zinc-300 outline-none transition-all duration-150;
+  }
+
+  .select-popover-item[data-highlighted] {
+    @apply bg-zinc-800/85 text-zinc-100;
+    transform: translateX(2px);
+  }
+
+  .select-popover-item[data-state='checked'] {
+    @apply bg-emerald-500/15 text-emerald-300 font-medium;
+  }
+
+  .select-popover-item[data-disabled] {
+    @apply pointer-events-none opacity-45;
+  }
+
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-emerald-600;
   }

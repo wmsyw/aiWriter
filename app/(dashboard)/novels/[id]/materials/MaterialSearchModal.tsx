@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import Modal, { ModalFooter } from '@/app/components/ui/Modal';
 import { Button } from '@/app/components/ui/Button';
+import { parseJobResponse } from '@/src/shared/jobs';
+import {
+  DEFAULT_MATERIAL_SEARCH_CATEGORIES,
+  MATERIAL_SEARCH_CATEGORIES,
+  type MaterialSearchCategory,
+} from '@/src/shared/material-search';
 
 interface MaterialSearchModalProps {
   isOpen: boolean;
@@ -12,22 +18,12 @@ interface MaterialSearchModalProps {
   onSearchStarted?: (jobId: string, keyword: string) => void;
 }
 
-const SEARCH_CATEGORIES = [
-  { id: '评价', label: '读者评价', icon: '💬' },
-  { id: '人物', label: '人物设定', icon: '👤' },
-  { id: '情节', label: '情节梗概', icon: '📖' },
-  { id: '世界观', label: '世界观设定', icon: '🌍' },
-  { id: '组织', label: '组织势力', icon: '🏛️' },
-  { id: '道具', label: '物品道具', icon: '🗡️' },
-  { id: '设定', label: '其他设定', icon: '⚙️' },
-];
-
 export default function MaterialSearchModal({ isOpen, onClose, novelId, onComplete, onSearchStarted }: MaterialSearchModalProps) {
   const [keyword, setKeyword] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(['评价', '人物', '情节', '世界观']);
+  const [selectedCategories, setSelectedCategories] = useState<MaterialSearchCategory[]>([...DEFAULT_MATERIAL_SEARCH_CATEGORIES]);
   const [status, setStatus] = useState<'idle' | 'searching' | 'succeeded' | 'failed'>('idle');
 
-  const toggleCategory = (id: string) => {
+  const toggleCategory = (id: MaterialSearchCategory) => {
     setSelectedCategories(prev => 
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
@@ -50,7 +46,11 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
       });
 
       if (res.ok) {
-        const { job } = await res.json();
+        const payload = await res.json();
+        const job = parseJobResponse(payload);
+        if (!job) {
+          throw new Error('任务创建失败：返回数据异常');
+        }
         // Notify parent and close immediately
         onSearchStarted?.(job.id, keyword);
         setStatus('idle');
@@ -94,7 +94,7 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">搜索内容类型</label>
             <div className="flex flex-wrap gap-2">
-              {SEARCH_CATEGORIES.map(cat => (
+              {MATERIAL_SEARCH_CATEGORIES.map(cat => (
                 <Button
                   key={cat.id}
                   type="button"

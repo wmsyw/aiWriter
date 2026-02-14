@@ -177,6 +177,13 @@ export interface WorkflowConfig {
     passThreshold: number;
     maxIterations: number;
   };
+  // 连续性门禁（章节生成后即时评分）
+  continuityGate: {
+    enabled: boolean;
+    passScore: number;
+    rejectScore: number;
+    maxRepairAttempts: number;
+  };
 }
 
 export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
@@ -219,6 +226,14 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
     ],
     passThreshold: 7.0,
     maxIterations: 3,
+  },
+
+  // 连续性门禁（默认启用）
+  continuityGate: {
+    enabled: true,
+    passScore: 6.8,
+    rejectScore: 4.9,
+    maxRepairAttempts: 1,
   },
 };
 
@@ -266,5 +281,6 @@ export function mergeWorkflowConfig(userConfig?: Partial<WorkflowConfig>): Workf
     characterEmergence: { ...DEFAULT_WORKFLOW_CONFIG.characterEmergence, ...userConfig.characterEmergence },
     hooks: { ...DEFAULT_WORKFLOW_CONFIG.hooks, ...userConfig.hooks },
     review: { ...DEFAULT_WORKFLOW_CONFIG.review, ...userConfig.review },
+    continuityGate: { ...DEFAULT_WORKFLOW_CONFIG.continuityGate, ...userConfig.continuityGate },
   };
 }

@@ -1,4 +1,4 @@
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+export type JobStatus = 'queued' | 'running' | 'processing' | 'succeeded' | 'failed' | 'canceled';
 
 export const JOB_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   queued: { 
@@ -8,6 +8,10 @@ export const JOB_STATUS_CONFIG: Record<string, { label: string; className: strin
   running: { 
     label: '执行中', 
     className: 'text-blue-400 bg-blue-400/10 border-blue-400/20 animate-pulse' 
+  },
+  processing: {
+    label: '处理中',
+    className: 'text-blue-300 bg-blue-400/10 border-blue-300/25 animate-pulse'
   },
   succeeded: { 
     label: '已完成', 
