@@ -68,6 +68,43 @@ describe('Materials Service', () => {
       expect(result.every((m: { type: string }) => m.type === 'character')).toBe(true);
     });
   });
+
+  describe('buildMaterialContext', () => {
+    it('should handle string traits without throwing', async () => {
+      const now = new Date();
+      const mockPrisma = {
+        material: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              id: 'mat_1',
+              novelId: 'novel_456',
+              userId: 'user_789',
+              type: 'character',
+              name: '李明',
+              genre: '通用',
+              searchGroup: null,
+              sourceUrl: null,
+              data: {
+                description: '主角',
+                traits: '冷静, 机敏',
+              },
+              createdAt: now,
+              updatedAt: now,
+            },
+          ]),
+        },
+      };
+
+      vi.doMock('@/src/server/db', () => ({ prisma: mockPrisma }));
+
+      const { buildMaterialContext } = await import('@/src/server/services/materials');
+
+      const context = await buildMaterialContext('novel_456', 'user_789', ['character']);
+
+      expect(context).toContain('### 李明');
+      expect(context).toContain('Traits: 冷静, 机敏');
+    });
+  });
 });
 
 describe('Versioning Service', () => {

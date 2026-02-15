@@ -30,18 +30,53 @@ export const MaterialDataSchema = z.object({
 
 export type MaterialData = z.infer<typeof MaterialDataSchema>;
 
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/[,\n，、；;]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value)
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 function parseMaterialData(data: Prisma.JsonValue | null): MaterialData {
   if (!data || typeof data !== 'object') {
     return { name: '' };
   }
   const result = MaterialDataSchema.safeParse(data);
   if (result.success) {
-    return result.data;
+    const traits = normalizeStringList(result.data.traits);
+    const rules = normalizeStringList(result.data.rules);
+    return {
+      ...result.data,
+      ...(traits.length > 0 ? { traits } : {}),
+      ...(rules.length > 0 ? { rules } : {}),
+    };
   }
   const rawData = data as Record<string, unknown>;
+  const traits = normalizeStringList(rawData.traits);
+  const rules = normalizeStringList(rawData.rules);
   return {
     ...rawData,
     name: typeof rawData.name === 'string' ? rawData.name : '',
+    ...(traits.length > 0 ? { traits } : {}),
+    ...(rules.length > 0 ? { rules } : {}),
   } as MaterialData;
 }
 
@@ -242,7 +277,8 @@ export async function buildMaterialContext(
         .map(([key, value]) => `${key}: ${value}`);
       if (attributes.length > 0) entry += `Attributes: ${attributes.join('；')}\n`;
     }
-    if (data.traits && data.traits.length > 0) entry += `Traits: ${data.traits.join(', ')}\n`;
+    const traits = normalizeStringList(data.traits);
+    if (traits.length > 0) entry += `Traits: ${traits.join(', ')}\n`;
     if (data.backstory) entry += `Backstory: ${data.backstory}\n`;
     if (data.importance) entry += `Importance: ${data.importance}\n`;
     sections.push(entry);

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import * as Diff from 'diff';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogTrigger, Skeleton, Progress, Tooltip, TooltipProvider, TooltipTrigger, TooltipContent, Textarea, Checkbox, InlineInput } from '@/app/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogTrigger, Skeleton, Progress, Tooltip, TooltipProvider, TooltipTrigger, TooltipContent, Textarea, Checkbox } from '@/app/components/ui';
 import { ConfirmModal, ModalFooter } from '@/app/components/ui/Modal';
 import { useToast } from '@/app/components/ui/Toast';
 import { fadeIn, slideUp, scaleIn, staggerContainer } from '@/app/lib/animations';
@@ -2266,28 +2266,6 @@ export default function ChapterEditorPage() {
           <div className="custom-scrollbar flex-1 overflow-y-auto scroll-smooth">
             <div className={`mx-auto w-full px-4 pb-24 pt-6 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
               <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
-                <div className="border-b border-white/10 bg-gradient-to-r from-emerald-500/10 via-sky-500/8 to-transparent px-6 py-5 md:px-8">
-                  <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
-                    Chapter Workspace
-                  </div>
-                  <InlineInput
-                    type="text"
-                    value={title}
-                    onChange={(e) => {
-                      setTitle(e.target.value);
-                      setSaveStatus('unsaved');
-                      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-                      saveTimeoutRef.current = setTimeout(() => saveContent(content, e.target.value), 2000);
-                    }}
-                    className="w-full border-none bg-transparent font-serif text-3xl font-bold tracking-tight text-white placeholder-zinc-600 focus:outline-none focus:ring-0 md:text-[2.15rem]"
-                    placeholder="章节标题"
-                    aria-label="章节标题"
-                  />
-                  <div className="mt-2 text-xs text-zinc-500">
-                    最后更新：{new Date(chapter.updatedAt).toLocaleString()}
-                  </div>
-                </div>
-
                 <div className="px-6 pb-8 pt-6 md:px-8">
                   <div className="mx-auto w-full max-w-[780px]">
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-2 text-[11px] text-zinc-500">
