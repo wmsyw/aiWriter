@@ -116,6 +116,28 @@ interface Branch {
   status?: 'pending' | 'succeeded' | 'failed';
 }
 
+type BranchSortMode = 'recommended' | 'latest' | 'score';
+type BranchVerdictFilter = 'all' | 'pass' | 'revise' | 'reject';
+type BranchDetailMode = 'preview' | 'diff';
+type BranchDiffLayout = 'split' | 'unified';
+
+interface BranchDiffRow {
+  status: 'unchanged' | 'added' | 'removed' | 'changed';
+  leftLine?: string;
+  rightLine?: string;
+  leftLineNo?: number;
+  rightLineNo?: number;
+}
+
+const BRANCH_COUNT_OPTIONS = [2, 3, 4, 5] as const;
+const BRANCH_FEEDBACK_PRESETS = [
+  '增强冲突张力',
+  '补充环境与氛围描写',
+  '加快节奏，减少铺垫',
+  '强化主角主动性',
+  '结尾钩子更强',
+] as const;
+
 const POST_PROCESS_JOB_TYPES = [
   'MEMORY_EXTRACT',
   'HOOKS_EXTRACT',
@@ -299,6 +321,12 @@ export default function ChapterEditorPage() {
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [showBranchPanel, setShowBranchPanel] = useState(false);
   const [iterationRound, setIterationRound] = useState(1);
+  const [branchSortMode, setBranchSortMode] = useState<BranchSortMode>('recommended');
+  const [branchVerdictFilter, setBranchVerdictFilter] = useState<BranchVerdictFilter>('all');
+  const [branchCountSetting, setBranchCountSetting] = useState<number>(3);
+  const [branchDetailMode, setBranchDetailMode] = useState<BranchDetailMode>('preview');
+  const [branchDiffLayout, setBranchDiffLayout] = useState<BranchDiffLayout>('split');
+  const [branchDiffOnlyChanges, setBranchDiffOnlyChanges] = useState<boolean>(false);
   const [feedback, setFeedback] = useState('');
   const [reviewFeedback, setReviewFeedback] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -343,6 +371,156 @@ export default function ChapterEditorPage() {
     () => isReviewStale(chapter?.updatedAt ?? null, reviewState.lastReviewAt),
     [chapter?.updatedAt, reviewState.lastReviewAt]
   );
+
+  const recommendedBranch = useMemo<Branch | null>(() => {
+    if (branches.length === 0) return null;
+    return branches.find((branch) => branch.continuityRecommended) || branches[0];
+  }, [branches]);
+
+  const displayedBranches = useMemo(() => {
+    const filtered = branches.filter((branch) => {
+      if (branchVerdictFilter === 'all') return true;
+      return branch.continuityVerdict === branchVerdictFilter;
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((left, right) => {
+      const leftCreatedAt = Number.isNaN(Date.parse(left.createdAt)) ? 0 : Date.parse(left.createdAt);
+      const rightCreatedAt = Number.isNaN(Date.parse(right.createdAt)) ? 0 : Date.parse(right.createdAt);
+      const leftScore = typeof left.continuityScore === 'number' ? left.continuityScore : Number.NEGATIVE_INFINITY;
+      const rightScore = typeof right.continuityScore === 'number' ? right.continuityScore : Number.NEGATIVE_INFINITY;
+
+      if (branchSortMode === 'latest') {
+        return rightCreatedAt - leftCreatedAt;
+      }
+
+      if (branchSortMode === 'score') {
+        if (rightScore !== leftScore) return rightScore - leftScore;
+        return rightCreatedAt - leftCreatedAt;
+      }
+
+      const leftRecommended = left.continuityRecommended ? 1 : 0;
+      const rightRecommended = right.continuityRecommended ? 1 : 0;
+      if (rightRecommended !== leftRecommended) return rightRecommended - leftRecommended;
+      if (rightScore !== leftScore) return rightScore - leftScore;
+      return rightCreatedAt - leftCreatedAt;
+    });
+
+    return sorted;
+  }, [branchSortMode, branchVerdictFilter, branches]);
+
+  const selectedBranchDiff = useMemo(() => {
+    if (!selectedBranch) {
+      return {
+        parts: [] as ReturnType<typeof Diff.diffLines>,
+        rows: [] as BranchDiffRow[],
+        addedLines: 0,
+        removedLines: 0,
+        changedBlocks: 0,
+        unchangedLines: 0,
+      };
+    }
+
+    const parts = Diff.diffLines(content || '', selectedBranch.content || '');
+    const rows: BranchDiffRow[] = [];
+    let addedLines = 0;
+    let removedLines = 0;
+    let changedBlocks = 0;
+    let unchangedLines = 0;
+
+    const toLines = (value: string): string[] => {
+      if (!value) return [];
+      const lines = value.split('\n');
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+      return lines;
+    };
+
+    let leftLineNo = 1;
+    let rightLineNo = 1;
+
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index];
+
+      if (part.removed && parts[index + 1]?.added) {
+        const removedPart = part;
+        const addedPart = parts[index + 1];
+        const leftLines = toLines(removedPart.value);
+        const rightLines = toLines(addedPart.value);
+        const maxLen = Math.max(leftLines.length, rightLines.length);
+
+        changedBlocks += 1;
+        addedLines += rightLines.length;
+        removedLines += leftLines.length;
+
+        for (let rowIndex = 0; rowIndex < maxLen; rowIndex += 1) {
+          const leftLine = leftLines[rowIndex];
+          const rightLine = rightLines[rowIndex];
+          const hasLeft = typeof leftLine === 'string';
+          const hasRight = typeof rightLine === 'string';
+
+          rows.push({
+            status: hasLeft && hasRight ? 'changed' : hasLeft ? 'removed' : 'added',
+            ...(hasLeft ? { leftLine, leftLineNo } : {}),
+            ...(hasRight ? { rightLine, rightLineNo } : {}),
+          });
+
+          if (hasLeft) leftLineNo += 1;
+          if (hasRight) rightLineNo += 1;
+        }
+
+        index += 1;
+        continue;
+      }
+
+      if (part.added) {
+        changedBlocks += 1;
+        const rightLines = toLines(part.value);
+        addedLines += rightLines.length;
+        rightLines.forEach((rightLine) => {
+          rows.push({
+            status: 'added',
+            rightLine,
+            rightLineNo,
+          });
+          rightLineNo += 1;
+        });
+        continue;
+      }
+
+      if (part.removed) {
+        changedBlocks += 1;
+        const leftLines = toLines(part.value);
+        removedLines += leftLines.length;
+        leftLines.forEach((leftLine) => {
+          rows.push({
+            status: 'removed',
+            leftLine,
+            leftLineNo,
+          });
+          leftLineNo += 1;
+        });
+        continue;
+      }
+
+      const unchanged = toLines(part.value);
+      unchangedLines += unchanged.length;
+      unchanged.forEach((line) => {
+        rows.push({
+          status: 'unchanged',
+          leftLine: line,
+          rightLine: line,
+          leftLineNo,
+          rightLineNo,
+        });
+        leftLineNo += 1;
+        rightLineNo += 1;
+      });
+    }
+
+    return { parts, rows, addedLines, removedLines, changedBlocks, unchangedLines };
+  }, [content, selectedBranch]);
 
   const applyQueuedPostProcess = useCallback((summary: any) => {
     if (!summary?.results || !Array.isArray(summary.results)) return;
@@ -755,6 +933,7 @@ export default function ChapterEditorPage() {
       selectedContent,
       feedbackText,
       iterationRound: targetRound,
+      branchCount,
       clearSelectedBranch = false,
       closeReviewPanel = false,
       clearReviewFeedback = false,
@@ -762,6 +941,7 @@ export default function ChapterEditorPage() {
       selectedContent: string;
       feedbackText?: string;
       iterationRound: number;
+      branchCount?: number;
       clearSelectedBranch?: boolean;
       closeReviewPanel?: boolean;
       clearReviewFeedback?: boolean;
@@ -773,13 +953,20 @@ export default function ChapterEditorPage() {
       });
       if (!input) return false;
 
-      const queued = await createJob('CHAPTER_GENERATE_BRANCHES', input);
+      const normalizedBranchCount = typeof branchCount === 'number' && Number.isFinite(branchCount)
+        ? Math.max(2, Math.min(5, Math.floor(branchCount)))
+        : branchCountSetting;
+      const queued = await createJob('CHAPTER_GENERATE_BRANCHES', {
+        ...input,
+        branchCount: normalizedBranchCount,
+      });
       if (!queued) return false;
 
       setIterationRound(input.iterationRound);
       setFeedback('');
       if (clearSelectedBranch) {
         setSelectedBranch(null);
+        setBranchDetailMode('preview');
       }
       if (clearReviewFeedback) {
         setReviewFeedback('');
@@ -789,7 +976,7 @@ export default function ChapterEditorPage() {
       }
       return true;
     },
-    [createJob]
+    [branchCountSetting, createJob]
   );
 
 
@@ -859,6 +1046,7 @@ export default function ChapterEditorPage() {
           setIterationRound(1);
           setFeedback('');
           setSelectedBranch(null);
+          setBranchDetailMode('preview');
           setReviewResult(null);
           setConsistencyResult(null);
           setReviewState({ ...DEFAULT_CHAPTER_REVIEW_STATE });
@@ -887,9 +1075,40 @@ export default function ChapterEditorPage() {
       selectedContent: selectedBranch.content,
       feedbackText: feedback,
       iterationRound: getNextBranchIterationRound(iterationRound),
+      branchCount: branchCountSetting,
       clearSelectedBranch: true,
     });
   };
+
+  const handleRegenerateBranches = async () => {
+    const queued = await createJob('CHAPTER_GENERATE_BRANCHES', {
+      branchCount: branchCountSetting,
+    });
+    if (!queued) return;
+    setSelectedBranch(null);
+    setBranchDetailMode('preview');
+    setFeedback('');
+  };
+
+  const handleCopyBranchContent = useCallback(
+    async (branch: Branch) => {
+      if (!branch.content) return;
+      try {
+        await navigator.clipboard.writeText(branch.content);
+        toast({
+          variant: 'success',
+          description: '已复制分支全文',
+        });
+      } catch (error) {
+        console.error('Copy branch failed', error);
+        toast({
+          variant: 'error',
+          description: '复制失败，请手动复制',
+        });
+      }
+    },
+    [toast]
+  );
 
   const hasContent = !!content && content.trim().length > 0;
   const canGenerate = true;
@@ -978,6 +1197,12 @@ export default function ChapterEditorPage() {
   const renderBranchPanel = () => {
     if (!mounted) return null;
     const isLoading = activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES');
+    const selectedBranchCharCount = selectedBranch
+      ? selectedBranch.content.replace(/\s+/g, '').length
+      : 0;
+    const visibleDiffRows = branchDiffOnlyChanges
+      ? selectedBranchDiff.rows.filter((row) => row.status !== 'unchanged')
+      : selectedBranchDiff.rows;
 
     return createPortal(
       <AnimatePresence>
@@ -988,7 +1213,7 @@ export default function ChapterEditorPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-6xl h-[88vh]"
+              className="h-[90vh] w-full max-w-[1480px]"
             >
               <Card className={modalPanelClass}>
                 <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
@@ -1016,8 +1241,76 @@ export default function ChapterEditorPage() {
                   </Button>
                 </div>
 
+                <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-zinc-900/70 px-6 py-3">
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-300">
+                    候选分支 {branches.length}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-400">
+                    当前展示 {displayedBranches.length}
+                  </span>
+                  {recommendedBranch && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 border border-emerald-500/35 bg-emerald-500/12 px-2.5 text-xs text-emerald-200 hover:bg-emerald-500/20"
+                      onClick={() => {
+                        setSelectedBranch(recommendedBranch);
+                        setBranchDetailMode('preview');
+                      }}
+                    >
+                      定位推荐分支
+                    </Button>
+                  )}
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    <label className="text-xs text-zinc-500">数量</label>
+                    <select
+                      value={branchCountSetting}
+                      onChange={(event) => setBranchCountSetting(Number(event.target.value))}
+                      className="h-8 rounded-lg border border-white/10 bg-zinc-950/75 px-2 text-xs text-zinc-200 outline-none transition focus:border-emerald-500/35"
+                    >
+                      {BRANCH_COUNT_OPTIONS.map((count) => (
+                        <option key={count} value={count}>
+                          {count} 个
+                        </option>
+                      ))}
+                    </select>
+                    <label className="text-xs text-zinc-500">筛选</label>
+                    <select
+                      value={branchVerdictFilter}
+                      onChange={(event) => setBranchVerdictFilter(event.target.value as BranchVerdictFilter)}
+                      className="h-8 rounded-lg border border-white/10 bg-zinc-950/75 px-2 text-xs text-zinc-200 outline-none transition focus:border-emerald-500/35"
+                    >
+                      <option value="all">全部承接</option>
+                      <option value="pass">承接通过</option>
+                      <option value="revise">承接待优化</option>
+                      <option value="reject">承接断层</option>
+                    </select>
+                    <label className="text-xs text-zinc-500">排序</label>
+                    <select
+                      value={branchSortMode}
+                      onChange={(event) => setBranchSortMode(event.target.value as BranchSortMode)}
+                      className="h-8 rounded-lg border border-white/10 bg-zinc-950/75 px-2 text-xs text-zinc-200 outline-none transition focus:border-emerald-500/35"
+                    >
+                      <option value="recommended">推荐优先</option>
+                      <option value="score">连续性得分</option>
+                      <option value="latest">生成时间</option>
+                    </select>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => void handleRegenerateBranches()}
+                      isLoading={isLoading}
+                      loadingText="生成中..."
+                    >
+                      <Icons.RotateCcw className="h-3.5 w-3.5" />
+                      重新生成
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="flex-1 flex overflow-hidden">
-                  <div className={`${selectedBranch ? 'w-[36%]' : 'w-full'} p-6 overflow-y-auto custom-scrollbar transition-all duration-300 grid grid-cols-1 ${!selectedBranch ? 'md:grid-cols-3' : ''} gap-4`}>
+                  <div className={`${selectedBranch ? 'w-[42%] xl:w-[38%]' : 'w-full'} grid grid-cols-1 gap-4 overflow-y-auto p-5 transition-all duration-300 custom-scrollbar ${!selectedBranch ? 'lg:grid-cols-2 2xl:grid-cols-3' : ''}`}>
                     {isLoading ? (
                       <div className="col-span-full flex h-full flex-col items-center justify-center text-zinc-400">
                         <Icons.Loader2 className="w-12 h-12 animate-spin text-emerald-500 mb-4" />
@@ -1027,14 +1320,24 @@ export default function ChapterEditorPage() {
                       <div className="col-span-full rounded-2xl border border-white/10 bg-zinc-900/40 py-20 text-center text-zinc-500">
                         暂无生成的分支，请点击"生成分支"开始
                       </div>
+                    ) : displayedBranches.length === 0 ? (
+                      <div className="col-span-full rounded-2xl border border-white/10 bg-zinc-900/40 py-20 text-center text-zinc-500">
+                        当前筛选条件下没有可展示的分支
+                      </div>
                     ) : (
-                      branches.map((branch, idx) => (
+                      displayedBranches.map((branch, idx) => {
+                        const branchCharCount = branch.content.replace(/\s+/g, '').length;
+                        const isSelected = selectedBranch?.id === branch.id;
+                        return (
                         <Card 
                           key={branch.id}
-                          onClick={() => setSelectedBranch(branch)}
+                          onClick={() => {
+                            setSelectedBranch(branch);
+                            setBranchDetailMode('preview');
+                          }}
                           className={`
-                            group relative cursor-pointer rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-xl
-                            ${selectedBranch?.id === branch.id 
+                            group relative flex min-h-[290px] cursor-pointer flex-col rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-xl
+                            ${isSelected
                               ? 'border-emerald-500/45 bg-emerald-500/12 shadow-emerald-500/20' 
                               : 'border-white/10 bg-zinc-900/55 hover:border-white/25 hover:bg-zinc-900/80'}
                           `}
@@ -1057,6 +1360,9 @@ export default function ChapterEditorPage() {
                                   连续性 {branch.continuityScore.toFixed(2)} · {getContinuityVerdictLabel(branch.continuityVerdict)}
                                 </span>
                               )}
+                              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-zinc-400">
+                                {branchCharCount} 字
+                              </span>
                             </div>
                             {branch.continuityIssues && branch.continuityIssues.length > 0 && (
                               <p className="line-clamp-2 text-[11px] text-zinc-500">
@@ -1064,11 +1370,38 @@ export default function ChapterEditorPage() {
                               </p>
                             )}
                           </div>
-                          <div className="line-clamp-6 font-serif text-sm leading-relaxed text-zinc-300 opacity-85 group-hover:opacity-100">
+                          <div className="line-clamp-8 flex-1 font-serif text-[15px] leading-7 text-zinc-300 opacity-85 group-hover:opacity-100">
                             {branch.content}
                           </div>
+                          <div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3">
+                            <Button
+                              variant={isSelected ? 'primary' : 'secondary'}
+                              size="sm"
+                              className="h-8 flex-1"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedBranch(branch);
+                                setBranchDetailMode('preview');
+                              }}
+                            >
+                              <Icons.Eye className="h-3.5 w-3.5" />
+                              预览全文
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 flex-1 border border-white/10 bg-white/[0.03] text-zinc-200 hover:bg-white/10"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleApplyBranch(branch);
+                              }}
+                            >
+                              <Icons.CheckCircle className="h-3.5 w-3.5" />
+                              直接采用
+                            </Button>
+                          </div>
                         </Card>
-                      ))
+                      )})
                     )}
                   </div>
 
@@ -1076,9 +1409,40 @@ export default function ChapterEditorPage() {
                     <motion.div 
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="w-[64%] border-l border-white/10 flex flex-col bg-[#0f1117]/65"
+                      className="w-[58%] border-l border-white/10 flex flex-col bg-[#0f1117]/65 xl:w-[62%]"
                     >
-                      <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                      <div className="flex items-center justify-between border-b border-white/10 px-6 py-3">
+                        <div className="space-y-1">
+                          <div className="text-sm font-semibold text-white">
+                            分支详情 {selectedBranch.branchNumber ? `#${selectedBranch.branchNumber}` : ''}
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            生成于 {new Date(selectedBranch.createdAt).toLocaleString()} · {selectedBranchCharCount} 字
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 border border-white/10 bg-white/[0.03] px-2.5 text-xs text-zinc-200 hover:bg-white/10"
+                            onClick={() => void handleCopyBranchContent(selectedBranch)}
+                          >
+                            复制全文
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 border border-white/10 bg-white/[0.03] px-2.5 text-xs text-zinc-400 hover:bg-white/10 hover:text-white"
+                            onClick={() => {
+                              setSelectedBranch(null);
+                              setBranchDetailMode('preview');
+                            }}
+                          >
+                            收起预览
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                         {typeof selectedBranch.continuityScore === 'number' && (
                           <div className="mb-4 flex flex-wrap items-center gap-2">
                             <span className={`rounded-full border px-2 py-1 text-xs ${getContinuityTone(selectedBranch.continuityVerdict)}`}>
@@ -1091,18 +1455,193 @@ export default function ChapterEditorPage() {
                             )}
                           </div>
                         )}
-                        <div className="prose prose-invert max-w-none font-serif text-lg text-zinc-200">
-                           {selectedBranch.content.split('\n').map((paragraph, i) => (
-                             paragraph.trim() && (
-                               <p key={i} className="indent-[2em] mb-2 text-justify leading-loose">
-                                 {paragraph}
-                               </p>
-                             )
-                           ))}
+                        {selectedBranch.continuityIssues && selectedBranch.continuityIssues.length > 0 && (
+                          <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/8 p-3">
+                            <div className="mb-2 text-xs font-semibold text-amber-200">连续性风险提示</div>
+                            <div className="space-y-2">
+                              {selectedBranch.continuityIssues.map((issue, issueIdx) => (
+                                <div key={`${issue}-${issueIdx}`} className="flex items-start gap-2">
+                                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-amber-300" />
+                                  <p className="flex-1 text-xs leading-relaxed text-amber-100/90">{issue}</p>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 border border-amber-500/25 bg-amber-500/10 px-2 text-[10px] text-amber-200 hover:bg-amber-500/20"
+                                    onClick={() =>
+                                      setFeedback((prev) =>
+                                        prev.trim() ? `${prev}\n处理点：${issue}` : `处理点：${issue}`
+                                      )
+                                    }
+                                  >
+                                    加入反馈
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                          <Button
+                            variant={branchDetailMode === 'preview' ? 'primary' : 'ghost'}
+                            size="sm"
+                            className={`h-8 px-3 text-xs ${
+                              branchDetailMode === 'preview'
+                                ? ''
+                                : 'border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10'
+                            }`}
+                            onClick={() => setBranchDetailMode('preview')}
+                          >
+                            全文预览
+                          </Button>
+                          <Button
+                            variant={branchDetailMode === 'diff' ? 'primary' : 'ghost'}
+                            size="sm"
+                            className={`h-8 px-3 text-xs ${
+                              branchDetailMode === 'diff'
+                                ? ''
+                                : 'border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10'
+                            }`}
+                            onClick={() => setBranchDetailMode('diff')}
+                          >
+                            差异对比
+                          </Button>
+                          {branchDetailMode === 'diff' && (
+                            <>
+                              <Button
+                                variant={branchDiffLayout === 'split' ? 'primary' : 'ghost'}
+                                size="sm"
+                                className={`h-8 px-3 text-xs ${
+                                  branchDiffLayout === 'split'
+                                    ? ''
+                                    : 'border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10'
+                                }`}
+                                onClick={() => setBranchDiffLayout('split')}
+                              >
+                                并排视图
+                              </Button>
+                              <Button
+                                variant={branchDiffLayout === 'unified' ? 'primary' : 'ghost'}
+                                size="sm"
+                                className={`h-8 px-3 text-xs ${
+                                  branchDiffLayout === 'unified'
+                                    ? ''
+                                    : 'border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10'
+                                }`}
+                                onClick={() => setBranchDiffLayout('unified')}
+                              >
+                                统一视图
+                              </Button>
+                              <label className="ml-1 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-300">
+                                <Checkbox
+                                  checked={branchDiffOnlyChanges}
+                                  onChange={(event) => setBranchDiffOnlyChanges(event.target.checked)}
+                                  className="h-3.5 w-3.5 rounded border-white/20 bg-black/30 accent-emerald-500"
+                                  aria-label="仅查看变更行"
+                                />
+                                仅看变更
+                              </label>
+                              <div className="ml-auto flex flex-wrap items-center gap-2 text-[11px]">
+                                <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-emerald-200">
+                                  +{selectedBranchDiff.addedLines} 行
+                                </span>
+                                <span className="rounded-full border border-red-500/25 bg-red-500/10 px-2 py-1 text-red-200">
+                                  -{selectedBranchDiff.removedLines} 行
+                                </span>
+                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-zinc-400">
+                                  变更块 {selectedBranchDiff.changedBlocks}
+                                </span>
+                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-zinc-500">
+                                  显示 {visibleDiffRows.length}/{selectedBranchDiff.rows.length} 行
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
+                        {branchDetailMode === 'preview' ? (
+                          <div className="prose prose-invert max-w-none font-serif text-[17px] text-zinc-200">
+                             {selectedBranch.content.split('\n').map((paragraph, i) => (
+                               paragraph.trim() && (
+                                 <p key={i} className="mb-2 indent-[2em] text-justify leading-loose">
+                                   {paragraph}
+                                 </p>
+                               )
+                             ))}
+                          </div>
+                        ) : (
+                          branchDiffLayout === 'split' ? (
+                            <div className="overflow-auto rounded-2xl border border-white/10 bg-black/20">
+                              <div className="sticky top-0 z-10 grid min-w-[820px] grid-cols-2 border-b border-white/10 bg-zinc-900/95 text-[11px] font-semibold tracking-wide text-zinc-400">
+                                <div className="border-r border-white/10 px-3 py-2">当前正文</div>
+                                <div className="px-3 py-2">候选分支</div>
+                              </div>
+                              <div className="min-w-[820px] font-mono text-[12px] leading-6">
+                                {visibleDiffRows.length === 0 ? (
+                                  <div className="px-4 py-8 text-center text-zinc-500">无差异内容</div>
+                                ) : (
+                                  visibleDiffRows.map((row, index) => (
+                                    <div
+                                      key={`${row.leftLineNo || 0}-${row.rightLineNo || 0}-${index}`}
+                                      className="grid grid-cols-2 border-b border-white/5"
+                                    >
+                                      <div
+                                        className={`border-r border-white/10 px-3 py-1.5 ${
+                                          row.status === 'removed'
+                                            ? 'bg-red-500/12 text-red-100'
+                                            : row.status === 'changed'
+                                              ? 'bg-amber-500/10 text-amber-100'
+                                              : 'text-zinc-300'
+                                        }`}
+                                      >
+                                        <span className="mr-2 inline-block min-w-[34px] select-none text-[10px] text-zinc-500">
+                                          {typeof row.leftLineNo === 'number' ? row.leftLineNo : ''}
+                                        </span>
+                                        <span className={row.status === 'removed' ? 'line-through opacity-80' : ''}>
+                                          {row.leftLine || ''}
+                                        </span>
+                                      </div>
+                                      <div
+                                        className={`px-3 py-1.5 ${
+                                          row.status === 'added'
+                                            ? 'bg-emerald-500/12 text-emerald-100'
+                                            : row.status === 'changed'
+                                              ? 'bg-amber-500/10 text-amber-100'
+                                              : 'text-zinc-300'
+                                        }`}
+                                      >
+                                        <span className="mr-2 inline-block min-w-[34px] select-none text-[10px] text-zinc-500">
+                                          {typeof row.rightLineNo === 'number' ? row.rightLineNo : ''}
+                                        </span>
+                                        <span>{row.rightLine || ''}</span>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 font-mono text-[13px] leading-6 text-zinc-200">
+                              {selectedBranchDiff.parts
+                                .filter((part) => !branchDiffOnlyChanges || part.added || part.removed)
+                                .map((part, index) => (
+                                  <div
+                                    key={`${part.value.slice(0, 20)}-${index}`}
+                                    className={`whitespace-pre-wrap px-2 py-1.5 ${
+                                      part.added
+                                        ? 'border-l-2 border-emerald-400 bg-emerald-500/12 text-emerald-100'
+                                        : part.removed
+                                          ? 'border-l-2 border-red-400 bg-red-500/12 text-red-100 line-through opacity-80'
+                                          : 'text-zinc-300'
+                                    }`}
+                                  >
+                                    {part.value}
+                                  </div>
+                                ))}
+                            </div>
+                          )
+                        )}
                       </div>
                       
-                      <div className="space-y-4 border-t border-white/10 bg-zinc-900/75 p-6 backdrop-blur-xl">
+                      <div className="space-y-3 border-t border-white/10 bg-zinc-900/75 p-5 backdrop-blur-xl">
                         <Textarea
                           label="迭代反馈 (告诉 AI 如何改进此版本)"
                           value={feedback}
@@ -1110,6 +1649,24 @@ export default function ChapterEditorPage() {
                           placeholder="例如：稍微增加一些环境描写，或者让主角的语气更强硬一点..."
                           className="h-24 resize-none p-3 text-sm text-white placeholder-zinc-500"
                         />
+                        <div className="flex flex-wrap items-center gap-2">
+                          {BRANCH_FEEDBACK_PRESETS.map((preset) => (
+                            <Button
+                              key={preset}
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 border border-white/10 bg-white/[0.03] px-2 text-[11px] text-zinc-300 hover:bg-white/10"
+                              onClick={() =>
+                                setFeedback((prev) => (prev.trim() ? `${prev}\n${preset}` : preset))
+                              }
+                            >
+                              {preset}
+                            </Button>
+                          ))}
+                          <span className="ml-auto text-[11px] text-zinc-500">
+                            反馈 {feedback.trim().length} 字
+                          </span>
+                        </div>
                         
                         <ModalFooter className="justify-stretch border-t-0 pt-0 [&>.inline-flex]:flex-1 [&>.inline-flex]:min-w-[160px]">
                           <Button 
@@ -1241,6 +1798,7 @@ export default function ChapterEditorPage() {
           selectedContent: content,
           feedbackText: combinedFeedback,
           iterationRound: getReviewIterationRound(chapter?.reviewIterations),
+          branchCount: branchCountSetting,
           closeReviewPanel: true,
           clearReviewFeedback: true,
         });
@@ -2131,7 +2689,7 @@ export default function ChapterEditorPage() {
                 variant="secondary"
                 size="sm"
                 className="min-w-[98px] shrink-0"
-                onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
+                onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: branchCountSetting })}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
                 loadingText="生成中..."
                 disabled={!canGenerateBranches}
