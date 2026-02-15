@@ -101,6 +101,7 @@ export async function getBranches(chapterId: string): Promise<BranchInfo[]> {
   const branches = await prisma.chapterVersion.findMany({
     where: { chapterId, isBranch: true },
     orderBy: [{ createdAt: 'desc' }, { branchNumber: 'asc' }],
+    take: 3,
   });
   
   return branches.map(b => ({
@@ -111,6 +112,25 @@ export async function getBranches(chapterId: string): Promise<BranchInfo[]> {
     preview: b.content.slice(0, 500),
     createdAt: b.createdAt,
   }));
+}
+
+export async function pruneBranchCache(chapterId: string, limit: number = 3): Promise<number> {
+  const normalizedLimit = Math.max(1, Math.floor(limit));
+  const branches = await prisma.chapterVersion.findMany({
+    where: { chapterId, isBranch: true },
+    orderBy: [{ createdAt: 'desc' }, { branchNumber: 'asc' }],
+    select: { id: true },
+  });
+
+  if (branches.length <= normalizedLimit) {
+    return 0;
+  }
+
+  const idsToDelete = branches.slice(normalizedLimit).map((item) => item.id);
+  const deleted = await prisma.chapterVersion.deleteMany({
+    where: { id: { in: idsToDelete } },
+  });
+  return deleted.count;
 }
 
 export async function deleteUnusedBranches(chapterId: string, excludeVersionId?: string): Promise<number> {
@@ -146,13 +166,11 @@ export async function selectBranch(chapterId: string, versionId: string): Promis
       where: { id: chapterId },
       data: { content: branch.content, currentVersionId: newVersion.id },
     });
-    
-    if (branch.parentVersionId) {
-      await tx.chapterVersion.updateMany({
-        where: { chapterId, parentVersionId: branch.parentVersionId, isBranch: true },
-        data: { isBranch: false },
-      });
-    }
+
+    // 应用分支后清空该章节的全部分支缓存。
+    await tx.chapterVersion.deleteMany({
+      where: { chapterId, isBranch: true },
+    });
   });
 }
 

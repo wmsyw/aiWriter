@@ -1,6 +1,6 @@
 import { renderTemplateString } from '../../src/server/services/templates.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
-import { saveVersion, saveBranchVersions, deleteUnusedBranches } from '../../src/server/services/versioning.js';
+import { saveVersion, saveBranchVersions, pruneBranchCache } from '../../src/server/services/versioning.js';
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime } from '../utils/helpers.js';
@@ -897,10 +897,9 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     }))
   );
 
-  await deleteUnusedBranches(chapterId, chapter.currentVersionId);
-
   const parentVersion = selectedVersionId || chapter.currentVersionId || null;
   await saveBranchVersions(chapterId, branches, parentVersion);
+  await pruneBranchCache(chapterId, 3);
 
   return {
     branches: sortedBranches.map(b => ({

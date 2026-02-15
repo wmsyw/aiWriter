@@ -129,7 +129,7 @@ interface BranchDiffRow {
   rightLineNo?: number;
 }
 
-const BRANCH_COUNT_OPTIONS = [2, 3, 4, 5] as const;
+const BRANCH_COUNT_OPTIONS = [3] as const;
 const BRANCH_FEEDBACK_PRESETS = [
   '增强冲突张力',
   '补充环境与氛围描写',
@@ -324,6 +324,7 @@ export default function ChapterEditorPage() {
   const [branchSortMode, setBranchSortMode] = useState<BranchSortMode>('recommended');
   const [branchVerdictFilter, setBranchVerdictFilter] = useState<BranchVerdictFilter>('all');
   const [branchCountSetting, setBranchCountSetting] = useState<number>(3);
+  const [branchCacheLoaded, setBranchCacheLoaded] = useState<boolean>(false);
   const [branchDetailMode, setBranchDetailMode] = useState<BranchDetailMode>('preview');
   const [branchDiffLayout, setBranchDiffLayout] = useState<BranchDiffLayout>('split');
   const [branchDiffOnlyChanges, setBranchDiffOnlyChanges] = useState<boolean>(false);
@@ -585,16 +586,21 @@ export default function ChapterEditorPage() {
     }
   }, [novelId, chapterId]);
 
-  const fetchBranches = useCallback(async () => {
+  const fetchBranches = useCallback(async (): Promise<Branch[]> => {
     try {
       const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/branches`);
       if (res.ok) {
         const data = await res.json();
-        setBranches(normalizeBranchCandidates(data.branches || []));
+        const rawBranches = Array.isArray(data.branches) ? (data.branches as Branch[]) : [];
+        const normalized = normalizeBranchCandidates<Branch>(rawBranches);
+        setBranches(normalized);
+        return normalized;
       }
     } catch (err) {
       console.error(err);
     }
+    setBranches([]);
+    return [];
   }, [novelId, chapterId]);
 
   const fetchLatestReview = useCallback(async () => {
@@ -657,6 +663,7 @@ export default function ChapterEditorPage() {
 
   const handleSucceededChapterJob = useCallback((job: JobQueueItem) => {
     if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
+      setBranchCacheLoaded(false);
       void fetchBranches();
       return;
     }
@@ -917,6 +924,7 @@ export default function ChapterEditorPage() {
         }
         
         if (type === 'CHAPTER_GENERATE_BRANCHES') {
+          setBranchCacheLoaded(false);
           setShowBranchPanel(true);
         }
         return true;
@@ -927,6 +935,25 @@ export default function ChapterEditorPage() {
       return false;
     }
   };
+
+  const handleOpenBranchPanel = useCallback(async () => {
+    setShowBranchPanel(true);
+    const cachedBranches = await fetchBranches();
+    if (cachedBranches.length > 0) {
+      setBranchCacheLoaded(true);
+      setSelectedBranch((previous) => previous && cachedBranches.some((item) => item.id === previous.id)
+        ? previous
+        : cachedBranches[0]);
+      toast({
+        variant: 'info',
+        description: '已加载上次缓存分支，可直接采用，或点击“重新生成”覆盖缓存。',
+      });
+      return;
+    }
+
+    setBranchCacheLoaded(false);
+    await createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: branchCountSetting });
+  }, [branchCountSetting, createJob, fetchBranches, toast]);
 
   const requestBranchIteration = useCallback(
     async ({
@@ -956,6 +983,7 @@ export default function ChapterEditorPage() {
       const normalizedBranchCount = typeof branchCount === 'number' && Number.isFinite(branchCount)
         ? Math.max(2, Math.min(5, Math.floor(branchCount)))
         : branchCountSetting;
+      setBranchCacheLoaded(false);
       const queued = await createJob('CHAPTER_GENERATE_BRANCHES', {
         ...input,
         branchCount: normalizedBranchCount,
@@ -1046,6 +1074,7 @@ export default function ChapterEditorPage() {
           setIterationRound(1);
           setFeedback('');
           setSelectedBranch(null);
+          setBranchCacheLoaded(false);
           setBranchDetailMode('preview');
           setReviewResult(null);
           setConsistencyResult(null);
@@ -1081,6 +1110,7 @@ export default function ChapterEditorPage() {
   };
 
   const handleRegenerateBranches = async () => {
+    setBranchCacheLoaded(false);
     const queued = await createJob('CHAPTER_GENERATE_BRANCHES', {
       branchCount: branchCountSetting,
     });
@@ -1274,6 +1304,7 @@ export default function ChapterEditorPage() {
                         </option>
                       ))}
                     </select>
+                    <span className="text-[11px] text-zinc-500">缓存最多保留 3 条</span>
                     <label className="text-xs text-zinc-500">筛选</label>
                     <select
                       value={branchVerdictFilter}
@@ -1308,6 +1339,16 @@ export default function ChapterEditorPage() {
                     </Button>
                   </div>
                 </div>
+
+                {branchCacheLoaded && !isLoading && branches.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 border-b border-emerald-500/20 bg-emerald-500/8 px-6 py-2.5 text-xs text-emerald-100">
+                    <span className="rounded-full border border-emerald-500/35 bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-200">
+                      已加载缓存
+                    </span>
+                    <span>这是你上次生成但未应用的分支结果。</span>
+                    <span className="text-emerald-200/80">可直接采用，或点击右上“重新生成”覆盖缓存。</span>
+                  </div>
+                )}
 
                 <div className="flex-1 flex overflow-hidden">
                   <div className={`${selectedBranch ? 'w-[42%] xl:w-[38%]' : 'w-full'} grid grid-cols-1 gap-4 overflow-y-auto p-5 transition-all duration-300 custom-scrollbar ${!selectedBranch ? 'lg:grid-cols-2 2xl:grid-cols-3' : ''}`}>
@@ -2689,7 +2730,7 @@ export default function ChapterEditorPage() {
                 variant="secondary"
                 size="sm"
                 className="min-w-[98px] shrink-0"
-                onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: branchCountSetting })}
+                onClick={() => void handleOpenBranchPanel()}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
                 loadingText="生成中..."
                 disabled={!canGenerateBranches}
