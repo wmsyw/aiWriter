@@ -24,6 +24,7 @@ interface InspirationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (inspiration: Inspiration) => void;
+  onSelectAndCreate?: (inspiration: Inspiration) => void;
   genre: string;
   targetWords: number;
 }
@@ -62,6 +63,7 @@ export default function InspirationModal({
   isOpen,
   onClose,
   onSelect,
+  onSelectAndCreate,
   genre,
   targetWords
 }: InspirationModalProps) {
@@ -463,7 +465,20 @@ export default function InspirationModal({
                                 )}
                               </div>
 
-                              <div className="flex justify-end">
+                              <div className="flex justify-end gap-2">
+                                {onSelectAndCreate && (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="border-emerald-500/30 text-emerald-200 hover:text-emerald-100"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onSelectAndCreate(item);
+                                    }}
+                                  >
+                                    应用并创建
+                                  </Button>
+                                )}
                                 <Button
                                   variant="primary"
                                   size="sm"

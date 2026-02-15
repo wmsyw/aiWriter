@@ -40,6 +40,40 @@ const DEFAULT_CONTINUITY_GATE = {
   rejectScore: 4.9,
   maxRepairAttempts: 1,
 };
+type CreationMode = 'inspiration' | 'manual';
+
+interface NovelFormState {
+  title: string;
+  description: string;
+  type: 'long';
+  theme: string;
+  genre: string;
+  targetWords: number;
+  chapterCount: number;
+  protagonist: string;
+  worldSetting: string;
+  goldenFinger: string;
+  keywords: string[];
+  keywordsInput: string;
+  creativeIntent: string;
+  specialRequirements: string;
+  outlineMode: string;
+  continuityGateEnabled: boolean;
+  continuityPassScore: number;
+  continuityRejectScore: number;
+  continuityMaxRepairAttempts: number;
+}
+
+const CREATION_MODE_META: Record<CreationMode, { title: string; description: string }> = {
+  inspiration: {
+    title: '通过灵感生成创建',
+    description: '先挑选灵感，再自动回填核心设定，适合没想好方向时快速开书。',
+  },
+  manual: {
+    title: '自行创建',
+    description: '手动填写题材与设定，自由度最高，适合已有清晰构思。',
+  },
+};
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -70,17 +104,27 @@ function NovelWizardContent() {
   const { toast } = useToast();
   const presetTitle = searchParams.get('title') || '';
   const presetDescription = searchParams.get('description') || '';
+  const initialNovelId = searchParams.get('novelId');
+  const presetCreationMode = searchParams.get('creationMode');
+  const initialCreationMode: CreationMode | null =
+    presetCreationMode === 'inspiration' || presetCreationMode === 'manual'
+      ? presetCreationMode
+      : null;
 
   const [step, setStep] = useState(0);
-  const [novelId, setNovelId] = useState<string | null>(searchParams.get('novelId'));
+  const [novelId, setNovelId] = useState<string | null>(initialNovelId);
   const [isSaving, setIsSaving] = useState(false);
   const [jobStatus, setJobStatus] = useState<string>('');
   const [wizardPhase, setWizardPhase] = useState<WizardPhase>('idle');
 // Unused outline states removed
   const [autoGenerating, setAutoGenerating] = useState(false);
   const pollingAbortRef = useRef<AbortController | null>(null);
+  const [creationMode, setCreationMode] = useState<CreationMode | null>(
+    initialNovelId ? (initialCreationMode || 'manual') : initialCreationMode
+  );
+  const [selectedInspiration, setSelectedInspiration] = useState<Inspiration | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<NovelFormState>({
     title: presetTitle,
     description: presetDescription,
     type: 'long' as const,
@@ -101,6 +145,7 @@ function NovelWizardContent() {
     continuityRejectScore: DEFAULT_CONTINUITY_GATE.rejectScore,
     continuityMaxRepairAttempts: DEFAULT_CONTINUITY_GATE.maxRepairAttempts,
   });
+  const shouldChooseCreationMode = !novelId && !creationMode;
 
 // Outline state removed
   const [isInspirationModalOpen, setIsInspirationModalOpen] = useState(false);
@@ -138,13 +183,17 @@ function NovelWizardContent() {
 
   const keywordsDisplay = useMemo(() => formData.keywords.join('、'), [formData.keywords]);
 
-  const setField = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) => {
+  const setField = <K extends keyof NovelFormState>(key: K, value: NovelFormState[K]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  const resolveKeywordsFromForm = (data: NovelFormState) => {
+    const parsed = parseKeywordsInput(data.keywordsInput);
+    return parsed.length > 0 ? parsed : data.keywords;
+  };
+
   const resolveKeywords = () => {
-    const parsed = parseKeywordsInput(formData.keywordsInput);
-    return parsed.length > 0 ? parsed : formData.keywords;
+    return resolveKeywordsFromForm(formData);
   };
 
   const updateWizardPhase = (phase: WizardPhase, message: string) => {
@@ -170,6 +219,18 @@ function NovelWizardContent() {
     return saveNovel(false, { preserveStatus: true });
   };
 
+  const buildInspirationPatch = (
+    inspiration: Inspiration,
+    current: NovelFormState,
+  ): Partial<NovelFormState> => ({
+    title: current.title || inspiration.name,
+    theme: inspiration.theme,
+    protagonist: inspiration.protagonist,
+    worldSetting: inspiration.worldSetting,
+    keywords: inspiration.keywords,
+    keywordsInput: formatKeywordsInput(inspiration.keywords),
+  });
+
   const applyPreset = (preset: InspirationPreset) => {
     setFormData(prev => ({
       ...prev,
@@ -181,17 +242,56 @@ function NovelWizardContent() {
     }));
   };
 
+  const handleSelectCreationMode = (mode: CreationMode) => {
+    setCreationMode(mode);
+    if (mode === 'manual') {
+      setSelectedInspiration(null);
+      return;
+    }
+    setIsInspirationModalOpen(true);
+  };
+
+  const ensureCreationModeBeforeSave = () => {
+    if (novelId) return true;
+    if (!creationMode) {
+      toast({
+        variant: 'warning',
+        description: '请先选择创建方式（灵感创建或自行创建）。',
+      });
+      return false;
+    }
+    if (creationMode === 'inspiration' && !selectedInspiration) {
+      toast({
+        variant: 'warning',
+        description: '灵感创建模式下，请先选择并应用一个灵感。',
+      });
+      setIsInspirationModalOpen(true);
+      return false;
+    }
+    return true;
+  };
+
   const handleInspirationSelect = (inspiration: Inspiration) => {
-    setFormData(prev => ({
-      ...prev,
-      title: prev.title || inspiration.name,
-      theme: inspiration.theme,
-      protagonist: inspiration.protagonist,
-      worldSetting: inspiration.worldSetting,
-      keywords: inspiration.keywords,
-      keywordsInput: formatKeywordsInput(inspiration.keywords),
-    }));
+    const patch = buildInspirationPatch(inspiration, formData);
+    setFormData(prev => ({ ...prev, ...patch }));
+    setCreationMode('inspiration');
+    setSelectedInspiration(inspiration);
     setIsInspirationModalOpen(false);
+  };
+
+  const handleInspirationSelectAndCreate = async (inspiration: Inspiration) => {
+    const patch = buildInspirationPatch(inspiration, formData);
+    setFormData(prev => ({ ...prev, ...patch }));
+    setCreationMode('inspiration');
+    setSelectedInspiration(inspiration);
+    setIsInspirationModalOpen(false);
+
+    if (novelId) return;
+
+    await saveNovel(true, {
+      overrideFields: patch,
+      selectedInspiration: inspiration,
+    });
   };
   
   const currentGenrePresets = getInspirationPresetsByGenre(formData.genre);
@@ -219,43 +319,61 @@ function NovelWizardContent() {
     }
   };
 
-  const saveNovel = async (advanceStep: boolean = true, options?: { preserveStatus?: boolean }) => {
-    if (!formData.title.trim()) return null;
+  type SaveNovelOptions = {
+    preserveStatus?: boolean;
+    overrideFields?: Partial<NovelFormState>;
+    selectedInspiration?: Inspiration | null;
+  };
+
+  const saveNovel = async (advanceStep: boolean = true, options: SaveNovelOptions = {}) => {
+    const effectiveForm: NovelFormState = {
+      ...formData,
+      ...(options.overrideFields || {}),
+    };
+    if (!effectiveForm.title.trim()) return null;
     setIsSaving(true);
     updateWizardPhase('saving', '保存基础信息中...');
 
-    const normalizedKeywords = resolveKeywords();
+    const normalizedKeywords = resolveKeywordsFromForm(effectiveForm);
     const continuityPassScore = Number(
-      clamp(formData.continuityPassScore, 4.5, 9.5).toFixed(2)
+      clamp(effectiveForm.continuityPassScore, 4.5, 9.5).toFixed(2)
     );
     const continuityRejectScore = Number(
-      clamp(formData.continuityRejectScore, 3.5, continuityPassScore - 0.4).toFixed(2)
+      clamp(effectiveForm.continuityRejectScore, 3.5, continuityPassScore - 0.4).toFixed(2)
     );
     const continuityMaxRepairAttempts = clamp(
-      Math.floor(formData.continuityMaxRepairAttempts || 0),
+      Math.floor(effectiveForm.continuityMaxRepairAttempts || 0),
       0,
       5
     );
+    const resolvedCreationMode = creationMode || 'manual';
+    const resolvedSelectedInspiration = options.selectedInspiration ?? selectedInspiration;
 
     const payload = {
-      title: formData.title,
-      description: formData.description,
-      type: formData.type,
-      theme: formData.theme || undefined,
-      genre: formData.genre || undefined,
-      targetWords: formData.targetWords || undefined,
-      chapterCount: formData.chapterCount || undefined,
-      protagonist: formData.protagonist || undefined,
-      worldSetting: formData.worldSetting || undefined,
-      goldenFinger: formData.goldenFinger || undefined,
+      title: effectiveForm.title,
+      description: effectiveForm.description,
+      type: effectiveForm.type,
+      theme: effectiveForm.theme || undefined,
+      genre: effectiveForm.genre || undefined,
+      targetWords: effectiveForm.targetWords || undefined,
+      chapterCount: effectiveForm.chapterCount || undefined,
+      protagonist: effectiveForm.protagonist || undefined,
+      worldSetting: effectiveForm.worldSetting || undefined,
+      goldenFinger: effectiveForm.goldenFinger || undefined,
       keywords: normalizedKeywords,
-      creativeIntent: formData.creativeIntent || undefined,
-      specialRequirements: formData.specialRequirements || undefined,
-      outlineMode: formData.outlineMode,
-      inspirationData: normalizedKeywords.length ? { keywords: normalizedKeywords } : undefined,
+      creativeIntent: effectiveForm.creativeIntent || undefined,
+      specialRequirements: effectiveForm.specialRequirements || undefined,
+      outlineMode: effectiveForm.outlineMode,
+      inspirationData: {
+        creationMode: resolvedCreationMode,
+        keywords: normalizedKeywords,
+        ...(resolvedCreationMode === 'inspiration' && resolvedSelectedInspiration
+          ? { selectedInspiration: resolvedSelectedInspiration }
+          : {}),
+      },
       workflowConfig: {
         continuityGate: {
-          enabled: formData.continuityGateEnabled,
+          enabled: effectiveForm.continuityGateEnabled,
           passScore: continuityPassScore,
           rejectScore: continuityRejectScore,
           maxRepairAttempts: continuityMaxRepairAttempts,
@@ -296,13 +414,16 @@ function NovelWizardContent() {
       return null;
     } finally {
       setIsSaving(false);
-      if (!options?.preserveStatus) {
+      if (!options.preserveStatus) {
         resetWizardPhase();
       }
     }
   };
 
-  const handleSaveBasicInfo = () => saveNovel(true);
+  const handleSaveBasicInfo = () => {
+    if (!ensureCreationModeBeforeSave()) return;
+    return saveNovel(true);
+  };
 
   const runJob = async (
     type: string,
@@ -407,6 +528,8 @@ function NovelWizardContent() {
   };
 
   const handleAutoGenerateCoreSetup = async () => {
+    if (!ensureCreationModeBeforeSave()) return;
+
     if (!formData.title.trim()) {
       toast({
         variant: 'warning',
@@ -460,6 +583,7 @@ function NovelWizardContent() {
         isOpen={isInspirationModalOpen}
         onClose={() => setIsInspirationModalOpen(false)}
         onSelect={handleInspirationSelect}
+        onSelectAndCreate={!novelId ? handleInspirationSelectAndCreate : undefined}
         genre={formData.genre}
         targetWords={formData.targetWords}
       />
@@ -483,6 +607,57 @@ function NovelWizardContent() {
           </Button>
         )}
       </div>
+
+      {!novelId && (
+        <Card className="p-5 space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white">创建方式</h2>
+              <p className="text-sm text-zinc-400 mt-1">
+                先选择创建方式，再继续填写设定并创建小说。
+              </p>
+              {creationMode && (
+                <p className="text-xs text-emerald-300 mt-2">
+                  当前：{CREATION_MODE_META[creationMode].title}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-auto">
+              <Button
+                type="button"
+                variant={creationMode === 'inspiration' ? 'primary' : 'secondary'}
+                className="h-auto min-h-[64px] justify-start px-4 py-3 text-left"
+                onClick={() => handleSelectCreationMode('inspiration')}
+              >
+                <div className="space-y-1">
+                  <div className="font-semibold">{CREATION_MODE_META.inspiration.title}</div>
+                  <div className="text-xs text-zinc-300/90">
+                    {CREATION_MODE_META.inspiration.description}
+                  </div>
+                </div>
+              </Button>
+              <Button
+                type="button"
+                variant={creationMode === 'manual' ? 'primary' : 'secondary'}
+                className="h-auto min-h-[64px] justify-start px-4 py-3 text-left"
+                onClick={() => handleSelectCreationMode('manual')}
+              >
+                <div className="space-y-1">
+                  <div className="font-semibold">{CREATION_MODE_META.manual.title}</div>
+                  <div className="text-xs text-zinc-300/90">
+                    {CREATION_MODE_META.manual.description}
+                  </div>
+                </div>
+              </Button>
+            </div>
+          </div>
+          {creationMode === 'inspiration' && !selectedInspiration && (
+            <p className="text-xs text-amber-300">
+              当前为灵感创建模式，请先在“AI 生成灵感”中应用一个灵感，再执行创建。
+            </p>
+          )}
+        </Card>
+      )}
 
       <div className="relative">
         <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2 rounded-full" />
@@ -555,7 +730,13 @@ function NovelWizardContent() {
                         variant="ai"
                         size="sm"
                         onClick={handleAutoGenerateCoreSetup}
-                        disabled={autoGenerating || isSaving || !formData.title.trim()}
+                        disabled={
+                          autoGenerating ||
+                          isSaving ||
+                          !formData.title.trim() ||
+                          shouldChooseCreationMode ||
+                          (creationMode === 'inspiration' && !selectedInspiration)
+                        }
                         isLoading={autoGenerating}
                         loadingText="生成中..."
                         leftIcon="✨"
@@ -876,12 +1057,16 @@ function NovelWizardContent() {
                   variant="primary"
                   size="lg"
                   className="px-8 shadow-emerald-500/20"
-                  disabled={isSaving}
+                  disabled={isSaving || shouldChooseCreationMode}
                   isLoading={isSaving}
                   loadingText="创建中..."
                   onClick={handleSaveBasicInfo}
                 >
-                  创建小说
+                  {shouldChooseCreationMode
+                    ? '请选择创建方式'
+                    : creationMode === 'inspiration' && !selectedInspiration
+                      ? '请先应用灵感'
+                      : '创建小说'}
                 </Button>
               </div>
             </Card>
