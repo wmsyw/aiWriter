@@ -6,6 +6,7 @@ import {
   formatReviewTimestamp,
   isReviewStale,
   normalizeChapterReviewData,
+  normalizeConsistencyCheckData,
   parseChapterReviewState,
   pickSelectedSuggestions,
 } from '@/src/shared/chapter-review';
@@ -121,5 +122,52 @@ describe('chapter review shared helpers', () => {
     expect(outline?.score).toBe(8.6);
     expect(normalized.summary).toContain('整体结构稳定');
     expect(normalized.highlights).toContain('伏笔回收节奏合理');
+  });
+
+  it('normalizes consistency payload with dimensions, highlights and issues', () => {
+    const normalized = normalizeConsistencyCheckData(
+      {
+        consistency_score: 8.2,
+        dimension_scores: {
+          character_consistency: { score: 8.5, comment: '角色行为延续自然' },
+          timeline_consistency: { score: 7.6, comment: '存在轻微时间跳跃' },
+        },
+        highlights: ['角色称谓保持统一', '前情承接顺畅'],
+        improvement_suggestions: [
+          { priority: 'high', suggestion: '补一句时间锚点，消除跳跃感' },
+        ],
+        issues: [
+          {
+            id: 'i-1',
+            category: 'timeline',
+            severity: 'major',
+            title: '时间线衔接偏弱',
+            description: '昼夜切换缺少过渡句',
+            evidence: '上一段仍为夜晚，下一段直接变为清晨',
+            suggestion: '增加一段过渡描述',
+          },
+        ],
+        summary: {
+          overall_assessment: '整体稳定，个别时间衔接可优化',
+          recommendation: '建议修改后发布',
+          strongest_aspect: '角色一致性',
+          weakest_aspect: '时间线一致性',
+        },
+        next_actions: ['先修正时间线，再复查人物状态'],
+      },
+      {
+        character_consistency: '角色一致性',
+        timeline_consistency: '时间线一致性',
+      }
+    );
+
+    expect(normalized.overallScore).toBeGreaterThan(8);
+    expect(normalized.dimensions).toHaveLength(2);
+    expect(normalized.dimensions[0]?.label).toBe('角色一致性');
+    expect(normalized.highlights).toContain('角色称谓保持统一');
+    expect(normalized.improvements[0]).toContain('补一句时间锚点');
+    expect(normalized.issues[0]?.severity).toBe('major');
+    expect(normalized.isConsistent).toBe(false);
+    expect(normalized.nextActions[0]).toContain('先修正时间线');
   });
 });

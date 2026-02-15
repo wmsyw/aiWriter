@@ -32,9 +32,11 @@ import {
   formatReviewTimestamp,
   isReviewStale,
   normalizeChapterReviewData,
+  normalizeConsistencyCheckData,
   parseChapterReviewState,
   pickSelectedSuggestions,
   type ChapterReviewState,
+  type NormalizedConsistencyData,
   type NormalizedReviewData,
 } from '@/src/shared/chapter-review';
 
@@ -286,6 +288,17 @@ const CANON_DIMENSION_LABELS: Record<string, string> = {
   'timeline_consistency': '时间线一致性',
 };
 
+const CONSISTENCY_DIMENSION_LABELS: Record<string, string> = {
+  'character_consistency': '角色一致性',
+  'timeline_consistency': '时间线一致性',
+  'world_consistency': '世界观一致性',
+  'geography_consistency': '空间地理一致性',
+  'power_system_consistency': '力量体系一致性',
+  'plot_logic_consistency': '情节逻辑一致性',
+  'detail_consistency': '细节一致性',
+  'consistency': '综合一致性',
+};
+
 export default function ChapterEditorPage() {
   const { toast } = useToast();
   const params = useParams();
@@ -361,6 +374,11 @@ export default function ChapterEditorPage() {
   const normalizedReview = useMemo<NormalizedReviewData>(
     () => normalizeChapterReviewData(reviewResult, REVIEW_DIMENSION_LABELS),
     [reviewResult]
+  );
+
+  const normalizedConsistency = useMemo<NormalizedConsistencyData>(
+    () => normalizeConsistencyCheckData(consistencyResult, CONSISTENCY_DIMENSION_LABELS),
+    [consistencyResult]
   );
 
   const selectedReviewSuggestions = useMemo(
@@ -789,11 +807,12 @@ export default function ChapterEditorPage() {
       showReviewPanel &&
       reviewPanelActiveTab === 'review' &&
       !reviewResult &&
+      novel?.isFanfiction &&
       !!consistencyResult
     ) {
       setReviewPanelActiveTab('consistency');
     }
-  }, [showReviewPanel, reviewPanelActiveTab, reviewResult, consistencyResult]);
+  }, [showReviewPanel, reviewPanelActiveTab, reviewResult, consistencyResult, novel?.isFanfiction]);
 
   useEffect(() => {
     setSelectedSuggestionKeys(
@@ -1141,16 +1160,18 @@ export default function ChapterEditorPage() {
   );
 
   const hasContent = !!content && content.trim().length > 0;
+  const shouldRunConsistencyCheck = novel?.isFanfiction === true;
   const canGenerate = true;
   const canGenerateBranches = hasContent;
   const canReview = hasContent;
   const canDeai = hasContent;
   const canComplete = hasContent;
   const canCanonCheck = hasContent && novel?.isFanfiction;
+  const hasConsistencyArtifacts = shouldRunConsistencyCheck && !!consistencyResult;
   const hasReviewArtifacts = !!(
     reviewState.hasReview ||
     reviewResult ||
-    consistencyResult ||
+    hasConsistencyArtifacts ||
     canonCheckResult ||
     canonCheckError
   );
@@ -1803,9 +1824,11 @@ export default function ChapterEditorPage() {
   const renderReviewPanel = () => {
     if (!mounted) return null;
     const hasReview = reviewState.hasReview || !!reviewResult;
-    const hasConsistency = !!consistencyResult;
+    const hasConsistency = shouldRunConsistencyCheck && !!consistencyResult;
     const isReviewing = activeJobs.some(
-      (job) => isReviewScoreJobType(job.type) || job.type === 'CONSISTENCY_CHECK'
+      (job) =>
+        isReviewScoreJobType(job.type) ||
+        (shouldRunConsistencyCheck && job.type === 'CONSISTENCY_CHECK')
     );
 
     const getScoreColor = (score: number) => {
@@ -1821,8 +1844,36 @@ export default function ChapterEditorPage() {
     };
 
     const normalized = normalizedReview;
+    const normalizedConsistencyData = normalizedConsistency;
     const selectedSuggestionCount = selectedReviewSuggestions.length;
     const totalSuggestionCount = normalized.suggestions.length;
+
+    const getConsistencySeverityTone = (
+      severity: string
+    ): { dot: string; tag: string } => {
+      if (severity === 'critical') {
+        return {
+          dot: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.65)]',
+          tag: 'text-red-300 border-red-500/25 bg-red-500/15',
+        };
+      }
+      if (severity === 'major' || severity === 'warning') {
+        return {
+          dot: 'bg-orange-500',
+          tag: 'text-orange-300 border-orange-500/25 bg-orange-500/15',
+        };
+      }
+      if (severity === 'minor') {
+        return {
+          dot: 'bg-amber-500',
+          tag: 'text-amber-300 border-amber-500/25 bg-amber-500/15',
+        };
+      }
+      return {
+        dot: 'bg-zinc-500',
+        tag: 'text-zinc-300 border-zinc-500/25 bg-zinc-500/15',
+      };
+    };
 
     const handleOneClickIterate = async () => {
       const combinedFeedback = composeReviewIterationFeedback({
@@ -2199,40 +2250,163 @@ export default function ChapterEditorPage() {
                     </div>
                   )}
 
-                  {reviewPanelActiveTab === 'consistency' && consistencyResult && (
-                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                       <Card className="p-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/14 to-sky-900/12">
-                         <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                           <Icons.CheckCircle className="w-5 h-5 text-emerald-400" />
-                           一致性检查报告
-                         </h3>
-                         <div className="space-y-4">
-                           {consistencyResult.issues && consistencyResult.issues.length > 0 ? (
-                             consistencyResult.issues.map((issue: any, i: number) => (
-                               <div key={i} className="bg-white/5 p-4 rounded-xl border border-red-500/20">
-                                  <div className="flex items-start gap-3">
-                                    <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                                    <div>
-                                      <h4 className="font-bold text-red-200 mb-1">{issue.type || '潜在冲突'}</h4>
-                                      <p className="text-gray-300 text-sm">{issue.description}</p>
-                                      {issue.reference && (
-                                        <div className="mt-2 text-xs text-gray-500 bg-black/20 p-2 rounded">
-                                          参考: {issue.reference}
+                  {reviewPanelActiveTab === 'consistency' && hasConsistency && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <Card className="md:col-span-1 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/12 to-sky-500/10 p-6 text-center">
+                          <div className="mb-2 text-sm font-bold uppercase tracking-wider text-zinc-400">一致性总分</div>
+                          <div className={`mb-2 text-5xl font-bold ${getScoreColor(normalizedConsistencyData.overallScore)}`}>
+                            {normalizedConsistencyData.overallScore}
+                            <span className="text-xl text-zinc-500">/10</span>
+                          </div>
+                          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                            {normalizedConsistencyData.isConsistent ? '整体稳定' : '存在冲突'}
+                          </div>
+                        </Card>
+
+                        <div className="md:col-span-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {normalizedConsistencyData.dimensions.map((dimension) => (
+                            <Card key={dimension.key} className="flex flex-col justify-center rounded-xl border border-white/10 bg-zinc-900/55 p-4">
+                              <div className="mb-2 flex items-end justify-between">
+                                <span className="text-sm text-zinc-400">{dimension.label}</span>
+                                <span className={`font-bold ${getScoreColor(dimension.score)}`}>{dimension.score}</span>
+                              </div>
+                              <div className="mb-1 h-2 overflow-hidden rounded-full bg-zinc-700/50">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-1000 ${getProgressBarColor(dimension.score)}`}
+                                  style={{ width: `${dimension.score * 10}%` }}
+                                />
+                              </div>
+                              {dimension.comment && (
+                                <div className="truncate text-[10px] text-zinc-500">{dimension.comment}</div>
+                              )}
+                            </Card>
+                          ))}
+                          {normalizedConsistencyData.dimensions.length === 0 && (
+                            <Card className="rounded-xl border border-white/10 bg-zinc-900/55 p-4 text-sm text-zinc-500">
+                              暂无维度评分数据
+                            </Card>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <div className="space-y-6 lg:col-span-2">
+                          <Card className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-white">
+                              <Icons.CheckCircle className="h-5 w-5 text-emerald-400" />
+                              一致性检查详情
+                            </h3>
+                            {normalizedConsistencyData.summary && (
+                              <div className="mb-4 rounded-xl border border-white/10 bg-zinc-900/65 p-4 text-sm leading-relaxed text-zinc-300">
+                                {normalizedConsistencyData.summary}
+                              </div>
+                            )}
+
+                            {normalizedConsistencyData.issues.length > 0 ? (
+                              <div className="space-y-3">
+                                {normalizedConsistencyData.issues.map((issue, index) => {
+                                  const tone = getConsistencySeverityTone(issue.severity);
+                                  return (
+                                    <details
+                                      key={`${issue.id}-${index}`}
+                                      className="group overflow-hidden rounded-xl border border-white/10 bg-zinc-900/55 transition-colors open:bg-zinc-900/80"
+                                    >
+                                      <summary className="flex cursor-pointer select-none items-start gap-3 p-4">
+                                        <div className={`mt-1 h-2 w-2 flex-shrink-0 rounded-full ${tone.dot}`} />
+                                        <div className="flex-1">
+                                          <div className="mb-1 flex items-start justify-between gap-2">
+                                            <h4 className="text-sm font-bold text-zinc-200">
+                                              {issue.title}
+                                            </h4>
+                                            <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${tone.tag}`}>
+                                              {issue.severity}
+                                            </span>
+                                          </div>
+                                          <p className="line-clamp-2 text-xs text-zinc-400 transition-all group-open:line-clamp-none">
+                                            {issue.description}
+                                          </p>
                                         </div>
-                                      )}
-                                    </div>
-                                  </div>
-                               </div>
-                             ))
-                           ) : (
-                             <div className="text-center py-10 text-gray-400">
-                               <Icons.CheckCircle className="w-12 h-12 text-green-500/50 mx-auto mb-3" />
-                               <p>未发现明显的一致性问题，您的设定保持得很好！</p>
-                             </div>
-                           )}
-                         </div>
-                       </Card>
-                     </motion.div>
+                                        <Icons.ChevronLeft className="h-4 w-4 -rotate-90 text-zinc-500 transition-transform group-open:rotate-90" />
+                                      </summary>
+                                      <div className="space-y-2 px-4 pb-4 pl-9">
+                                        {issue.location && (
+                                          <div className="text-xs text-zinc-500">位置：{issue.location}</div>
+                                        )}
+                                        {issue.evidence && (
+                                          <div className="rounded border border-white/5 bg-black/30 p-2 font-mono text-xs text-zinc-500">
+                                            证据：{issue.evidence}
+                                          </div>
+                                        )}
+                                        {issue.suggestion && (
+                                          <div className="flex gap-2 text-xs text-emerald-300/85">
+                                            <Icons.Sparkles className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                                            {issue.suggestion}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </details>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="py-10 text-center text-zinc-400">
+                                <Icons.CheckCircle className="mx-auto mb-3 h-12 w-12 text-emerald-500/40" />
+                                <p>未发现明显一致性问题，设定承接良好。</p>
+                              </div>
+                            )}
+                          </Card>
+                        </div>
+
+                        <div className="space-y-6">
+                          <Card className="rounded-2xl border border-white/10 bg-zinc-900/55 p-6">
+                            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-400">优点亮点</h3>
+                            {normalizedConsistencyData.highlights.length > 0 ? (
+                              <ul className="space-y-2 text-sm text-emerald-100/90">
+                                {normalizedConsistencyData.highlights.map((highlight, index) => (
+                                  <li key={`${highlight}-${index}`} className="flex gap-2">
+                                    <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                    <span>{highlight}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-sm text-zinc-500">暂无优点摘要</div>
+                            )}
+                          </Card>
+
+                          <Card className="rounded-2xl border border-white/10 bg-zinc-900/55 p-6">
+                            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-400">改进点</h3>
+                            {normalizedConsistencyData.improvements.length > 0 ? (
+                              <ol className="space-y-2 text-sm text-amber-100/90">
+                                {normalizedConsistencyData.improvements.map((item, index) => (
+                                  <li key={`${item}-${index}`} className="flex gap-2">
+                                    <span className="text-amber-300">{index + 1}.</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            ) : (
+                              <div className="text-sm text-zinc-500">暂无改进建议</div>
+                            )}
+
+                            {normalizedConsistencyData.nextActions.length > 0 && (
+                              <div className="mt-4 rounded-xl border border-sky-500/20 bg-sky-500/10 p-3">
+                                <div className="mb-2 text-xs text-sky-300">下一步建议</div>
+                                <ul className="space-y-1 text-xs text-sky-100/90">
+                                  {normalizedConsistencyData.nextActions.map((action, index) => (
+                                    <li key={`${action}-${index}`} className="flex gap-2">
+                                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-300" />
+                                      <span>{action}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </Card>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
                 </div>
                 
@@ -2744,11 +2918,17 @@ export default function ChapterEditorPage() {
                   className="min-w-[84px] shrink-0"
                   onClick={() => {
                     createJob('REVIEW_SCORE_5DIM');
-                    createJob('CONSISTENCY_CHECK');
+                    if (shouldRunConsistencyCheck) {
+                      createJob('CONSISTENCY_CHECK');
+                    }
                     setShowReviewPanel(true);
                     setReviewPanelActiveTab('review');
                   }}
-                  isLoading={activeJobs.some(j => isReviewScoreJobType(j.type) || j.type === 'CONSISTENCY_CHECK')}
+                  isLoading={activeJobs.some(
+                    (job) =>
+                      isReviewScoreJobType(job.type) ||
+                      (shouldRunConsistencyCheck && job.type === 'CONSISTENCY_CHECK')
+                  )}
                   loadingText="审阅中..."
                   disabled={!canReview}
                 >
@@ -2850,7 +3030,7 @@ export default function ChapterEditorPage() {
                   <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:ml-auto sm:w-auto">
                     {hasReviewArtifacts && (
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {(reviewState.hasReview || reviewResult || consistencyResult) && (
+                        {(reviewState.hasReview || reviewResult || hasConsistencyArtifacts) && (
                           <Button
                             variant="ghost"
                             size="sm"

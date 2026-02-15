@@ -125,9 +125,21 @@ ${charactersBrief}`,
   CONSISTENCY_CHECK: (chapterContent: string) =>
     `请检查以下章节与既有设定的一致性，并仅输出 JSON：
 {
-  "score": 0-10,
-  "issues": [{"type":"设定|人设|时间线|能力体系","problem":"问题","evidence":"证据","suggestion":"建议"}],
-  "summary": "结论"
+  "consistency_score": 0-10,
+  "isConsistent": true/false,
+  "score_explanation": "评分说明",
+  "dimension_scores": {
+    "character_consistency": {"score": 0-10, "comment": "角色一致性评语"},
+    "timeline_consistency": {"score": 0-10, "comment": "时间线一致性评语"},
+    "world_consistency": {"score": 0-10, "comment": "世界观一致性评语"},
+    "power_system_consistency": {"score": 0-10, "comment": "力量体系一致性评语"},
+    "plot_logic_consistency": {"score": 0-10, "comment": "剧情逻辑一致性评语"}
+  },
+  "highlights": ["优点1", "优点2"],
+  "improvement_suggestions": [{"priority":"high|medium|low","category":"分类","suggestion":"改进建议"}],
+  "issues": [{"category":"设定|人设|时间线|能力体系|剧情逻辑","severity":"critical|major|minor|nitpick","title":"问题标题","description":"问题描述","evidence":"证据","suggestion":"建议","location":"原文位置"}],
+  "summary": {"overall_assessment":"结论","recommendation":"可发布|建议修改后发布|需要重点修改","strongest_aspect":"最佳表现","weakest_aspect":"最需改进"},
+  "next_actions": ["下一步建议1","下一步建议2"]
 }
 章节内容：
 ${chapterContent}`,

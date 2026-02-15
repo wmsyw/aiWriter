@@ -920,7 +920,34 @@ const BUILT_IN_TEMPLATES_RAW = {
 
 {
   "consistency_score": 8.5,
+  "isConsistent": true,
   "score_explanation": "总分说明",
+  "dimension_scores": {
+    "character_consistency": {
+      "score": 8,
+      "comment": "角色一致性评语"
+    },
+    "timeline_consistency": {
+      "score": 8,
+      "comment": "时间线一致性评语"
+    },
+    "world_consistency": {
+      "score": 8,
+      "comment": "世界观与空间地理一致性评语"
+    },
+    "power_system_consistency": {
+      "score": 8,
+      "comment": "力量体系一致性评语"
+    },
+    "plot_logic_consistency": {
+      "score": 8,
+      "comment": "情节逻辑一致性评语"
+    },
+    "detail_consistency": {
+      "score": 8,
+      "comment": "细节一致性评语"
+    }
+  },
   
   "anti_hallucination_check": {
     "outline_violations": [
@@ -984,6 +1011,19 @@ const BUILT_IN_TEMPLATES_RAW = {
       "advice": "建议处理方式"
     }
   ],
+
+  "highlights": [
+    "本章在一致性方面做得好的地方 1",
+    "本章在一致性方面做得好的地方 2"
+  ],
+
+  "improvement_suggestions": [
+    {
+      "priority": "high|medium|low",
+      "category": "character|timeline|geography|power_system|plot_logic|details",
+      "suggestion": "可直接执行的改进建议"
+    }
+  ],
   
   "summary": {
     "total_issues": 3,
@@ -991,8 +1031,15 @@ const BUILT_IN_TEMPLATES_RAW = {
     "major": 1,
     "minor": 2,
     "overall_assessment": "整体评估说明",
-    "recommendation": "发布建议：可直接发布|建议修改后发布|需要重点修改"
-  }
+    "recommendation": "发布建议：可直接发布|建议修改后发布|需要重点修改",
+    "strongest_aspect": "表现最佳维度",
+    "weakest_aspect": "最需要改进维度"
+  },
+
+  "next_actions": [
+    "下一步优先操作 1",
+    "下一步优先操作 2"
+  ]
 }
 
 ## 严重程度说明
@@ -1008,6 +1055,7 @@ const BUILT_IN_TEMPLATES_RAW = {
 2. **优先级排序**：按严重程度排列问题
 3. **可操作**：给出具体的修改建议
 4. **全面但精准**：覆盖各个维度，但不要鸡蛋里挑骨头
+5. **完整输出**：所有关键字段都要给出，缺失项用空数组/空字符串，不要省略字段
 
 请输出检查结果：`,
     variables: [

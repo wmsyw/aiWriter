@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionUser } from '@/src/server/middleware/audit';
+import { prisma } from '@/src/server/db';
 import { createJob, listJobs } from '@/src/server/services/jobs';
 import { checkRateLimit } from '@/src/server/middleware/rate-limit';
 
@@ -350,6 +351,35 @@ export async function POST(req: NextRequest) {
     const inputSchema = jobInputSchemas[data.type];
     if (inputSchema) {
       inputSchema.parse(data.input);
+    }
+
+    if (data.type === 'CONSISTENCY_CHECK') {
+      const chapterId = typeof data.input.chapterId === 'string' ? data.input.chapterId : '';
+      if (!chapterId) {
+        return NextResponse.json({ error: 'chapterId is required' }, { status: 400 });
+      }
+
+      const chapter = await prisma.chapter.findFirst({
+        where: {
+          id: chapterId,
+          novel: { userId: session.userId },
+        },
+        select: {
+          id: true,
+          novel: {
+            select: { genre: true },
+          },
+        },
+      });
+
+      if (!chapter) {
+        return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
+      }
+
+      const isFanfiction = chapter.novel.genre?.includes('同人') || false;
+      if (!isFanfiction) {
+        return NextResponse.json({ error: '一致性检查仅对同人文开放' }, { status: 400 });
+      }
     }
     
     const job = await createJob(session.userId, data.type, data.input);
