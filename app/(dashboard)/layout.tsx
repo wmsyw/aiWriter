@@ -223,6 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     () => navItems.find(i => pathname === i.href || (i.href !== '/dashboard' && pathname.startsWith(i.href))) || navItems[0],
     [pathname]
   );
+  const isChapterEditorRoute = pathname.includes('/chapters/');
 
   const breadcrumb = useMemo(() => {
     const segments = pathname.split('/').filter(Boolean);
@@ -359,7 +360,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </Button>
       </aside>
 
-      <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-screen relative z-10 overflow-y-auto transition-all duration-300`}>
+      <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-screen relative z-10 ${isChapterEditorRoute ? 'overflow-hidden' : 'overflow-y-auto'} transition-all duration-300`}>
         <header className="h-[var(--dashboard-topbar-height)] min-h-[var(--dashboard-topbar-height)] flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/88 backdrop-blur-xl border-b border-zinc-800/60">
           <div className="flex items-center gap-4 min-w-0">
             <Button

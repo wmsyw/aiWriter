@@ -254,6 +254,15 @@ const DEFAULT_CHAPTER_REVIEW_STATE: ChapterReviewState = {
 };
 
 const REVIEW_DIMENSION_LABELS: Record<string, string> = {
+  'standaloneQuality': '章节独立质量',
+  'standalone_quality': '章节独立质量',
+  'continuity': '前文连贯性',
+  'outlineAdherence': '大纲符合度',
+  'outline_adherence': '大纲符合度',
+  'characterConsistency': '人物一致性',
+  'character_consistency': '人物一致性',
+  'hookManagement': '钩子管理',
+  'hook_management': '钩子管理',
   'plot': '情节发展',
   'plot_development': '情节发展',
   'pacing': '叙事节奏',
@@ -299,6 +308,25 @@ const CONSISTENCY_DIMENSION_LABELS: Record<string, string> = {
   'consistency': '综合一致性',
 };
 
+function getPriorityLabel(priority?: string): string {
+  if (priority === 'high') return '高优先';
+  if (priority === 'medium') return '中优先';
+  if (priority === 'low') return '低优先';
+  if (priority === 'normal') return '普通';
+  return '未分级';
+}
+
+function getSeverityLabel(severity?: string): string {
+  if (severity === 'critical') return '致命';
+  if (severity === 'major') return '重要';
+  if (severity === 'minor') return '次要';
+  if (severity === 'nitpick') return '细节';
+  if (severity === 'warning') return '警告';
+  if (severity === 'info') return '提示';
+  if (severity === 'creative_liberty') return '创作自由';
+  return '普通';
+}
+
 export default function ChapterEditorPage() {
   const { toast } = useToast();
   const params = useParams();
@@ -320,6 +348,7 @@ export default function ChapterEditorPage() {
   const [reviewState, setReviewState] = useState<ChapterReviewState>(
     DEFAULT_CHAPTER_REVIEW_STATE
   );
+  const [deaiRollbackVersionId, setDeaiRollbackVersionId] = useState<string | null>(null);
   const [consistencyResult, setConsistencyResult] = useState<any>(null);
   const [canonCheckResult, setCanonCheckResult] = useState<any>(null);
   const [canonCheckError, setCanonCheckError] = useState<string | null>(null);
@@ -691,6 +720,13 @@ export default function ChapterEditorPage() {
       if (typeof output?.content === 'string' && output.content.trim()) {
         applyIncomingContent(output.content);
       }
+      if (job.type === 'DEAI_REWRITE') {
+        setDeaiRollbackVersionId(
+          typeof output?.prePolishVersionId === 'string' ? output.prePolishVersionId : null
+        );
+      } else {
+        setDeaiRollbackVersionId(null);
+      }
       applyChapterGenerationOutput(job.output);
       void refreshChapter();
       return;
@@ -1028,12 +1064,21 @@ export default function ChapterEditorPage() {
 
 
 
-  const handleRestore = (versionId: string) => {
+  const handleRestore = (
+    versionId: string,
+    options?: {
+      title?: string;
+      message?: string;
+      confirmText?: string;
+      successMessage?: string;
+      onSuccess?: () => void;
+    }
+  ) => {
     setConfirmState({
       isOpen: true,
-      title: '确认恢复版本',
-      message: '确定要恢复此版本吗？当前更改将被覆盖。',
-      confirmText: '恢复版本',
+      title: options?.title || '确认恢复版本',
+      message: options?.message || '确定要恢复此版本吗？当前更改将被覆盖。',
+      confirmText: options?.confirmText || '恢复版本',
       variant: 'warning',
       onConfirm: async () => {
         try {
@@ -1044,12 +1089,15 @@ export default function ChapterEditorPage() {
             throw new Error('恢复版本失败');
           }
 
-          const data = await res.json();
-          applyIncomingContent(data.chapter.content);
+          await res.json();
+          await refreshChapter();
+          await fetchVersions();
           setShowDiff(null);
+          setDeaiRollbackVersionId(null);
+          options?.onSuccess?.();
           toast({
             variant: 'success',
-            description: '已恢复到所选版本',
+            description: options?.successMessage || '已恢复到所选版本',
           });
         } catch (err) {
           console.error('Restore failed', err);
@@ -1059,6 +1107,17 @@ export default function ChapterEditorPage() {
           });
         }
       },
+    });
+  };
+
+  const handleRollbackBeforeDeai = () => {
+    if (!deaiRollbackVersionId) return;
+    handleRestore(deaiRollbackVersionId, {
+      title: '确认回退润色',
+      message: '将恢复到本次润色前的版本。当前内容会被覆盖，是否继续？',
+      confirmText: '回退润色',
+      successMessage: '已回退到润色前版本',
+      onSuccess: () => setDeaiRollbackVersionId(null),
     });
   };
 
@@ -1097,6 +1156,7 @@ export default function ChapterEditorPage() {
           setBranchDetailMode('preview');
           setReviewResult(null);
           setConsistencyResult(null);
+          setDeaiRollbackVersionId(null);
           setReviewState({ ...DEFAULT_CHAPTER_REVIEW_STATE });
           await updateChapterMeta({
             generationStage: 'generated',
@@ -2148,7 +2208,7 @@ export default function ChapterEditorPage() {
                                             suggestion.priority === 'high' ? 'text-red-400 border-red-500/20 bg-red-500/10' : 
                                             suggestion.priority === 'medium' ? 'text-orange-400 border-orange-500/20 bg-orange-500/10' : 
                                             'text-yellow-400 border-yellow-500/20 bg-yellow-500/10'
-                                          }`}>{suggestion.priority}</span>
+                                          }`}>{getPriorityLabel(suggestion.priority)}</span>
                                         </div>
                                         <p className="text-xs text-gray-400 line-clamp-2 group-open:line-clamp-none transition-all">{suggestion.issue}</p>
                                       </div>
@@ -2320,7 +2380,7 @@ export default function ChapterEditorPage() {
                                               {issue.title}
                                             </h4>
                                             <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${tone.tag}`}>
-                                              {issue.severity}
+                                              {getSeverityLabel(issue.severity)}
                                             </span>
                                           </div>
                                           <p className="line-clamp-2 text-xs text-zinc-400 transition-all group-open:line-clamp-none">
@@ -2663,7 +2723,7 @@ export default function ChapterEditorPage() {
                                           issue.severity === 'critical' ? 'text-red-400 border-red-500/20 bg-red-500/10' : 
                                           issue.severity === 'major' ? 'text-orange-400 border-orange-500/20 bg-orange-500/10' : 
                                           'text-yellow-400 border-yellow-500/20 bg-yellow-500/10'
-                                        }`}>{issue.severity || 'normal'}</span>
+                                        }`}>{getSeverityLabel(issue.severity)}</span>
                                       </div>
                                       <p className="text-xs text-gray-400 line-clamp-2 group-open:line-clamp-none transition-all">{issue.description}</p>
                                     </div>
@@ -2947,6 +3007,19 @@ export default function ChapterEditorPage() {
                 <Icons.Wand2 className="h-3.5 w-3.5 text-violet-300" />
                 润色
               </Button>
+              {deaiRollbackVersionId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-w-[132px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                  onClick={handleRollbackBeforeDeai}
+                  disabled={activeJobs.some((job) => job.type === 'DEAI_REWRITE')}
+                  title="回退到最近一次润色前的内容"
+                >
+                  <Icons.RotateCcw className="h-3.5 w-3.5 text-amber-300" />
+                  回退润色前
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 size="sm"
@@ -3091,19 +3164,19 @@ export default function ChapterEditorPage() {
             </div>
           )}
 
-          <div className="custom-scrollbar flex-1 overflow-y-auto scroll-smooth">
-            <div className={`mx-auto w-full px-4 pb-16 pt-4 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
-              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
-                <div className="px-6 pb-8 pt-6 md:px-8">
-                  <div className={`mx-auto w-full ${editorTextMaxWidthClass}`}>
-                    <div className="mb-3 flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-1.5 text-[11px] text-zinc-500">
+          <div className="flex-1 overflow-hidden">
+            <div className={`mx-auto flex h-full w-full px-4 pb-14 pt-4 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
+              <div className="flex h-full w-full overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
+                <div className="flex h-full w-full flex-col px-6 pb-5 pt-5 md:px-8">
+                  <div className={`mx-auto flex h-full w-full flex-col ${editorTextMaxWidthClass}`}>
+                    <div className="mb-3 shrink-0 flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-1.5 text-[11px] text-zinc-500">
                       <span>自动保存已开启，离开输入框会立即保存</span>
                     </div>
                     <textarea
                       value={content}
                       onChange={handleContentChange}
                       onBlur={handleBlur}
-                      className="w-full min-h-[calc(100vh-410px)] resize-none border-none bg-transparent font-serif text-[1.04rem] leading-[1.9] tracking-[0.008em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-[1.12rem]"
+                      className="custom-scrollbar h-full min-h-0 w-full resize-none overflow-y-auto border-none bg-transparent pr-2 font-serif text-[1.04rem] leading-[1.9] tracking-[0.008em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-[1.12rem]"
                       placeholder="开始创作你的章节内容..."
                       aria-label="章节正文"
                       spellCheck={false}

@@ -642,19 +642,28 @@ export async function handleDeaiRewrite(prisma, job, { jobId, userId, input }) {
   });
   const finalContent = slopResult.cleaned;
   const postSlopLevel = detectSlopLevel(finalContent);
+  let prePolishVersionId = null;
+  let polishedVersionId = null;
 
   await prisma.$transaction(async (tx) => {
+    // 在润色前先保存一个可回退版本，支持“一键回退到润色前”。
+    const prePolishVersion = await saveVersion(chapterId, chapter.content || '', tx);
+    prePolishVersionId = prePolishVersion.id;
+
     await tx.chapter.update({
       where: { id: chapterId },
       data: { content: finalContent, generationStage: 'humanized' },
     });
 
-    await saveVersion(chapterId, finalContent, tx);
+    const polishedVersion = await saveVersion(chapterId, finalContent, tx);
+    polishedVersionId = polishedVersion.id;
   });
 
   return {
     content: finalContent,
     wordCount: finalContent.length,
+    prePolishVersionId,
+    polishedVersionId,
     slopCleaning: {
       before: preSlopLevel,
       after: postSlopLevel,
