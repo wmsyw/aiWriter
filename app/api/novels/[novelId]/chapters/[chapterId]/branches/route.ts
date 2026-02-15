@@ -120,12 +120,28 @@ export async function POST(
 
   try {
     await selectBranch(chapterId, parsed.data.versionId);
+    const updatedChapter = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: {
+        content: true,
+        generationStage: true,
+        reviewIterations: true,
+        updatedAt: true,
+      },
+    });
     const postProcess = await enqueuePostGenerationJobs(session.userId, chapterId);
     const analysisQueueError = postProcess.failed.length
       ? postProcess.failed.map((item) => `${item.type}: ${item.error}`).join('; ')
       : null;
     const analysisQueued = postProcess.allQueued;
-    return NextResponse.json({ success: true, analysisQueued, analysisQueueError, postProcess });
+    return NextResponse.json({
+      success: true,
+      analysisQueued,
+      analysisQueueError,
+      postProcess,
+      content: updatedChapter?.content || '',
+      chapter: updatedChapter || null,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

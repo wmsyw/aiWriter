@@ -467,6 +467,16 @@ export default function ChapterEditorPage() {
     }
   }, [applyQueuedPostProcess]);
 
+  const applyIncomingContent = useCallback((nextContent: string) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    setContent(nextContent);
+    lastSavedContent.current = nextContent;
+    setSaveStatus('saved');
+  }, []);
+
   const handleSucceededChapterJob = useCallback((job: JobQueueItem) => {
     if (job.type === 'CHAPTER_GENERATE_BRANCHES') {
       void fetchBranches();
@@ -474,6 +484,10 @@ export default function ChapterEditorPage() {
     }
 
     if (job.type === 'CHAPTER_GENERATE' || job.type === 'DEAI_REWRITE') {
+      const output = toRecord(job.output);
+      if (typeof output?.content === 'string' && output.content.trim()) {
+        applyIncomingContent(output.content);
+      }
       applyChapterGenerationOutput(job.output);
       void refreshChapter();
       return;
@@ -497,7 +511,7 @@ export default function ChapterEditorPage() {
       setCanonCheckResult(job.output);
       setCanonCheckError(null);
     }
-  }, [applyChapterGenerationOutput, fetchBranches, fetchLatestReview, refreshChapter]);
+  }, [applyChapterGenerationOutput, applyIncomingContent, fetchBranches, fetchLatestReview, refreshChapter]);
 
   const handleFailedChapterJob = useCallback((job: JobQueueItem) => {
     if (job.type === 'CANON_CHECK') {
@@ -797,10 +811,8 @@ export default function ChapterEditorPage() {
           }
 
           const data = await res.json();
-          setContent(data.chapter.content);
-          setSaveStatus('saved');
+          applyIncomingContent(data.chapter.content);
           setShowDiff(null);
-          lastSavedContent.current = data.chapter.content;
           toast({
             variant: 'success',
             description: '已恢复到所选版本',
@@ -842,12 +854,11 @@ export default function ChapterEditorPage() {
           if (data?.analysisQueueError) {
             setPostProcessWarning(`后处理派发失败：${data.analysisQueueError}`);
           }
-          setContent(branch.content);
+          applyIncomingContent(typeof data?.content === 'string' ? data.content : branch.content);
           setShowBranchPanel(false);
           setIterationRound(1);
           setFeedback('');
           setSelectedBranch(null);
-          setSaveStatus('unsaved');
           setReviewResult(null);
           setConsistencyResult(null);
           setReviewState({ ...DEFAULT_CHAPTER_REVIEW_STATE });
@@ -942,10 +953,15 @@ export default function ChapterEditorPage() {
       ? '保存中'
       : '待保存';
   const editorContainerMaxWidthClass = focusMode
-    ? 'max-w-5xl'
+    ? 'max-w-6xl'
     : isSidebarOpen
-      ? 'max-w-[980px]'
-      : 'max-w-[1160px]';
+      ? 'max-w-[1120px]'
+      : 'max-w-[1320px]';
+  const editorTextMaxWidthClass = focusMode
+    ? 'max-w-[980px]'
+    : isSidebarOpen
+      ? 'max-w-[860px]'
+      : 'max-w-[980px]';
   const postProcessBadgeTone: Record<PostProcessDisplayStatus, string> = {
     running: 'border-sky-500/35 bg-sky-500/12 text-sky-200',
     succeeded: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-200',
@@ -2141,9 +2157,9 @@ export default function ChapterEditorPage() {
                 审阅
               </Button>
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
-                className="min-w-[84px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                className="min-w-[84px] shrink-0"
                 onClick={() => createJob('DEAI_REWRITE')}
                 isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
                 loadingText="润色中..."
@@ -2153,9 +2169,9 @@ export default function ChapterEditorPage() {
                 润色
               </Button>
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
-                className="min-w-[96px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                className="min-w-[96px] shrink-0"
                 onClick={handleMemoryExtract}
                 isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
                 loadingText="提取中..."
@@ -2195,9 +2211,9 @@ export default function ChapterEditorPage() {
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="w-full space-y-2 xl:w-auto xl:min-w-[460px] xl:max-w-[680px]">
               {postProcessWarning && (
-                <div className="inline-flex min-w-0 max-w-[560px] items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
+                <div className="inline-flex w-full min-w-0 items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
                   <span className="min-w-0 flex-1 truncate" title={postProcessWarning}>{postProcessWarning}</span>
                   <button
                     type="button"
@@ -2209,62 +2225,70 @@ export default function ChapterEditorPage() {
                 </div>
               )}
 
-              {postProcessEntries.length > 0 && (
-                <div className={`flex flex-wrap items-center gap-2 rounded-2xl border px-2 py-2 ${
-                  postProcessFailureCount > 0
-                    ? 'border-red-500/25 bg-red-500/10'
-                    : 'border-white/10 bg-zinc-900/60'
-                }`}>
-                  <span className="px-1 text-[11px] text-zinc-400">后处理</span>
-                  {postProcessEntries.map((item) => (
-                    <span
-                      key={item.type}
-                      className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] ${postProcessBadgeTone[item.status]}`}
-                      title={item.error || `${POST_PROCESS_LABELS[item.type]}${postProcessStatusLabel[item.status]}`}
-                    >
-                      {POST_PROCESS_LABELS[item.type]}·{postProcessStatusLabel[item.status]}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {hasReviewArtifacts && (
-                <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/60 px-2 py-2">
-                  {(reviewState.hasReview || reviewResult || consistencyResult) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="border border-emerald-500/30 bg-emerald-500/12 text-emerald-200 hover:bg-emerald-500/22"
-                      onClick={() => setShowReviewPanel(true)}
-                      title="查看审阅结果"
-                    >
-                      <Icons.CheckCircle className="h-3.5 w-3.5" />
-                      审阅结果
-                    </Button>
+              <div className={`space-y-2 rounded-2xl border px-2.5 py-2 ${
+                postProcessFailureCount > 0
+                  ? 'border-red-500/25 bg-red-500/10'
+                  : 'border-white/10 bg-zinc-900/60'
+              }`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-400">
+                    后处理
+                  </span>
+                  {postProcessEntries.length > 0 ? (
+                    postProcessEntries.map((item) => (
+                      <span
+                        key={item.type}
+                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] ${postProcessBadgeTone[item.status]}`}
+                        title={item.error || `${POST_PROCESS_LABELS[item.type]}${postProcessStatusLabel[item.status]}`}
+                      >
+                        {POST_PROCESS_LABELS[item.type]}·{postProcessStatusLabel[item.status]}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[11px] text-zinc-500">暂无后处理任务</span>
                   )}
-                  {(canonCheckResult || canonCheckError) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={canonCheckError
-                        ? 'border border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/22'
-                        : 'border border-amber-500/30 bg-amber-500/12 text-amber-200 hover:bg-amber-500/22'}
-                      onClick={() => setShowCanonCheckPanel(true)}
-                      title="查看原作符合度结果"
-                    >
-                      <Icons.BookOpen className="h-3.5 w-3.5" />
-                      {canonCheckError ? '检测失败' : '符合度结果'}
-                    </Button>
+
+                  {hasReviewArtifacts && (
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                      {(reviewState.hasReview || reviewResult || consistencyResult) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 border border-emerald-500/30 bg-emerald-500/12 px-2.5 text-[11px] text-emerald-200 hover:bg-emerald-500/22"
+                          onClick={() => setShowReviewPanel(true)}
+                          title="查看审阅结果"
+                        >
+                          <Icons.CheckCircle className="h-3.5 w-3.5" />
+                          审阅结果
+                        </Button>
+                      )}
+                      {(canonCheckResult || canonCheckError) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={canonCheckError
+                            ? 'h-8 border border-red-500/30 bg-red-500/12 px-2.5 text-[11px] text-red-200 hover:bg-red-500/22'
+                            : 'h-8 border border-amber-500/30 bg-amber-500/12 px-2.5 text-[11px] text-amber-200 hover:bg-amber-500/22'}
+                          onClick={() => setShowCanonCheckPanel(true)}
+                          title="查看原作符合度结果"
+                        >
+                          <Icons.BookOpen className="h-3.5 w-3.5" />
+                          {canonCheckError ? '检测失败' : '符合度结果'}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
 
-              <div className="inline-flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-[11px] text-zinc-400">
-                <span className="font-mono">{wordCount} 字</span>
-                <span className="h-3 w-px bg-white/10" />
-                <span className="font-mono">{charCount} 字符</span>
-                <span className="hidden h-3 w-px bg-white/10 md:inline-block" />
-                <span className="hidden font-mono text-zinc-500 md:inline">{shortcutSaveHint} 保存</span>
+                <div className="flex items-center justify-end">
+                  <div className="inline-flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-zinc-400">
+                    <span className="font-mono">{wordCount} 字</span>
+                    <span className="h-3 w-px bg-white/10" />
+                    <span className="font-mono">{charCount} 字符</span>
+                    <span className="hidden h-3 w-px bg-white/10 md:inline-block" />
+                    <span className="hidden font-mono text-zinc-500 md:inline">{shortcutSaveHint} 保存</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2292,11 +2316,11 @@ export default function ChapterEditorPage() {
           )}
 
           <div className="custom-scrollbar flex-1 overflow-y-auto scroll-smooth">
-            <div className={`mx-auto w-full px-4 pb-24 pt-6 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
+            <div className={`mx-auto w-full px-4 pb-16 pt-4 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
               <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
                 <div className="px-6 pb-8 pt-6 md:px-8">
-                  <div className="mx-auto w-full max-w-[780px]">
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-2 text-[11px] text-zinc-500">
+                  <div className={`mx-auto w-full ${editorTextMaxWidthClass}`}>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-1.5 text-[11px] text-zinc-500">
                       <span>自动保存已开启，离开输入框会立即保存</span>
                       <span className="font-mono">{shortcutSaveHint} 手动保存</span>
                     </div>
@@ -2304,7 +2328,7 @@ export default function ChapterEditorPage() {
                       value={content}
                       onChange={handleContentChange}
                       onBlur={handleBlur}
-                      className="w-full min-h-[calc(100vh-470px)] resize-none border-none bg-transparent font-serif text-[1.06rem] leading-[2.05] tracking-[0.01em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-[1.15rem]"
+                      className="w-full min-h-[calc(100vh-410px)] resize-none border-none bg-transparent font-serif text-[1.04rem] leading-[1.9] tracking-[0.008em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-[1.12rem]"
                       placeholder="开始创作你的章节内容..."
                       aria-label="章节正文"
                       spellCheck={false}

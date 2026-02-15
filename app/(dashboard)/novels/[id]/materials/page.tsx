@@ -351,7 +351,7 @@ export default function MaterialsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`h-9 rounded-xl px-4 text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'border border-emerald-400/45 bg-emerald-500/20 text-emerald-50 font-semibold tracking-[0.01em] shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_12px_24px_-14px_rgba(16,185,129,0.85)] hover:bg-emerald-500/26' 
+                  ? 'border border-emerald-400/45 bg-emerald-500/20 !text-white font-semibold tracking-[0.01em] [text-shadow:0_1px_1px_rgba(0,0,0,0.45)] shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_12px_24px_-14px_rgba(16,185,129,0.85)] hover:bg-emerald-500/26' 
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
