@@ -3018,7 +3018,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         </section>
 
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="space-y-5">
-          <div className="sticky top-3 z-20 space-y-3">
+          <div className="sticky dashboard-sticky-offset z-30 space-y-3">
             <TabsList variant="pills" className="w-fit max-w-full justify-start overflow-x-auto rounded-2xl border border-zinc-800/80 bg-zinc-900/75 p-1 shadow-lg shadow-black/25 backdrop-blur no-scrollbar mask-linear-fade">
               {tabs.map((tab) => {
                 const meta = TAB_META[tab as DisplayTab];
@@ -3383,24 +3383,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           className="min-w-[136px]"
                         >
                           {nextDraftChapter ? `生成第 ${nextDraftChapter.order + 1} 章` : '生成下一章'}
-                        </Button>
-                        <Button
-                          variant={blockingInfo.hasBlocking ? 'secondary' : 'primary'}
-                          onClick={handleCreateChapter}
-                          disabled={blockingInfo.hasBlocking}
-                          title={blockingInfo.hasBlocking ? '请先处理待确认实体' : ''}
-                          leftIcon={
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          }
-                          className={
-                            blockingInfo.hasBlocking
-                              ? 'cursor-not-allowed border border-zinc-700/80 bg-zinc-700/45 text-zinc-400'
-                              : 'min-w-[120px] shadow-lg shadow-emerald-500/20'
-                          }
-                        >
-                          添加新章节
                         </Button>
                       </div>
                     </div>
