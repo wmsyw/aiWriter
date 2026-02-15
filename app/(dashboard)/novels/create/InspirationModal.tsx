@@ -129,12 +129,12 @@ export default function InspirationModal({
   genre,
   targetWords
 }: InspirationModalProps) {
+  const initialTargetWords =
+    typeof targetWords === 'number' && Number.isFinite(targetWords) ? targetWords : 100;
   const [step, setStep] = useState<'settings' | 'generating' | 'results'>('settings');
   const [generateMode, setGenerateMode] = useState<'replace' | 'append'>('replace');
   const [selectedGenre, setSelectedGenre] = useState(genre || '其他');
-  const [selectedTargetWords, setSelectedTargetWords] = useState(
-    Math.min(1000, Math.max(10, targetWords || 100)),
-  );
+  const [selectedTargetWords, setSelectedTargetWords] = useState(initialTargetWords);
   const [targetPlatform, setTargetPlatform] = useState('通用网文平台');
   const [count, setCount] = useState(5);
   const [audience, setAudience] = useState('全年龄');
@@ -153,7 +153,7 @@ export default function InspirationModal({
   const inspirationsRef = useRef<Inspiration[]>([]);
   const criteriaRef = useRef({
     genre: genre || '其他',
-    targetWords: Math.min(1000, Math.max(10, targetWords || 100)),
+    targetWords: initialTargetWords,
     targetPlatform: '通用网文平台',
     audience,
     keywords,
@@ -251,7 +251,8 @@ export default function InspirationModal({
     if (isOpen) {
       setGenerateMode('replace');
       const initialGenre = genre || '其他';
-      const initialTargetWords = Math.min(1000, Math.max(10, targetWords || 100));
+      const initialTargetWords =
+        typeof targetWords === 'number' && Number.isFinite(targetWords) ? targetWords : 100;
       setSelectedGenre(initialGenre);
       setSelectedTargetWords(initialTargetWords);
       const cached = inspirationCache.get(
@@ -429,14 +430,11 @@ export default function InspirationModal({
                   <label className="text-sm font-medium text-zinc-400">目标字数（万字）</label>
                   <Input
                     type="number"
-                    min={10}
-                    max={1000}
                     value={selectedTargetWords}
-                    onChange={(e) =>
-                      setSelectedTargetWords(
-                        Math.min(1000, Math.max(10, parseInt(e.target.value, 10) || 100)),
-                      )
-                    }
+                    onChange={(e) => {
+                      const nextValue = Number(e.target.value);
+                      setSelectedTargetWords(Number.isFinite(nextValue) ? nextValue : 0);
+                    }}
                   />
                 </div>
                 <div className="space-y-2">

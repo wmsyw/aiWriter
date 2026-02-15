@@ -225,7 +225,7 @@ export async function handleWizardInspiration(prisma, job, { jobId, userId, inpu
 
   const context = {
     genre: genre || '玄幻',
-    target_words: targetWords || 100,
+    target_words: Number.isFinite(targetWords) ? targetWords : 100,
     target_platform: targetPlatform || '通用网文平台',
     target_audience: targetAudience || '男性读者',
     keywords: sanitizedKeywords,

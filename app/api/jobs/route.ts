@@ -254,7 +254,7 @@ const jobInputSchemas: Record<string, z.ZodType> = {
   WIZARD_CHARACTERS: wizardCharactersInputSchema,
   WIZARD_INSPIRATION: z.object({
     genre: z.string().max(200),
-    targetWords: z.number().min(10).max(1000),
+    targetWords: z.number(),
     targetPlatform: z.string().max(100).optional(),
     targetAudience: z.string().max(500).optional(),
     keywords: z.string().max(MAX_FIELD_LENGTH).optional(),
