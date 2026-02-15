@@ -1,5 +1,10 @@
 import { createAdapter, applyProviderCapabilitiesToRequest, getProviderCapabilities } from '../../src/server/adapters/providers.js';
 import { decryptApiKey } from '../../src/core/crypto.js';
+import {
+  applyRuntimePromptPolicy,
+  normalizeAgentRuntimeCategory,
+  resolveRuntimePriority,
+} from '../../src/shared/agent-runtime-policy.js';
 
 const log = (level, message, data = {}) => {
   const timestamp = new Date().toISOString();
@@ -195,9 +200,15 @@ export async function generateWithAgentRuntime({
 }) {
   const params = agent?.params || {};
   const effectiveModel = resolveModel(agent?.model, defaultModel, config.defaultModel);
+  const runtimeCategory = normalizeAgentRuntimeCategory(agent?.category);
+  const normalizedMessages = applyRuntimePromptPolicy(messages, {
+    category: runtimeCategory,
+    responseFormat: responseFormat || null,
+    agentName: agent?.name || null,
+  });
 
   const request = {
-    messages,
+    messages: normalizedMessages,
     model: effectiveModel,
     temperature: temperature ?? params.temperature ?? 0.7,
     maxTokens: maxTokens ?? params.maxTokens ?? 4000,
@@ -210,6 +221,13 @@ export async function generateWithAgentRuntime({
   const response = await withConcurrencyLimit(
     () => adapter.generate(config, request),
     timeoutMs,
+    {
+      category: runtimeCategory,
+      priority: resolveRuntimePriority({
+        category: runtimeCategory,
+        responseFormat: responseFormat || null,
+      }),
+    }
   );
 
   if (prisma && userId && jobId) {
@@ -276,45 +294,146 @@ export async function resolveAgentAndTemplate(prisma, { userId, agentId, agentNa
   return value;
 }
 
-const MAX_CONCURRENT_AI_CALLS = 4;
+const MAX_CONCURRENT_AI_CALLS = Math.max(1, Number.parseInt(process.env.AI_MAX_CONCURRENT_CALLS || '4', 10));
+const CATEGORY_CONCURRENCY_CAPS = {
+  writing: Math.max(1, MAX_CONCURRENT_AI_CALLS - 2),
+  review: Math.min(2, MAX_CONCURRENT_AI_CALLS),
+  utility: 1,
+  default: 1,
+};
+const PRIORITY_AGING_INTERVAL_MS = 5000;
+
 let activeAICalls = 0;
+const activeAICallsByCategory = new Map();
 const aiCallQueue = [];
 
-export async function withConcurrencyLimit(fn, timeoutMs = 300000) {
-  return new Promise((resolve, reject) => {
-    const execute = async () => {
-      activeAICalls++;
-      let timedOut = false;
-      const timeoutId = setTimeout(() => {
-        timedOut = true;
-        reject(new Error(`AI request timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
+function getCategoryCap(category) {
+  const normalized = normalizeAgentRuntimeCategory(category);
+  const cap = CATEGORY_CONCURRENCY_CAPS[normalized] ?? CATEGORY_CONCURRENCY_CAPS.default;
+  return Math.min(Math.max(1, cap), MAX_CONCURRENT_AI_CALLS);
+}
 
-      try {
-        const result = await fn();
-        if (!timedOut) {
-          clearTimeout(timeoutId);
-          resolve(result);
-        }
-      } catch (err) {
-        if (!timedOut) {
-          clearTimeout(timeoutId);
-          reject(err);
-        }
-      } finally {
-        activeAICalls--;
-        if (aiCallQueue.length > 0) {
-          const next = aiCallQueue.shift();
-          next();
-        }
-      }
-    };
+function getActiveCategoryCount(category) {
+  const normalized = normalizeAgentRuntimeCategory(category);
+  return activeAICallsByCategory.get(normalized) ?? 0;
+}
 
-    if (activeAICalls < MAX_CONCURRENT_AI_CALLS) {
-      execute();
-    } else {
-      aiCallQueue.push(execute);
+function adjustActiveCategoryCount(category, delta) {
+  const normalized = normalizeAgentRuntimeCategory(category);
+  const next = getActiveCategoryCount(normalized) + delta;
+  if (next <= 0) {
+    activeAICallsByCategory.delete(normalized);
+    return;
+  }
+  activeAICallsByCategory.set(normalized, next);
+}
+
+function canRunQueueItem(item) {
+  if (activeAICalls >= MAX_CONCURRENT_AI_CALLS) return false;
+  const category = normalizeAgentRuntimeCategory(item.category);
+  if (getActiveCategoryCount(category) < getCategoryCap(category)) {
+    return true;
+  }
+
+  // 软配额：如果没有其他类别在等待并且可运行，允许当前类别借用空闲槽位。
+  return !aiCallQueue.some((queuedItem) => {
+    const queuedCategory = normalizeAgentRuntimeCategory(queuedItem.category);
+    if (queuedCategory === category) return false;
+    return getActiveCategoryCount(queuedCategory) < getCategoryCap(queuedCategory);
+  });
+}
+
+function getEffectivePriority(item) {
+  const waitingMs = Date.now() - item.enqueuedAt;
+  const agingBonus = Math.floor(waitingMs / PRIORITY_AGING_INTERVAL_MS);
+  return item.priority + agingBonus;
+}
+
+function dequeueNextRunnableItem() {
+  let selectedIndex = -1;
+  let selectedPriority = -Infinity;
+  let selectedAt = Infinity;
+
+  for (let i = 0; i < aiCallQueue.length; i++) {
+    const item = aiCallQueue[i];
+    if (!canRunQueueItem(item)) continue;
+    const effectivePriority = getEffectivePriority(item);
+    if (
+      effectivePriority > selectedPriority ||
+      (effectivePriority === selectedPriority && item.enqueuedAt < selectedAt)
+    ) {
+      selectedIndex = i;
+      selectedPriority = effectivePriority;
+      selectedAt = item.enqueuedAt;
     }
+  }
+
+  if (selectedIndex < 0) return null;
+  return aiCallQueue.splice(selectedIndex, 1)[0] ?? null;
+}
+
+function executeWithTimeout(fn, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`AI request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    Promise.resolve()
+      .then(fn)
+      .then((result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(result);
+      })
+      .catch((error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
+async function runQueueItem(item) {
+  activeAICalls++;
+  adjustActiveCategoryCount(item.category, 1);
+
+  try {
+    const result = await executeWithTimeout(item.fn, item.timeoutMs);
+    item.resolve(result);
+  } catch (error) {
+    item.reject(error);
+  } finally {
+    activeAICalls--;
+    adjustActiveCategoryCount(item.category, -1);
+    pumpAICallQueue();
+  }
+}
+
+function pumpAICallQueue() {
+  while (activeAICalls < MAX_CONCURRENT_AI_CALLS) {
+    const next = dequeueNextRunnableItem();
+    if (!next) break;
+    runQueueItem(next);
+  }
+}
+
+export async function withConcurrencyLimit(fn, timeoutMs = 300000, options = {}) {
+  return new Promise((resolve, reject) => {
+    aiCallQueue.push({
+      fn,
+      timeoutMs,
+      resolve,
+      reject,
+      enqueuedAt: Date.now(),
+      category: normalizeAgentRuntimeCategory(options.category),
+      priority: typeof options.priority === 'number' ? options.priority : 60,
+    });
+    pumpAICallQueue();
   });
 }
 

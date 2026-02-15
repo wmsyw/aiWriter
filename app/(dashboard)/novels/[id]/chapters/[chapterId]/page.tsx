@@ -2225,7 +2225,7 @@ export default function ChapterEditorPage() {
                 </div>
               )}
 
-              <div className={`space-y-2 rounded-2xl border px-2.5 py-2 ${
+              <div className={`rounded-2xl border px-2.5 py-2 ${
                 postProcessFailureCount > 0
                   ? 'border-red-500/25 bg-red-500/10'
                   : 'border-white/10 bg-zinc-900/60'
@@ -2248,45 +2248,42 @@ export default function ChapterEditorPage() {
                     <span className="text-[11px] text-zinc-500">暂无后处理任务</span>
                   )}
 
-                  {hasReviewArtifacts && (
-                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                      {(reviewState.hasReview || reviewResult || consistencyResult) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 border border-emerald-500/30 bg-emerald-500/12 px-2.5 text-[11px] text-emerald-200 hover:bg-emerald-500/22"
-                          onClick={() => setShowReviewPanel(true)}
-                          title="查看审阅结果"
-                        >
-                          <Icons.CheckCircle className="h-3.5 w-3.5" />
-                          审阅结果
-                        </Button>
-                      )}
-                      {(canonCheckResult || canonCheckError) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={canonCheckError
-                            ? 'h-8 border border-red-500/30 bg-red-500/12 px-2.5 text-[11px] text-red-200 hover:bg-red-500/22'
-                            : 'h-8 border border-amber-500/30 bg-amber-500/12 px-2.5 text-[11px] text-amber-200 hover:bg-amber-500/22'}
-                          onClick={() => setShowCanonCheckPanel(true)}
-                          title="查看原作符合度结果"
-                        >
-                          <Icons.BookOpen className="h-3.5 w-3.5" />
-                          {canonCheckError ? '检测失败' : '符合度结果'}
-                        </Button>
-                      )}
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                    {hasReviewArtifacts && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(reviewState.hasReview || reviewResult || consistencyResult) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 border border-emerald-500/30 bg-emerald-500/12 px-2.5 text-[11px] text-emerald-200 hover:bg-emerald-500/22"
+                            onClick={() => setShowReviewPanel(true)}
+                            title="查看审阅结果"
+                          >
+                            <Icons.CheckCircle className="h-3.5 w-3.5" />
+                            审阅结果
+                          </Button>
+                        )}
+                        {(canonCheckResult || canonCheckError) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={canonCheckError
+                              ? 'h-8 border border-red-500/30 bg-red-500/12 px-2.5 text-[11px] text-red-200 hover:bg-red-500/22'
+                              : 'h-8 border border-amber-500/30 bg-amber-500/12 px-2.5 text-[11px] text-amber-200 hover:bg-amber-500/22'}
+                            onClick={() => setShowCanonCheckPanel(true)}
+                            title="查看原作符合度结果"
+                          >
+                            <Icons.BookOpen className="h-3.5 w-3.5" />
+                            {canonCheckError ? '检测失败' : '符合度结果'}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    <div className="inline-flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-zinc-400">
+                      <span className="font-mono">{wordCount} 字</span>
+                      <span className="h-3 w-px bg-white/10" />
+                      <span className="font-mono">{charCount} 字符</span>
                     </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end">
-                  <div className="inline-flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-zinc-400">
-                    <span className="font-mono">{wordCount} 字</span>
-                    <span className="h-3 w-px bg-white/10" />
-                    <span className="font-mono">{charCount} 字符</span>
-                    <span className="hidden h-3 w-px bg-white/10 md:inline-block" />
-                    <span className="hidden font-mono text-zinc-500 md:inline">{shortcutSaveHint} 保存</span>
                   </div>
                 </div>
               </div>
@@ -2320,9 +2317,8 @@ export default function ChapterEditorPage() {
               <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
                 <div className="px-6 pb-8 pt-6 md:px-8">
                   <div className={`mx-auto w-full ${editorTextMaxWidthClass}`}>
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-1.5 text-[11px] text-zinc-500">
+                    <div className="mb-3 flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-1.5 text-[11px] text-zinc-500">
                       <span>自动保存已开启，离开输入框会立即保存</span>
-                      <span className="font-mono">{shortcutSaveHint} 手动保存</span>
                     </div>
                     <textarea
                       value={content}

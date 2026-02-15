@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSessionUser } from '@/src/server/middleware/audit';
 import { prisma } from '@/src/server/db';
 import { Orchestrator, type PipelineType, getPipeline } from '@/src/server/orchestrator';
-import { JobType, getBoss } from '@/src/server/services/jobs';
+import { JobType, getBoss, getJobSendOptions } from '@/src/server/services/jobs';
 import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -136,6 +136,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const sendOptions = getJobSendOptions(JobType.PIPELINE_EXECUTE, {
+      expireInSeconds: pipelineType === 'chapter' ? 7200 : 3600,
+      priority: pipelineType === 'chapter' ? 95 : 88,
+    });
+
     queueJobId = await boss.send(JobType.PIPELINE_EXECUTE, {
       jobId: job.id,
       userId: session.userId,
@@ -147,11 +152,7 @@ export async function POST(req: NextRequest) {
         pipelineInput: input,
         executionId: execution.id,
       },
-    }, {
-      retryLimit: 3,
-      retryBackoff: true,
-      expireInSeconds: pipelineType === 'chapter' ? 7200 : 1800,
-    });
+    }, sendOptions);
 
     if (!queueJobId) {
       await prisma.$transaction([

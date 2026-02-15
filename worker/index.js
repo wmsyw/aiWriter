@@ -6,6 +6,7 @@ import pg from 'pg';
 
 import { JobType } from './types.js';
 import { workerLogger } from '../src/core/logger.js';
+import { resolveJobSchedulingProfile, toQueueOptions, toWorkerOptions } from '../src/shared/job-scheduling.js';
 
 const log = workerLogger;
 
@@ -313,27 +314,11 @@ async function startWorker() {
   const allQueues = Object.values(JobType);
   log.info('Creating queues', { count: allQueues.length });
   
-  const AI_HEAVY_QUEUES = [
-    JobType.CHAPTER_GENERATE,
-    JobType.CHAPTER_GENERATE_BRANCHES,
-    JobType.OUTLINE_GENERATE,
-    JobType.OUTLINE_ROUGH,
-    JobType.OUTLINE_DETAILED,
-    JobType.OUTLINE_CHAPTERS,
-    JobType.DEAI_REWRITE,
-    JobType.PIPELINE_EXECUTE,
-  ];
-  
   for (const queue of allQueues) {
     try {
-      const isAIHeavy = AI_HEAVY_QUEUES.includes(queue);
-      await boss.createQueue(queue, {
-        retryLimit: isAIHeavy ? 3 : 2,
-        retryDelay: isAIHeavy ? 30 : 10,
-        retryBackoff: true,
-        expireInSeconds: isAIHeavy ? 7200 : 900,
-      });
-      log.debug('Queue created', { queue, isAIHeavy });
+      const profile = resolveJobSchedulingProfile(queue);
+      await boss.createQueue(queue, toQueueOptions(profile));
+      log.debug('Queue created', { queue, profile });
     } catch (queueErr) {
       log.warn('Queue creation issue', { queue, error: queueErr.message });
     }
@@ -341,7 +326,8 @@ async function startWorker() {
   
   for (const queue of allQueues) {
     try {
-      await boss.work(queue, handleJob);
+      const profile = resolveJobSchedulingProfile(queue);
+      await boss.work(queue, toWorkerOptions(profile), handleJob);
       log.info('Subscribed to queue', { queue });
     } catch (workErr) {
       log.error('Failed to subscribe to queue', { queue }, workErr);

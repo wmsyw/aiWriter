@@ -1,5 +1,11 @@
 import { PgBoss } from 'pg-boss';
 import { prisma } from '../db';
+import {
+  resolveJobSchedulingProfile,
+  toQueueOptions,
+  toSendOptions,
+  type JobSendOptions,
+} from '@/src/shared/job-scheduling';
 
 const log = (level: string, message: string, data: Record<string, unknown> = {}) => {
   const timestamp = new Date().toISOString();
@@ -30,6 +36,9 @@ export const JobType = {
   MATERIAL_SEARCH: 'MATERIAL_SEARCH',
   WIZARD_WORLD_BUILDING: 'WIZARD_WORLD_BUILDING',
   WIZARD_CHARACTERS: 'WIZARD_CHARACTERS',
+  WIZARD_INSPIRATION: 'WIZARD_INSPIRATION',
+  WIZARD_SYNOPSIS: 'WIZARD_SYNOPSIS',
+  WIZARD_GOLDEN_FINGER: 'WIZARD_GOLDEN_FINGER',
   CONTEXT_ASSEMBLE: 'CONTEXT_ASSEMBLE',
   HOOKS_EXTRACT: 'HOOKS_EXTRACT',
   CHAPTER_SUMMARY_GENERATE: 'CHAPTER_SUMMARY_GENERATE',
@@ -56,6 +65,10 @@ export const JobStatus = {
 let boss: PgBoss | null = null;
 let queuesCreated = false;
 
+export function getJobSendOptions(type: string, overrides: Partial<JobSendOptions> = {}): JobSendOptions {
+  return toSendOptions(resolveJobSchedulingProfile(type), overrides);
+}
+
 export async function getBoss() {
   if (!boss) {
     log('INFO', 'Initializing pg-boss instance', { DATABASE_URL: process.env.DATABASE_URL ? '[SET]' : '[NOT SET]' });
@@ -73,7 +86,8 @@ export async function getBoss() {
     const allQueues = Object.values(JobType);
     log('INFO', 'Creating queues', { count: allQueues.length });
     for (const queue of allQueues) {
-      await boss.createQueue(queue);
+      const profile = resolveJobSchedulingProfile(queue);
+      await boss.createQueue(queue, toQueueOptions(profile));
     }
     queuesCreated = true;
     log('INFO', 'All queues created');
@@ -81,7 +95,12 @@ export async function getBoss() {
   return boss;
 }
 
-export async function createJob(userId: string, type: string, input: any) {
+export async function createJob(
+  userId: string,
+  type: string,
+  input: any,
+  options: { sendOptions?: Partial<JobSendOptions> } = {}
+) {
   log('INFO', 'createJob called', { userId, type });
   
   const job = await prisma.job.create({
@@ -92,7 +111,8 @@ export async function createJob(userId: string, type: string, input: any) {
   const pgBoss = await getBoss();
   
   try {
-    const sendResult = await pgBoss.send(type, { jobId: job.id, userId, input }, { retryLimit: 3, retryDelay: 60, retryBackoff: true });
+    const sendOptions = getJobSendOptions(type, options.sendOptions);
+    const sendResult = await pgBoss.send(type, { jobId: job.id, userId, input }, sendOptions);
     log('INFO', 'Job enqueued to pg-boss', { jobId: job.id, type, pgBossJobId: sendResult });
   } catch (sendErr) {
     log('ERROR', 'Failed to enqueue job to pg-boss', { jobId: job.id, type, error: (sendErr as Error).message });

@@ -1,36 +1,92 @@
 export const FALLBACK_PROMPTS = {
   CHAPTER_GENERATE: (chapterNumber: number, novelTitle: string) =>
-    `Write chapter ${chapterNumber} of "${novelTitle}".`,
+    `你是资深网文作者，请为《${novelTitle}》创作第${chapterNumber}章。
+要求：
+1. 只输出正文，不要标题、注释或解释。
+2. 延续既有人设与世界观，不得出现突兀设定。
+3. 本章必须有冲突推进，并以明确钩子收尾。
+4. 语言自然流畅，避免重复句式与AI腔。`,
 
   REVIEW_SCORE: (chapterContent: string) =>
-    `Review this chapter and provide a score from 1-10:\n\n${chapterContent}`,
+    `请评审以下章节，并仅输出 JSON：
+{
+  "overall_score": 0-10,
+  "verdict": "approve|minor_revision|major_revision|reject",
+  "highlights": ["优点1", "优点2"],
+  "issues": [{"severity":"high|medium|low","problem":"问题","suggestion":"建议"}],
+  "summary": "一句话结论"
+}
+章节内容：
+${chapterContent}`,
 
   MEMORY_EXTRACT: (chapterContent: string) =>
-    `请根据以下章节提取钩子、伏笔、情节、人物关系、职业等信息，并输出JSON结构：\n\n${chapterContent}`,
+    `请从以下章节提取结构化记忆，并仅输出 JSON：
+{
+  "hooks": [{"id":"可空","description":"钩子内容","status":"new|ongoing|resolved"}],
+  "foreshadows": [{"description":"伏笔","payoff_hint":"回收方向"}],
+  "plot_progress": [{"event":"事件","impact":"影响"}],
+  "character_relations": [{"a":"角色A","b":"角色B","relation":"关系变化"}],
+  "entities": [{"name":"实体","type":"person|organization|location|item","state":"active|pending"}]
+}
+章节内容：
+${chapterContent}`,
 
   DEAI_REWRITE: (chapterContent: string) =>
-    `请将以下文字改写得更自然、更有文采，消除AI写作的痕迹：\n\n${chapterContent}`,
+    `请对以下文本做“去AI化润色”：
+1. 保留原意、剧情事实和人物关系。
+2. 优化语感、节奏和细节，减少机械重复。
+3. 字数控制在原文±15%以内。
+4. 只输出改写后的正文。
+
+原文：
+${chapterContent}`,
 
   CHARACTER_CHAT: (characterName: string, userMessage: string) =>
-    `You are ${characterName}. Respond to: ${userMessage}`,
+    `你正在扮演角色「${characterName}」。
+请以该角色的世界观、语气和价值观回应用户，不要跳出角色设定。
+用户消息：${userMessage}`,
 
   NOVEL_SEED: (title: string, theme: string, genre: string) =>
-    `请生成简介、世界观和金手指设定（JSON）：\n书名：${title}\n主题：${theme}\n类型：${genre}`,
+    `请基于以下信息生成小说种子，并仅输出 JSON：
+{
+  "synopsis": "200-300字简介",
+  "world_setting": "世界观核心设定",
+  "golden_finger": "主角核心外挂",
+  "core_conflict": "主冲突"
+}
+书名：${title}
+主题：${theme}
+类型：${genre}`,
 
   OUTLINE_ROUGH: (keywords: string, theme: string, genre: string, targetWords: number | string) =>
-    `请生成“粗纲（单卷级）”（JSON 输出）：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}\n目标字数：${targetWords || '未知'}万字\n要求：只输出整卷级主线规划（卷目标/主冲突/阶段里程碑/卷末钩子），禁止逐章内容。`,
+    `请生成“粗纲（单卷级）”，仅输出 JSON，禁止逐章拆解。
+关键词：${keywords || '无'}
+主题：${theme || '无'}
+类型：${genre || '无'}
+目标字数：${targetWords || '未知'}万字
+要求：给出卷目标、核心冲突、阶段里程碑、卷末钩子。`,
 
   OUTLINE_DETAILED: (roughOutlinePayload: string) =>
-    `请基于粗纲生成“细纲（事件簇级）”（JSON 输出）：\n${roughOutlinePayload || '无'}\n要求：每个细纲节点覆盖连续多章（建议10-30章），禁止退化成单章。`,
+    `请基于粗纲生成“细纲（事件簇级）”，仅输出 JSON。
+输入粗纲：
+${roughOutlinePayload || '无'}
+要求：每个节点覆盖连续多章（建议10-30章），包含目标、冲突、转折与结果。`,
 
   OUTLINE_CHAPTERS: (detailedPayload: string) =>
-    `请基于细纲生成“章节纲（单章级）”（JSON 输出）：\n${detailedPayload || '无'}\n要求：每个节点仅对应1章，单章计划字数2000-3000字，必须包含开场承接、冲突推进与章末钩子。`,
+    `请基于细纲生成“章节纲（单章级）”，仅输出 JSON。
+输入细纲：
+${detailedPayload || '无'}
+要求：每章都包含开场承接、冲突推进、章末钩子，单章计划字数 2000-3000。`,
 
   OUTLINE_GENERATE: (keywords: string, theme: string, genre: string) =>
-    `请根据以下要求生成小说大纲：\n关键词：${keywords || '无'}\n主题：${theme || '无'}\n类型：${genre || '无'}`,
+    `请根据以下要求生成完整小说大纲，并仅输出 JSON：
+关键词：${keywords || '无'}
+主题：${theme || '无'}
+类型：${genre || '无'}`,
 
   CHARACTER_BIOS: (charactersBrief: string) =>
-    `请为这些角色生成完整传记（JSON）：\n${charactersBrief}`,
+    `请为以下角色生成完整传记，并仅输出 JSON：
+${charactersBrief}`,
 
   WIZARD_WORLD_BUILDING: (context: {
     theme: string;
@@ -40,7 +96,14 @@ export const FALLBACK_PROMPTS = {
     worldSetting: string;
     specialRequirements: string;
   }) =>
-    `请根据以下信息生成小说世界观设定，并返回 JSON：\n\n字段：world_time_period, world_location, world_atmosphere, world_rules, world_setting\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n已有设定：${context.worldSetting || '无'}\n特殊要求：${context.specialRequirements || '无'}`,
+    `请根据以下信息生成小说世界观设定，并仅返回 JSON。
+字段：world_time_period, world_location, world_atmosphere, world_rules, world_setting
+主题：${context.theme || '无'}
+类型：${context.genre || '无'}
+关键词：${context.keywords || '无'}
+主角：${context.protagonist || '无'}
+已有设定：${context.worldSetting || '无'}
+特殊要求：${context.specialRequirements || '无'}`,
 
   WIZARD_CHARACTERS: (context: {
     theme: string;
@@ -50,13 +113,27 @@ export const FALLBACK_PROMPTS = {
     worldSetting: string;
     characterCount: number;
   }) =>
-    `请根据以下信息生成角色设定，返回 JSON 数组，每项包含 name, role, description, traits, goals：\n\n主题：${context.theme || '无'}\n类型：${context.genre || '无'}\n关键词：${context.keywords || '无'}\n主角：${context.protagonist || '无'}\n世界观：${context.worldSetting || '无'}\n角色数量：${context.characterCount}`,
+    `请根据以下信息生成角色设定，返回 JSON 数组。
+每项字段：name, role, description, traits, goals
+主题：${context.theme || '无'}
+类型：${context.genre || '无'}
+关键词：${context.keywords || '无'}
+主角：${context.protagonist || '无'}
+世界观：${context.worldSetting || '无'}
+角色数量：${context.characterCount}`,
 
   CONSISTENCY_CHECK: (chapterContent: string) =>
-    `请检查以下章节与设定的一致性，输出JSON格式结果：\n\n${chapterContent}`,
+    `请检查以下章节与既有设定的一致性，并仅输出 JSON：
+{
+  "score": 0-10,
+  "issues": [{"type":"设定|人设|时间线|能力体系","problem":"问题","evidence":"证据","suggestion":"建议"}],
+  "summary": "结论"
+}
+章节内容：
+${chapterContent}`,
 
   CANON_CHECK: (chapterContent: string, originalWork: string) =>
-    `你是一位资深的同人文编辑，请对以下章节进行原作符合度检查，输出JSON格式结果：
+    `你是一位资深同人文编辑，请对以下章节进行原作符合度检查，并仅输出 JSON：
 
 ## 待检查章节
 ${chapterContent}
@@ -85,6 +162,6 @@ ${feedback}
 【任务要求】
 请根据用户的反馈意见，在上一轮选中版本的基础上进行改进和优化。
 保持原文的优点，同时针对反馈中提到的问题进行修改。
-生成新的章节内容。
+只输出新的章节正文，不要解释修改过程。
 
 ${basePrompt}`;
