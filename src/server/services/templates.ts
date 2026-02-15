@@ -177,7 +177,7 @@ export function extractVariables(templateContent: string): string[] {
   return Array.from(variables);
 }
 
-export const BUILT_IN_TEMPLATES = {
+const BUILT_IN_TEMPLATES_RAW = {
   CHAPTER_GENERATE: {
     name: '章节写作',
     content: `# 网文大神模式启动
@@ -3720,14 +3720,106 @@ ID：{{target_id}}
       { name: 'search_results', type: 'string' as const, description: '网络搜索结果' },
     ],
   },
-};
+} as const;
+
+const BUILT_IN_PROMPT_OPTIMIZATION_MARKER = '【内置提示词内容增强 v3】';
+
+function shouldEnforceJsonOutput(content: string): boolean {
+  return /(?:\bjson\b|```json|输出格式（JSON）|仅输出 JSON|请严格输出 JSON|返回 JSON|JSON数组)/i.test(content);
+}
+
+function shouldOutputBodyOnly(templateName: string): boolean {
+  return ['章节写作', '去AI化改写', '角色对话'].some((name) => templateName.includes(name));
+}
+
+function getNameSpecificEnhancementLines(templateName: string): string[] {
+  const lines: string[] = [];
+
+  if (/章节写作|去AI化改写/.test(templateName)) {
+    lines.push('6. 叙事必须连续，不得把正文写成提纲、总结或清单。');
+    lines.push('7. 人物行为与语气必须与既有设定一致，禁止突兀人设漂移。');
+  }
+
+  if (/章节评审|一致性检查|原作符合度检查|文章分析/.test(templateName)) {
+    lines.push('6. 评审类任务必须按“结论→证据→建议”顺序输出。');
+    lines.push('7. 建议必须可执行，可直接转成改稿动作。');
+  }
+
+  if (/记忆提取|素材搜索/.test(templateName)) {
+    lines.push('6. 提取类任务要保持结构稳定，缺失字段使用空数组/空字符串，不得漏字段。');
+    lines.push('7. 每条信息应尽量可回溯到原文片段或来源。');
+  }
+
+  if (/大纲生成|粗略大纲生成|细纲生成|章节大纲生成|批量章节大纲生成|单章节大纲生成/.test(templateName)) {
+    lines.push('6. 大纲层级必须清晰：粗纲=卷级，细纲=事件簇级，章节纲=单章级，不得混层。');
+    lines.push('7. 每个节点必须包含目标、冲突、推进结果，禁止空泛描述。');
+  }
+
+  if (/角色生成|角色传记生成|角色对话/.test(templateName)) {
+    lines.push('6. 角色需具备清晰动机、边界与说话风格，避免模板化同质角色。');
+  }
+
+  if (/灵感生成|简介生成|金手指生成|小说引导生成|世界观生成/.test(templateName)) {
+    lines.push('6. 创意类任务需兼顾可写性、差异化与商业吸引力，避免套路化复述。');
+  }
+
+  return lines;
+}
+
+export function optimizeBuiltInTemplateContent(content: string, templateName: string = '通用内置模板'): string {
+  const normalized = (content || '').trim();
+  if (!normalized) return normalized;
+  if (normalized.includes(BUILT_IN_PROMPT_OPTIMIZATION_MARKER)) {
+    return normalized;
+  }
+
+  const basePolicy = [
+    BUILT_IN_PROMPT_OPTIMIZATION_MARKER,
+    '1. 严格遵守任务字段、约束与流程，不得擅自改写任务目标。',
+    '2. 禁止输出思考过程、前后缀解释和无关元信息。',
+    '3. 信息不足时应基于已给上下文保守推断，不得编造事实。',
+  ];
+
+  const outputPolicy = shouldEnforceJsonOutput(normalized)
+    ? [
+        '4. 任务要求 JSON 时：仅输出合法 JSON，禁止 Markdown 代码块。',
+        '5. JSON 字段名必须与要求完全一致，不得新增无关字段。',
+      ]
+    : shouldOutputBodyOnly(templateName)
+      ? ['4. 本任务只输出正文/角色回复，不要附加说明、标题或注释。']
+      : ['4. 非 JSON 任务：只输出最终正文或最终结果。'];
+
+  const nameSpecificPolicy = getNameSpecificEnhancementLines(templateName);
+
+  return `${[...basePolicy, ...outputPolicy, ...nameSpecificPolicy].join('\n')}\n\n${normalized}`;
+}
+
+function optimizeBuiltInTemplates<
+  T extends Record<string, { name: string; content: string; variables: readonly TemplateVariable[] }>
+>(templates: T): T {
+  const optimizedEntries = Object.entries(templates).map(([key, template]) => [
+    key,
+    {
+      ...template,
+      content: optimizeBuiltInTemplateContent(template.content, template.name),
+    },
+  ]);
+  return Object.fromEntries(optimizedEntries) as T;
+}
+
+export const BUILT_IN_TEMPLATES = optimizeBuiltInTemplates(BUILT_IN_TEMPLATES_RAW);
 
 export async function seedBuiltInTemplates(userId: string): Promise<number> {
-  let count = 0;
+  let changedCount = 0;
   
   for (const [key, template] of Object.entries(BUILT_IN_TEMPLATES)) {
     const existing = await prisma.promptTemplate.findFirst({
       where: { userId, name: template.name },
+      select: {
+        id: true,
+        content: true,
+        variables: true,
+      },
     });
     
     if (!existing) {
@@ -3739,9 +3831,26 @@ export async function seedBuiltInTemplates(userId: string): Promise<number> {
           variables: template.variables as any,
         },
       });
-      count++;
+      changedCount++;
+      continue;
+    }
+
+    const desiredVariables = template.variables as any;
+    const contentChanged = existing.content !== template.content;
+    const variablesChanged =
+      JSON.stringify(existing.variables ?? null) !== JSON.stringify(desiredVariables ?? null);
+
+    if (contentChanged || variablesChanged) {
+      await prisma.promptTemplate.update({
+        where: { id: existing.id },
+        data: {
+          content: template.content,
+          variables: desiredVariables,
+        },
+      });
+      changedCount++;
     }
   }
   
-  return count;
+  return changedCount;
 }
