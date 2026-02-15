@@ -4,7 +4,6 @@ import { saveVersion, saveBranchVersions, pruneBranchCache } from '../../src/ser
 import { webSearch, formatSearchResultsForContext, shouldSearchForTopic, extractSearchQueries } from '../../src/server/services/web-search.js';
 import { FALLBACK_PROMPTS, WEB_SEARCH_PREFIX, ITERATION_PROMPT_TEMPLATE } from '../../src/constants/prompts.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime } from '../utils/helpers.js';
-import { checkBlockingPendingEntities } from '../../src/server/services/pending-entities.js';
 import { formatHooksForContext } from '../../src/server/services/hooks.js';
 import { assembleTruncatedContext } from '../../src/server/services/context-assembly.js';
 import { enqueuePostGenerationJobs } from '../../src/server/services/post-generation-jobs.js';
@@ -521,12 +520,6 @@ export async function handleChapterGenerate(prisma, job, { jobId, userId, input 
     }
   }
 
-  const blockingCheck = await checkBlockingPendingEntities(chapter.novelId, chapter.order);
-  if (blockingCheck.blocked) {
-    const pendingNames = blockingCheck.pendingEntities.map(e => e.name).join(', ');
-    throw new Error(`生成被阻塞：前序章节有${blockingCheck.pendingEntities.length}个待确认实体 (${pendingNames})。请先确认后继续。`);
-  }
-
   const resolved = resolveOutlineAndChapterCard(chapter, outline, chapterCard);
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
@@ -729,12 +722,6 @@ export async function handleChapterGenerateBranches(prisma, job, { jobId, userId
     if (incompleteCount > 0) {
       throw new Error('请先完成前序章节');
     }
-  }
-
-  const blockingCheck = await checkBlockingPendingEntities(chapter.novelId, chapter.order);
-  if (blockingCheck.blocked) {
-    const pendingNames = blockingCheck.pendingEntities.map(e => e.name).join(', ');
-    throw new Error(`生成被阻塞：前序章节有${blockingCheck.pendingEntities.length}个待确认实体 (${pendingNames})。请先确认后继续。`);
   }
 
   const resolved = resolveOutlineAndChapterCard(chapter, outline, chapterCard);

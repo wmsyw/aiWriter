@@ -132,15 +132,9 @@ interface Novel {
   workflowConfig?: NovelWorkflowConfig | null;
 }
 
-interface BlockingInfo {
-  hasBlocking: boolean;
-  count: number;
-}
-
 interface WorkflowStats {
   unresolvedHooks: number;
   overdueHooks: number;
-  pendingEntities: number;
 }
 
 const WORKFLOW_STEPS = [
@@ -325,7 +319,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'chapters' | 'outline' | 'materials' | 'hooks' | 'entities' | 'settings' | 'plot'>('chapters');
+  const [activeTab, setActiveTab] = useState<'chapters' | 'outline' | 'workbench' | 'settings'>('chapters');
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
@@ -347,8 +341,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const [editedContinuityMaxRepairAttempts, setEditedContinuityMaxRepairAttempts] = useState(1);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [blockingInfo, setBlockingInfo] = useState<BlockingInfo>({ hasBlocking: false, count: 0 });
-  const [workflowStats, setWorkflowStats] = useState<WorkflowStats>({ unresolvedHooks: 0, overdueHooks: 0, pendingEntities: 0 });
+  const [workflowStats, setWorkflowStats] = useState<WorkflowStats>({ unresolvedHooks: 0, overdueHooks: 0 });
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -453,12 +446,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [novelRes, chaptersRes, blockingRes, hooksReportRes, entitiesRes] = await Promise.all([
+        const [novelRes, chaptersRes, hooksReportRes] = await Promise.all([
           fetch(`/api/novels/${id}`),
           fetch(`/api/novels/${id}/chapters`, { cache: 'no-store' }),
-          fetch(`/api/novels/${id}/pending-entities/blocking`),
           fetch(`/api/novels/${id}/hooks/report`),
-          fetch(`/api/novels/${id}/pending-entities?status=pending`),
         ]);
 
         if (novelRes.ok) {
@@ -495,25 +486,12 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           setChapters(Array.isArray(chaptersData.chapters) ? chaptersData.chapters : []);
         }
 
-        if (blockingRes.ok) {
-          const blockingData = await blockingRes.json();
-          setBlockingInfo({ hasBlocking: blockingData.hasBlocking, count: blockingData.count });
-        }
-
         if (hooksReportRes.ok) {
           const hooksData = await hooksReportRes.json();
           setWorkflowStats(prev => ({
             ...prev,
             unresolvedHooks: hooksData.stats?.unresolvedCount || 0,
             overdueHooks: hooksData.stats?.overdueCount || 0,
-          }));
-        }
-
-        if (entitiesRes.ok) {
-          const entitiesData = await entitiesRes.json();
-          setWorkflowStats(prev => ({
-            ...prev,
-            pendingEntities: entitiesData.entities?.length || 0,
           }));
         }
 
@@ -567,9 +545,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             variant: 'error',
             description: message,
           });
-          if (message.includes('待确认实体')) {
-            setActiveTab('entities');
-          }
         } else if (job.status === 'canceled') {
           toast({
             variant: 'warning',
@@ -833,12 +808,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       return;
     }
     
-    if (blockingInfo.hasBlocking) {
-      setError(`无法生成新章节：有 ${blockingInfo.count} 个待确认实体阻碍生成流程。请先处理待确认实体。`);
-      setActiveTab('entities');
-      return;
-    }
-
     try {
       const res = await fetch(`/api/novels/${id}/chapters`, {
         method: 'POST',
@@ -1170,10 +1139,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       return `第 ${targetChapter.order + 1} 章当前阶段为「${CHAPTER_STAGE_META[normalizeChapterStage(targetStage)].label}」，无需重复生成`;
     }
 
-    if (blockingInfo.hasBlocking) {
-      return `当前有 ${blockingInfo.count} 个待确认实体，请先处理后再生成章节`;
-    }
-
     const ordered = [...chapterSource].sort((a, b) => a.order - b.order);
     const prevIncomplete = ordered.find(
       (chapter) => chapter.order < targetChapter.order && chapter.generationStage !== 'completed'
@@ -1201,9 +1166,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     const blockReason = getChapterGenerationBlockReason(targetChapter);
     if (blockReason) {
       setError(blockReason);
-      if (blockingInfo.hasBlocking) {
-        setActiveTab('entities');
-      }
       return;
     }
 
@@ -1224,9 +1186,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         variant: 'error',
         description: message,
       });
-      if (message.includes('待确认实体')) {
-        setActiveTab('entities');
-      }
       setGeneratingChapterId(null);
     }
   };
@@ -2217,7 +2176,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     c.generationStage === 'approved' ||
     c.generationStage === 'completed'
   )).length;
-  const workflowAlertCount = (workflowStats.overdueHooks || 0) + (blockingInfo.hasBlocking ? blockingInfo.count : 0);
+  const workflowAlertCount = workflowStats.overdueHooks || 0;
   const chapterTotal = chapters.length || 0;
   const approvedRate = chapterTotal > 0 ? Math.round((approvedCount / chapterTotal) * 100) : 0;
   const reviewRate = chapterTotal > 0 ? Math.round((reviewDoneCount / chapterTotal) * 100) : 0;
@@ -2479,7 +2438,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const hookOverdueRate = workflowStats.unresolvedHooks > 0
     ? Math.round((workflowStats.overdueHooks / workflowStats.unresolvedHooks) * 100)
     : 0;
-  const workbenchRiskCount = workflowStats.overdueHooks + workflowStats.pendingEntities + (blockingInfo.hasBlocking ? blockingInfo.count : 0);
+  const workbenchRiskCount = workflowStats.overdueHooks;
   const workbenchRiskLabel = workbenchRiskCount > 0 ? `${workbenchRiskCount} 项待处理` : '运行平稳';
 
   const outlineLevelFilterOptions: Array<{ id: OutlineLevelFilter; label: string; count: number }> = [
@@ -2934,16 +2893,14 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             <Card className="relative overflow-visible rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-3.5">
               <div className="space-y-2.5">
                 <Button
-                  variant={blockingInfo.hasBlocking ? 'secondary' : 'primary'}
+                  variant="primary"
                   onClick={handleCreateChapter}
-                  disabled={blockingInfo.hasBlocking}
-                  title={blockingInfo.hasBlocking ? '请先处理待确认实体' : ''}
                   leftIcon={
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   }
-                  className={blockingInfo.hasBlocking ? 'w-full cursor-not-allowed border border-zinc-700/70 bg-zinc-700/45 text-zinc-400' : 'w-full'}
+                  className="w-full"
                 >
                   添加新章节
                 </Button>
@@ -3032,9 +2989,9 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       <span className="hidden text-[11px] leading-tight text-zinc-400 xl:block">{meta.hint}</span>
                     </span>
 
-                    {tab === 'workbench' && (workflowStats.overdueHooks > 0 || blockingInfo.hasBlocking) && (
+                    {tab === 'workbench' && workflowStats.overdueHooks > 0 && (
                       <Badge variant="error" size="sm" className="ml-1 animate-pulse">
-                        {(workflowStats.overdueHooks || 0) + (blockingInfo.hasBlocking ? blockingInfo.count : 0)}
+                        {workflowStats.overdueHooks || 0}
                       </Badge>
                     )}
                   </TabsTrigger>
@@ -3343,15 +3300,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                   <div className="space-y-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
-                        <h2 className="flex items-center gap-3 text-xl font-semibold text-zinc-100">
-                          章节列表
-                          {blockingInfo.hasBlocking && (
-                            <Badge variant="error" className="flex items-center gap-1.5 px-2 py-1">
-                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-                              生成被阻塞
-                            </Badge>
-                          )}
-                        </h2>
+                        <h2 className="flex items-center gap-3 text-xl font-semibold text-zinc-100">章节列表</h2>
                         <p className="mt-1 text-sm text-zinc-400">
                           支持关键词检索与流程阶段筛选，也可直接在列表中生成章节草稿并进入编辑。
                         </p>
@@ -3448,12 +3397,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       <div>当前结果：{filteredChapterTotal} / {chapterTotal}</div>
                       {hiddenChapterCount > 0 && <div>已隐藏 {hiddenChapterCount} 章</div>}
                     </div>
-
-                    {blockingInfo.hasBlocking && (
-                      <div className="rounded-xl border border-red-500/35 bg-red-500/10 px-3 py-2.5 text-xs text-red-200">
-                        当前存在待确认实体，新增章节已被临时阻断。请先到工坊内处理实体确认。
-                      </div>
-                    )}
 
                     {generatingChapter && (
                       <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200">
@@ -3672,272 +3615,176 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             </TabsContent>
 
             <TabsContent value="workbench" key="workbench">
-              <div className="space-y-5">
-                <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/55 p-5 md:p-6">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">工坊运行面板</div>
-                      <h3 className="mt-1 text-xl font-semibold text-zinc-100">创作资源与风险总览</h3>
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="space-y-5">
+                  <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/55 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">工坊总览</div>
+                        <h3 className="mt-1 text-lg font-semibold text-zinc-100">运行状态</h3>
+                      </div>
+                      <Badge
+                        variant={workbenchRiskCount > 0 ? 'error' : 'success'}
+                        className="w-fit px-2.5 py-1 text-[11px]"
+                      >
+                        {workbenchRiskLabel}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2.5">
+                        <div className="text-[11px] text-zinc-500">未解决钩子</div>
+                        <div className="mt-1 text-lg font-semibold text-zinc-100">{workflowStats.unresolvedHooks}</div>
+                      </div>
+                      <div className="rounded-xl border border-red-500/25 bg-red-500/[0.08] px-3 py-2.5">
+                        <div className="text-[11px] text-red-200/70">逾期钩子</div>
+                        <div className="mt-1 text-lg font-semibold text-red-200">{workflowStats.overdueHooks}</div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2.5">
+                        <div className="text-[11px] text-zinc-500">逾期占比</div>
+                        <div className="mt-1 text-lg font-semibold text-amber-300">{hookOverdueRate}%</div>
+                      </div>
+                      <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.08] px-3 py-2.5">
+                        <div className="text-[11px] text-emerald-200/75">实体入库</div>
+                        <div className="mt-1 text-lg font-semibold text-emerald-200">自动同步</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 text-xs text-zinc-500">
+                      {workflowStats.unresolvedHooks === 0
+                        ? '当前无待处理钩子，流程稳定。'
+                        : `钩子逾期占比 ${hookOverdueRate}%，建议优先处理高风险章节。`}
+                    </div>
+                  </Card>
+
+                  <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/45 p-5">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">资源入口</div>
+                    <h3 className="mt-1 text-lg font-semibold text-zinc-100">素材与钩子</h3>
+                    <p className="mt-1 text-sm text-zinc-400">实体已并入素材库，不再提供独立实体页面。</p>
+
+                    <div className="mt-4 space-y-2.5">
+                      <Link href={`/novels/${id}/materials`} className="block">
+                        <Button variant="secondary" className="w-full justify-between group/btn">
+                          打开素材库
+                          <span className="transition-transform group-hover/btn:translate-x-1">→</span>
+                        </Button>
+                      </Link>
+                      <Link href={`/novels/${id}/hooks`} className="block">
+                        <Button variant="secondary" className="w-full justify-between group/btn">
+                          打开钩子管理
+                          <span className="transition-transform group-hover/btn:translate-x-1">→</span>
+                        </Button>
+                      </Link>
+                    </div>
+                  </Card>
+                </div>
+
+                <Card className="rounded-3xl border border-zinc-800/80 bg-zinc-900/45 p-5 md:p-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">剧情推演</div>
+                      <h3 className="mt-1 text-xl font-semibold text-zinc-100">多分支路线评估</h3>
                       <p className="mt-1 text-sm text-zinc-400">
-                        聚合素材、钩子、实体确认与剧情推演状态，减少跨页面切换成本。
+                        按章节规模、采样次数和分支数生成下一阶段路线，并结合钩子状态给出优先方案。
                       </p>
                     </div>
-                    <Badge
-                      variant={workbenchRiskCount > 0 ? 'error' : 'success'}
-                      className="w-fit px-3 py-1 text-xs"
-                    >
-                      {workbenchRiskLabel}
-                    </Badge>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-3 py-2.5">
-                      <div className="text-[11px] text-zinc-500">未解决钩子</div>
-                      <div className="mt-1 text-lg font-semibold text-zinc-100">{workflowStats.unresolvedHooks}</div>
-                    </div>
-                    <div className="rounded-xl border border-red-500/25 bg-red-500/[0.08] px-3 py-2.5">
-                      <div className="text-[11px] text-red-200/70">逾期钩子</div>
-                      <div className="mt-1 text-lg font-semibold text-red-200">{workflowStats.overdueHooks}</div>
-                    </div>
-                    <div className={`rounded-xl border px-3 py-2.5 ${blockingInfo.hasBlocking ? 'border-red-500/30 bg-red-500/[0.08]' : 'border-zinc-800/80 bg-zinc-950/35'}`}>
-                      <div className="text-[11px] text-zinc-500">待确认实体</div>
-                      <div className={`mt-1 text-lg font-semibold ${blockingInfo.hasBlocking ? 'text-red-200' : 'text-zinc-100'}`}>
-                        {workflowStats.pendingEntities}
-                      </div>
-                    </div>
-                    <div className={`rounded-xl border px-3 py-2.5 ${blockingInfo.hasBlocking ? 'border-red-500/30 bg-red-500/[0.08]' : 'border-zinc-800/80 bg-zinc-950/35'}`}>
-                      <div className="text-[11px] text-zinc-500">阻塞生成</div>
-                      <div className={`mt-1 text-lg font-semibold ${blockingInfo.hasBlocking ? 'text-red-200' : 'text-emerald-300'}`}>
-                        {blockingInfo.hasBlocking ? blockingInfo.count : 0}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 text-xs text-zinc-500">
-                    钩子逾期占比：{hookOverdueRate}% {workflowStats.unresolvedHooks === 0 ? '（当前无待处理钩子）' : ''}
-                  </div>
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Card className="p-7 rounded-3xl relative overflow-hidden group border border-zinc-800/80 hover:border-emerald-500/30 transition-all bg-zinc-900/45 flex flex-col">
-                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  
-                  <div className="flex items-start justify-between mb-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center shadow-inner shadow-emerald-500/20">
-                        <span className="text-2xl">📦</span>
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white">素材库</h3>
-                        <p className="text-sm text-zinc-400">管理角色、设定与物品</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <p className="text-zinc-400 mb-6 text-sm line-clamp-2 flex-grow">
-                    结构化整理角色、地点、情节要点和世界观设定，让 AI 更好地理解你的故事世界。
-                  </p>
-                  
-                  <Link href={`/novels/${id}/materials`} className="block mt-auto">
-                    <Button variant="secondary" className="w-full gap-2 group/btn justify-between">
-                      进入素材库
-                      <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
-                    </Button>
-                  </Link>
-                </Card>
-
-                <Card className="p-7 rounded-3xl relative overflow-hidden group border border-zinc-800/80 hover:border-orange-500/30 transition-all bg-zinc-900/45 flex flex-col">
-                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  
-                  <div className="flex items-start justify-between mb-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shadow-inner shadow-orange-500/20">
-                        <span className="text-2xl">🎣</span>
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white">钩子管理</h3>
-                        <p className="text-sm text-zinc-400">伏笔、悬念与剧情回收</p>
-                      </div>
-                    </div>
-                    {workflowStats.overdueHooks > 0 && (
-                      <Badge variant="error" className="animate-pulse">
-                        {workflowStats.overdueHooks} 个逾期
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-6 flex-grow">
-                    <div className="bg-black/20 rounded-xl p-3 border border-zinc-800/80">
-                      <div className="text-xl font-bold text-white">{workflowStats.unresolvedHooks}</div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">未解决</div>
-                    </div>
-                    <div className="bg-black/20 rounded-xl p-3 border border-zinc-800/80">
-                      <div className="text-xl font-bold text-amber-300">{hookOverdueRate}%</div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">逾期占比</div>
-                    </div>
-                  </div>
-                  
-                  <Link href={`/novels/${id}/hooks`} className="block mt-auto">
-                    <Button variant="secondary" className="w-full gap-2 group/btn justify-between">
-                      管理钩子
-                      <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
-                    </Button>
-                  </Link>
-                </Card>
-
-                <Card className={`p-7 rounded-3xl relative overflow-hidden group border transition-all bg-zinc-900/45 flex flex-col ${blockingInfo.hasBlocking ? 'border-red-500/30 hover:border-red-500/50' : 'border-zinc-800/80 hover:border-purple-500/30'}`}>
-                  <div className={`absolute inset-0 bg-gradient-to-br ${blockingInfo.hasBlocking ? 'from-red-500/5 to-orange-500/5' : 'from-purple-500/5 to-emerald-500/5'} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
-                  
-                  <div className="flex items-start justify-between mb-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner ${blockingInfo.hasBlocking ? 'bg-red-500/10 shadow-red-500/20' : 'bg-purple-500/10 shadow-purple-500/20'}`}>
-                        <span className="text-2xl">👥</span>
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white">待确认实体</h3>
-                        <p className="text-sm text-zinc-400">AI 提取的新角色与组织</p>
-                      </div>
-                    </div>
-                    {blockingInfo.hasBlocking && (
-                      <Badge variant="error" className="animate-pulse">
-                        阻塞生成
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  <div className="flex-grow">
-                    {blockingInfo.hasBlocking ? (
-                      <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                        <p className="text-red-300/90 text-sm">
-                          有 <span className="font-bold text-white">{blockingInfo.count}</span> 个待确认实体阻碍生成。
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="mb-6 flex items-center gap-3">
-                        <div className="text-3xl font-bold text-white">{workflowStats.pendingEntities}</div>
-                        <div className="text-sm text-zinc-500">个待处理项目</div>
+                    {plotLastGeneratedAt && (
+                      <div className="rounded-lg border border-zinc-700/70 bg-zinc-900/70 px-3 py-1.5 text-xs text-zinc-400">
+                        最近推演：{new Date(plotLastGeneratedAt).toLocaleString()}
                       </div>
                     )}
                   </div>
-                  
-                  <Link href={`/novels/${id}/pending-entities`} className="block mt-auto">
-                    <Button 
-                      variant={blockingInfo.hasBlocking ? 'danger' : 'secondary'}
-                      className="w-full gap-2 group/btn justify-between"
-                    >
-                      {blockingInfo.hasBlocking ? '解决阻塞' : '进入队列'}
-                      <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
-                    </Button>
-                  </Link>
-                </Card>
 
-                <Card className="p-7 rounded-3xl relative overflow-hidden group border border-zinc-800/80 hover:border-blue-500/30 transition-all bg-zinc-900/45 flex flex-col">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  
-                  <div className="flex items-start justify-between mb-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center shadow-inner shadow-blue-500/20">
-                        <span className="text-2xl">🔮</span>
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white">剧情推演</h3>
-                        <p className="text-sm text-zinc-400">预测未来剧情走向 (Beta)</p>
-                      </div>
-                    </div>
+                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Input
+                      type="number"
+                      label="推演章节数"
+                      min={1}
+                      max={10}
+                      value={plotSimulationControls.steps}
+                      onChange={(event) =>
+                        updatePlotSimulationControls({
+                          steps: Number(event.target.value) || 1,
+                        })
+                      }
+                      className="h-10 rounded-xl px-3 py-2 text-sm"
+                    />
+                    <Input
+                      type="number"
+                      label="采样迭代"
+                      min={20}
+                      max={500}
+                      step={10}
+                      value={plotSimulationControls.iterations}
+                      onChange={(event) =>
+                        updatePlotSimulationControls({
+                          iterations: Number(event.target.value) || 20,
+                        })
+                      }
+                      className="h-10 rounded-xl px-3 py-2 text-sm"
+                    />
+                    <Input
+                      type="number"
+                      label="分支数量"
+                      min={2}
+                      max={5}
+                      value={plotSimulationControls.branchCount}
+                      onChange={(event) =>
+                        updatePlotSimulationControls({
+                          branchCount: Number(event.target.value) || 2,
+                        })
+                      }
+                      className="h-10 rounded-xl px-3 py-2 text-sm"
+                    />
+                    <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-300">
+                      <Checkbox
+                        checked={plotSimulationControls.focusHooks}
+                        onChange={(event) =>
+                          updatePlotSimulationControls({
+                            focusHooks: event.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 rounded border-white/20 bg-black/30 accent-emerald-500"
+                      />
+                      优先回收伏笔并评估连续性
+                    </label>
                   </div>
 
-                  <div className="flex-grow">
-                    <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <Input
-                        type="number"
-                        label="推演章节数"
-                        min={1}
-                        max={10}
-                        value={plotSimulationControls.steps}
-                        onChange={(event) =>
-                          updatePlotSimulationControls({
-                            steps: Number(event.target.value) || 1,
-                          })
-                        }
-                        className="h-10 rounded-xl px-3 py-2 text-sm"
-                      />
-                      <Input
-                        type="number"
-                        label="采样迭代"
-                        min={20}
-                        max={500}
-                        step={10}
-                        value={plotSimulationControls.iterations}
-                        onChange={(event) =>
-                          updatePlotSimulationControls({
-                            iterations: Number(event.target.value) || 20,
-                          })
-                        }
-                        className="h-10 rounded-xl px-3 py-2 text-sm"
-                      />
-                      <Input
-                        type="number"
-                        label="分支数量"
-                        min={2}
-                        max={5}
-                        value={plotSimulationControls.branchCount}
-                        onChange={(event) =>
-                          updatePlotSimulationControls({
-                            branchCount: Number(event.target.value) || 2,
-                          })
-                        }
-                        className="h-10 rounded-xl px-3 py-2 text-sm"
-                      />
-                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-300">
-                        <Checkbox
-                          checked={plotSimulationControls.focusHooks}
-                          onChange={(event) =>
-                            updatePlotSimulationControls({
-                              focusHooks: event.target.checked,
-                            })
-                          }
-                          className="h-4 w-4 rounded border-white/20 bg-black/30 accent-emerald-500"
-                        />
-                        优先回收伏笔并评估连续性
-                      </label>
-                    </div>
-
+                  <div className="mt-5 rounded-2xl border border-zinc-800/80 bg-zinc-950/35 p-4">
                     {plotBranches.length > 0 ? (
-                       <div className="mb-6">
-                          <PlotBranchingView
-                            branches={plotBranches}
-                            deadEndWarnings={plotDeadEndWarnings}
-                            hookOpportunities={plotHookOpportunities}
-                            selectedBranchId={plotSelectedBranchId || undefined}
-                            onSelectBranch={(branchId) => setPlotSelectedBranchId(branchId)}
-                          />
-                          {plotLastGeneratedAt && (
-                            <div className="mt-3 text-xs text-zinc-500">
-                              最近推演：{new Date(plotLastGeneratedAt).toLocaleString()}
-                              {plotBestBranchId ? ' · 已自动选中最佳路线' : ''}
-                            </div>
-                          )}
-                       </div>
+                      <div className="space-y-3">
+                        <PlotBranchingView
+                          branches={plotBranches}
+                          deadEndWarnings={plotDeadEndWarnings}
+                          hookOpportunities={plotHookOpportunities}
+                          selectedBranchId={plotSelectedBranchId || undefined}
+                          onSelectBranch={(branchId) => setPlotSelectedBranchId(branchId)}
+                        />
+                        {plotBestBranchId && (
+                          <div className="text-xs text-emerald-300">已自动选中当前最优路线。</div>
+                        )}
+                      </div>
                     ) : (
-                      <div className="mb-6 text-sm text-zinc-400 flex items-center">
-                        点击推演，系统将结合连贯性、张力和伏笔状态给出可执行路线。
+                      <div className="py-8 text-center text-sm text-zinc-400">
+                        尚未生成推演结果。点击下方按钮开始分析下一阶段路线。
                       </div>
                     )}
                   </div>
 
-                  <Button
-                    variant="secondary"
-                    onClick={handleGeneratePlot}
-                    disabled={isGeneratingPlot}
-                    isLoading={isGeneratingPlot}
-                    loadingText="推演中..."
-                    className="w-full gap-2 group/btn justify-between mt-auto"
-                  >
-                    开始推演
-                    <span className="group-hover/btn:translate-x-1 transition-transform">→</span>
-                  </Button>
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      variant="secondary"
+                      onClick={handleGeneratePlot}
+                      disabled={isGeneratingPlot}
+                      isLoading={isGeneratingPlot}
+                      loadingText="推演中..."
+                      className="min-w-[180px] justify-between gap-2 group/btn"
+                    >
+                      开始推演
+                      <span className="transition-transform group-hover/btn:translate-x-1">→</span>
+                    </Button>
+                  </div>
                 </Card>
-              </div>
               </div>
             </TabsContent>
 

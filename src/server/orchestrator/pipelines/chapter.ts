@@ -8,7 +8,6 @@ import type {
 import { registerPipeline } from '../engine';
 import { createPipelineAI } from '@/src/server/services/pipeline-ai';
 import { prisma } from '@/src/server/db';
-import { checkBlockingPendingEntities } from '@/src/server/services/pending-entities';
 
 interface ChapterCardInput {
   must?: string[];
@@ -201,21 +200,6 @@ async function evaluatePreChecks(input: PreCheckInput): Promise<PreCheckEvaluati
         blockers.push(`${incompleteCount} previous chapters are not completed`);
       }
     }
-
-    const blockingCheck = await checkBlockingPendingEntities(input.novelId, chapterNumber);
-    pendingEntities = blockingCheck.pendingEntities.length;
-
-    if (blockingCheck.blocked) {
-      const previewNames = blockingCheck.pendingEntities
-        .slice(0, 5)
-        .map((entity) => entity.name)
-        .join(', ');
-      const extraSuffix = blockingCheck.pendingEntities.length > 5 ? ', ...' : '';
-      blockers.push(
-        `${blockingCheck.pendingEntities.length} pending entities require confirmation` +
-          (previewNames ? ` (${previewNames}${extraSuffix})` : '')
-      );
-    }
   }
 
   if (!input.assembledContext || input.assembledContext.trim().length < 100) {
@@ -305,7 +289,6 @@ const preCheckStage: Stage<PreCheckInput, PreCheckOutput> = {
       reason: evaluation.blockers.join('; '),
       suggestedFixes: [
         'Complete previous chapters before generating the next one',
-        'Confirm pending entities before continuing chapter generation',
       ],
     };
   },

@@ -1,7 +1,7 @@
 import { assembleContextAsString, assembleTruncatedContext } from '../../src/server/services/context-assembly.js';
 import { upsertChapterSummary } from '../../src/server/services/chapter-summary.js';
 import { processExtractedHooks, formatHooksForContext, getOverdueHooks } from '../../src/server/services/hooks.js';
-import { batchProcessExtractedEntities, checkBlockingPendingEntities } from '../../src/server/services/pending-entities.js';
+import { batchProcessExtractedEntities } from '../../src/server/services/pending-entities.js';
 import { buildAdherenceCheckPrompt, parseAdherenceResponse, formatAdherenceResultForReview } from '../../src/server/services/outline-adherence.js';
 import { buildMaterialContext } from '../../src/server/services/materials.js';
 import { getProviderAndAdapter, resolveAgentAndTemplate, generateWithAgentRuntime, parseModelJson, truncateText } from '../utils/helpers.js';
@@ -272,12 +272,13 @@ ${chapter.content}
     chapterId,
     chapter.order,
     extracted.characters || [],
-    extracted.organizations || []
+    extracted.organizations || [],
+    userId
   );
 
   return {
     extracted,
-    pendingEntityIds: results,
+    materialSync: results,
   };
 }
 

@@ -37,7 +37,7 @@ const PATH_LABELS: Record<string, string> = {
   hooks: '钩子管理',
   graph: '关系图谱',
   chapters: '章节',
-  'pending-entities': '待处理实体',
+  'pending-entities': '实体入库',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

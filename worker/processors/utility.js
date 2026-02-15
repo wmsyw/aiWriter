@@ -401,7 +401,7 @@ ${existingHooksContext || '（暂无）'}
   }
 
   let hooksResult = null;
-  let pendingEntitiesResult = null;
+  let entityMaterialSyncResult = null;
   let summaryResult = null;
   let mergeResult = null;
 
@@ -554,12 +554,13 @@ ${existingHooksContext || '（暂无）'}
     }));
 
     if (newCharacters.length > 0 || newOrgs.length > 0) {
-      pendingEntitiesResult = await batchProcessExtractedEntities(
+      entityMaterialSyncResult = await batchProcessExtractedEntities(
         chapter.novelId,
         chapterId,
         chapter.order,
         newCharacters,
-        newOrgs
+        newOrgs,
+        userId
       );
     }
   }
@@ -586,7 +587,8 @@ ${existingHooksContext || '（暂无）'}
     analysis,
     materials: materialStats,
     hooks: hooksResult,
-    pendingEntities: pendingEntitiesResult,
+    pendingEntities: entityMaterialSyncResult,
+    entityMaterials: entityMaterialSyncResult,
     summary: summaryResult ? { id: summaryResult.id } : null,
     merge: mergeResult,
     relationshipSummary: analysis.relationship_summary || null,

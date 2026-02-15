@@ -112,11 +112,9 @@ export default function MaterialsPage() {
   };
 
   const handleDeduplicate = async () => {
-    const ids = selectedIds.size > 0 
-      ? Array.from(selectedIds) 
-      : filteredMaterials.map(m => m.id);
-      
-    const count = ids.length;
+    const hasManualSelection = selectedIds.size > 0;
+    const ids = hasManualSelection ? Array.from(selectedIds) : [];
+    const count = hasManualSelection ? ids.length : filteredMaterials.length;
     
     if (count < 2) {
       toast({ variant: 'info', description: '当前列表素材不足2个，无需去重' });
@@ -135,7 +133,7 @@ export default function MaterialsPage() {
           const res = await fetch(`/api/novels/${novelId}/materials/deduplicate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids }),
+            body: JSON.stringify(hasManualSelection ? { ids } : {}),
           });
           
           if (res.ok) {

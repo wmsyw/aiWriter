@@ -159,7 +159,7 @@ interface PostProcessStatusEntry {
 const POST_PROCESS_LABELS: Record<PostProcessJobType, string> = {
   MEMORY_EXTRACT: '记忆',
   HOOKS_EXTRACT: '钩子',
-  PENDING_ENTITY_EXTRACT: '待确认实体',
+  PENDING_ENTITY_EXTRACT: '实体入库',
   CHAPTER_SUMMARY_GENERATE: '摘要',
 };
 
@@ -947,7 +947,7 @@ export default function ChapterEditorPage() {
 
   const createJob = async (
     type: string,
-    additionalInput: object = {}
+    additionalInput: Record<string, unknown> = {}
   ): Promise<boolean> => {
     try {
       if (type === 'CHAPTER_GENERATE' || type === 'CHAPTER_GENERATE_BRANCHES') {
@@ -2853,10 +2853,10 @@ export default function ChapterEditorPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => router.back()}
+                onClick={() => router.push(`/novels/${novelId}`)}
                 className="mt-0.5 w-9 rounded-xl border border-white/10 bg-white/5 px-0 text-gray-300 hover:bg-white/10 hover:text-white"
-                aria-label="返回"
-                title="返回"
+                aria-label="返回小说详情"
+                title="返回小说详情"
               >
                 <Icons.ChevronLeft className="h-4 w-4" />
               </Button>
@@ -2970,7 +2970,7 @@ export default function ChapterEditorPage() {
 
           <div className="flex-1 min-h-0 overflow-hidden">
             <div className={`mx-auto flex h-full w-full gap-3 px-4 pb-3 pt-2 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
-              <aside className={`shrink-0 ${isSidebarOpen ? 'w-[220px]' : 'w-[248px]'} rounded-[24px] border border-white/10 bg-zinc-900/65 p-2.5`}>
+              <aside className={`shrink-0 ${isSidebarOpen ? 'w-[176px]' : 'w-[196px]'} rounded-[24px] border border-white/10 bg-zinc-900/65 p-2`}>
                 <div className="flex h-full flex-col gap-2">
                   <div className="space-y-1.5">
                     <Button
@@ -3103,7 +3103,7 @@ export default function ChapterEditorPage() {
                     </div>
                   )}
 
-                  <div className={`rounded-xl border px-2.5 py-2 ${
+                  <div className={`rounded-xl border px-2 py-2 ${
                     postProcessFailureCount > 0
                       ? 'border-red-500/25 bg-red-500/10'
                       : 'border-white/10 bg-zinc-900/60'
@@ -3113,16 +3113,24 @@ export default function ChapterEditorPage() {
                         后处理
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-col gap-1.5">
                       {postProcessEntries.length > 0 ? (
                         postProcessEntries.map((item) => (
-                          <span
+                          <div
                             key={item.type}
-                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${postProcessBadgeTone[item.status]}`}
+                            className={`rounded-lg border px-2 py-1 ${postProcessBadgeTone[item.status]}`}
                             title={item.error || `${POST_PROCESS_LABELS[item.type]}${postProcessStatusLabel[item.status]}`}
                           >
-                            {POST_PROCESS_LABELS[item.type]}·{postProcessStatusLabel[item.status]}
-                          </span>
+                            <div className="flex items-center justify-between gap-2 text-[10px]">
+                              <span className="truncate">{POST_PROCESS_LABELS[item.type]}</span>
+                              <span className="shrink-0">{postProcessStatusLabel[item.status]}</span>
+                            </div>
+                            {item.status === 'failed' && item.error && (
+                              <p className="mt-1 line-clamp-2 break-words text-[10px] text-red-100/90">
+                                {item.error}
+                              </p>
+                            )}
+                          </div>
                         ))
                       ) : (
                         <span className="text-[10px] text-zinc-500">暂无后处理任务</span>
