@@ -3,6 +3,7 @@ import { PgBoss } from 'pg-boss';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
+import { applyMaterialMetadataCompat } from '../src/server/prisma-material-compat.js';
 
 import { JobType } from './types.js';
 import { workerLogger } from '../src/core/logger.js';
@@ -40,7 +41,7 @@ import { handlePipelineExecute } from './processors/pipeline.js';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = applyMaterialMetadataCompat(new PrismaClient({ adapter }));
 
 const handlers = {
   [JobType.CHAPTER_GENERATE]: handleChapterGenerate,
