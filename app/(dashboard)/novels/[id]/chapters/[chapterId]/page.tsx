@@ -157,6 +157,34 @@ function normalizePostProcessStatus(status: JobQueueStatus | string): PostProces
   return null;
 }
 
+const MAX_POST_PROCESS_ERROR_LENGTH = 140;
+
+function formatPostProcessErrorMessage(error?: string | null): string | undefined {
+  if (typeof error !== 'string') return undefined;
+  const normalized = error.replace(/\s+/g, ' ').trim();
+  if (!normalized) return undefined;
+
+  if (
+    normalized.includes('Unknown field `metadata`') &&
+    normalized.includes('model `Material`')
+  ) {
+    return '素材字段查询失败：metadata 字段不存在，请使用 data 字段。';
+  }
+
+  if (normalized.includes('Invalid `prisma.') && normalized.includes('invocation')) {
+    return '数据库查询失败，请稍后重试。';
+  }
+
+  if (normalized.length > MAX_POST_PROCESS_ERROR_LENGTH) {
+    return `${normalized.slice(0, MAX_POST_PROCESS_ERROR_LENGTH)}...`;
+  }
+  return normalized;
+}
+
+function buildPostProcessWarningMessage(type: PostProcessJobType, error?: string | null): string {
+  return `${POST_PROCESS_LABELS[type]}任务失败：${formatPostProcessErrorMessage(error) || '请稍后重试'}`;
+}
+
 function getContinuityTone(verdict?: Branch['continuityVerdict']): string {
   if (verdict === 'pass') return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200';
   if (verdict === 'reject') return 'border-red-500/30 bg-red-500/15 text-red-200';
@@ -185,7 +213,7 @@ function buildPostProcessSnapshot(
     if (!normalizedStatus) continue;
     next[type] = {
       status: normalizedStatus,
-      error: latest.error || undefined,
+      error: formatPostProcessErrorMessage(latest.error),
       updatedAt: latest.updatedAt ? new Date(latest.updatedAt).toISOString() : undefined,
     };
   }
@@ -326,7 +354,7 @@ export default function ChapterEditorPage() {
         if (!isPostProcessJobType(itemType)) continue;
         next[itemType] = {
           status: item.ok ? 'running' : 'failed',
-          error: item.ok ? undefined : (item.error || '任务派发失败'),
+          error: item.ok ? undefined : (formatPostProcessErrorMessage(item.error) || '任务派发失败'),
           updatedAt: new Date().toISOString(),
         };
       }
@@ -343,7 +371,7 @@ export default function ChapterEditorPage() {
       ...prev,
       [job.type]: {
         status: normalizedStatus,
-        error: normalizedStatus === 'failed' ? (job.error || '任务执行失败') : undefined,
+        error: normalizedStatus === 'failed' ? (formatPostProcessErrorMessage(job.error) || '任务执行失败') : undefined,
         updatedAt: new Date().toISOString(),
       },
     }));
@@ -419,7 +447,7 @@ export default function ChapterEditorPage() {
         ? jobOutput.analysisQueueError
         : null;
     if (analysisQueueError) {
-      setPostProcessWarning(`后处理派发失败：${analysisQueueError}`);
+      setPostProcessWarning(`后处理派发失败：${formatPostProcessErrorMessage(analysisQueueError) || '请稍后重试'}`);
       return;
     }
 
@@ -478,7 +506,7 @@ export default function ChapterEditorPage() {
     }
 
     if (isPostProcessJobType(job.type)) {
-      setPostProcessWarning(`${POST_PROCESS_LABELS[job.type]}任务失败：${job.error || '请稍后重试'}`);
+      setPostProcessWarning(buildPostProcessWarningMessage(job.type, job.error));
     }
   }, []);
 
@@ -2169,12 +2197,12 @@ export default function ChapterEditorPage() {
 
             <div className="flex flex-wrap items-center gap-2">
               {postProcessWarning && (
-                <div className="inline-flex max-w-[420px] items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
-                  <span className="truncate">{postProcessWarning}</span>
+                <div className="inline-flex min-w-0 max-w-[560px] items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
+                  <span className="min-w-0 flex-1 truncate" title={postProcessWarning}>{postProcessWarning}</span>
                   <button
                     type="button"
                     onClick={() => setPostProcessWarning(null)}
-                    className="rounded-md border border-red-400/30 px-1.5 py-0.5 text-[10px] text-red-100 hover:bg-red-500/20"
+                    className="shrink-0 rounded-md border border-red-400/30 px-1.5 py-0.5 text-[10px] text-red-100 hover:bg-red-500/20"
                   >
                     关闭
                   </button>

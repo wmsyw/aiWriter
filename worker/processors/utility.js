@@ -40,6 +40,14 @@ function mergeMaterialData(existingData = {}, nextData = {}) {
   return merged;
 }
 
+function toPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function getMaterialData(material) {
+  return toPlainObject(material?.data);
+}
+
 async function upsertMaterialByName(prisma, { novelId, userId, type, name, data, genre, tx }) {
   if (!name) return { record: null, created: false };
   const client = tx || prisma;
@@ -278,12 +286,12 @@ export async function handleMemoryExtract(prisma, job, { jobId, userId, input })
 
   const existingMaterials = await prisma.material.findMany({
     where: { novelId: chapter.novelId },
-    select: { id: true, name: true, type: true, metadata: true },
+    select: { id: true, name: true, type: true, data: true },
   });
   const existingCharacterNames = existingMaterials.filter(m => m.type === 'character').map(m => m.name);
   const existingCharacterData = existingMaterials
     .filter(m => m.type === 'character')
-    .map(m => ({ name: m.name, relationships: m.metadata?.relationships || [] }));
+    .map(m => ({ name: m.name, relationships: getMaterialData(m).relationships || [] }));
 
   const previousSummaries = await prisma.chapterSummary.findMany({
     where: { novelId: chapter.novelId, chapterNumber: { lt: chapter.order } },
@@ -415,17 +423,24 @@ ${existingHooksContext || '（暂无）'}
         const currentMaterial = await tx.material.findUnique({ where: { id: existingMaterial.id } });
         if (!currentMaterial) return;
         
-        const existingMeta = currentMaterial.metadata || {};
+        const existingData = toPlainObject(currentMaterial.data);
+        const existingAttributes = toPlainObject(existingData.attributes);
+        const existingChapterUpdates = Array.isArray(existingAttributes.chapterUpdates)
+          ? existingAttributes.chapterUpdates.filter((item) => item && typeof item === 'object')
+          : [];
         await tx.material.update({
           where: { id: existingMaterial.id },
           data: {
-            metadata: {
-              ...existingMeta,
-              chapterUpdates: [
-                ...(existingMeta.chapterUpdates || []),
-                { chapter: chapter.order, info: update.new_info, reason: update.merge_reason }
-              ]
-            }
+            data: {
+              ...existingData,
+              attributes: {
+                ...existingAttributes,
+                chapterUpdates: [
+                  ...existingChapterUpdates,
+                  { chapter: chapter.order, info: update.new_info, reason: update.merge_reason }
+                ]
+              },
+            },
           }
         });
       });
@@ -457,21 +472,40 @@ ${existingHooksContext || '（暂无）'}
         const currentMaterial = await tx.material.findUnique({ where: { id } });
         if (!currentMaterial) return;
         
-        const existingMeta = currentMaterial.metadata || {};
-        const existingRels = [...(existingMeta.relationships || [])];
+        const existingData = toPlainObject(currentMaterial.data);
+        const existingRels = Array.isArray(existingData.relationships)
+          ? existingData.relationships
+              .filter((item) => item && typeof item === 'object')
+              .map((item) => ({ ...item }))
+          : [];
         
         for (const rel of rels) {
-          const relIdx = existingRels.findIndex(r => r.target === rel.character2);
+          const targetCharacter = existingMaterials.find(
+            (material) => material.type === 'character' && material.name === rel.character2
+          );
+          if (!targetCharacter) continue;
+          const relationshipType = normalizeString(rel.relationship) || '关系';
+          const relationshipDescription = normalizeString(rel.change);
+          const relIdx = existingRels.findIndex((relationship) => relationship.targetId === targetCharacter.id);
           if (relIdx >= 0) {
-            existingRels[relIdx] = { ...existingRels[relIdx], type: rel.relationship, updatedAt: chapter.order };
+            existingRels[relIdx] = {
+              ...existingRels[relIdx],
+              targetId: targetCharacter.id,
+              type: relationshipType,
+              ...(relationshipDescription ? { description: relationshipDescription } : {}),
+            };
           } else {
-            existingRels.push({ target: rel.character2, type: rel.relationship, since: chapter.order });
+            existingRels.push({
+              targetId: targetCharacter.id,
+              type: relationshipType,
+              ...(relationshipDescription ? { description: relationshipDescription } : {}),
+            });
           }
         }
         
         await tx.material.update({
           where: { id },
-          data: { metadata: { ...existingMeta, relationships: existingRels } }
+          data: { data: { ...existingData, relationships: existingRels } }
         });
       });
       

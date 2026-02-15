@@ -340,7 +340,7 @@ export default function MaterialsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-2 rounded-2xl border border-white/5 backdrop-blur-sm">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-[#111722]/84 p-2 rounded-2xl border border-white/12 backdrop-blur-md">
         <div className="flex overflow-x-auto pb-2 md:pb-0 gap-1 no-scrollbar w-full md:w-auto">
           {TABS.map((tab) => (
             <Button
@@ -351,7 +351,7 @@ export default function MaterialsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`h-9 rounded-xl px-4 text-sm font-medium transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-500' 
+                  ? 'border border-emerald-400/45 bg-emerald-500/20 text-emerald-50 font-semibold tracking-[0.01em] shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_12px_24px_-14px_rgba(16,185,129,0.85)] hover:bg-emerald-500/26' 
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
