@@ -246,7 +246,7 @@ export default function ChapterEditorPage() {
   const [novel, setNovel] = useState<{ id: string; genre?: string; isFanfiction: boolean } | null>(null);
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [versions, setVersions] = useState<Version[]>([]);
   const [showDiff, setShowDiff] = useState<Version | null>(null);
@@ -296,6 +296,10 @@ export default function ChapterEditorPage() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
   // const pollIntervalsRef = useRef<Set<NodeJS.Timeout>>(new Set()); // Deprecated in favor of SSE
+  const shortcutSaveHint = useMemo(() => {
+    if (typeof navigator === 'undefined') return 'Ctrl+S';
+    return /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? '⌘S' : 'Ctrl+S';
+  }, []);
 
   const normalizedReview = useMemo<NormalizedReviewData>(
     () => normalizeChapterReviewData(reviewResult, REVIEW_DIMENSION_LABELS),
@@ -597,6 +601,15 @@ export default function ChapterEditorPage() {
     }
   }, [novelId, chapterId]);
 
+  const handleManualSave = useCallback(async () => {
+    if (saveStatus === 'saving') return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    await saveContent(content, title);
+  }, [content, saveContent, saveStatus, title]);
+
   const updateChapterMeta = useCallback(async (updates: { generationStage?: string; reviewIterations?: number }) => {
     try {
       const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}`, {
@@ -629,6 +642,26 @@ export default function ChapterEditorPage() {
       saveContent(content, title);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key.toLowerCase() !== 's') return;
+      event.preventDefault();
+      void handleManualSave();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleManualSave]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const createJob = async (
     type: string,
@@ -880,6 +913,11 @@ export default function ChapterEditorPage() {
     : saveStatus === 'saving'
       ? '保存中'
       : '待保存';
+  const editorContainerMaxWidthClass = focusMode
+    ? 'max-w-5xl'
+    : isSidebarOpen
+      ? 'max-w-[980px]'
+      : 'max-w-[1160px]';
   const postProcessBadgeTone: Record<PostProcessDisplayStatus, string> = {
     running: 'border-sky-500/35 bg-sky-500/12 text-sky-200',
     succeeded: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-200',
@@ -1989,6 +2027,21 @@ export default function ChapterEditorPage() {
 
             <div className="flex items-center gap-2 self-end md:self-start">
               <Button
+                variant={saveStatus === 'unsaved' ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => void handleManualSave()}
+                isLoading={saveStatus === 'saving'}
+                loadingText="保存中..."
+                className={`h-9 rounded-xl px-3 text-xs ${saveStatus === 'unsaved' ? 'shadow-lg shadow-emerald-500/20' : ''}`}
+                title={`手动保存（${shortcutSaveHint}）`}
+              >
+                <Icons.Save className="h-3.5 w-3.5" />
+                保存
+                <span className="hidden rounded-md border border-white/15 bg-black/20 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300 lg:inline">
+                  {shortcutSaveHint}
+                </span>
+              </Button>
+              <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setFocusMode(!focusMode)}
@@ -2017,11 +2070,11 @@ export default function ChapterEditorPage() {
           </div>
 
           <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/65 p-2 shadow-inner shadow-black/20">
+            <div className="no-scrollbar flex items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/65 p-2 shadow-inner shadow-black/20">
               <Button
                 variant="primary"
                 size="sm"
-                className="min-w-[88px]"
+                className="min-w-[88px] shrink-0"
                 onClick={() => createJob('CHAPTER_GENERATE')}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
                 loadingText="生成中..."
@@ -2033,7 +2086,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="min-w-[98px]"
+                className="min-w-[98px] shrink-0"
                 onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
                 loadingText="生成中..."
@@ -2045,7 +2098,7 @@ export default function ChapterEditorPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="min-w-[84px]"
+                  className="min-w-[84px] shrink-0"
                   onClick={() => {
                     createJob('REVIEW_SCORE_5DIM');
                     createJob('CONSISTENCY_CHECK');
@@ -2062,7 +2115,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-w-[84px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                className="min-w-[84px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                 onClick={() => createJob('DEAI_REWRITE')}
                 isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
                 loadingText="润色中..."
@@ -2074,7 +2127,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-w-[96px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                className="min-w-[96px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                 onClick={handleMemoryExtract}
                 isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
                 loadingText="提取中..."
@@ -2088,7 +2141,7 @@ export default function ChapterEditorPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="min-w-[110px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                  className="min-w-[110px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                   onClick={() => {
                     setCanonCheckError(null);
                     createJob('CANON_CHECK');
@@ -2105,7 +2158,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="primary"
                 size="sm"
-                className="min-w-[88px] from-emerald-500 to-teal-500"
+                className="min-w-[88px] shrink-0 from-emerald-500 to-teal-500"
                 onClick={handleCompleteChapter}
                 disabled={!canComplete}
               >
@@ -2182,6 +2235,8 @@ export default function ChapterEditorPage() {
                 <span className="font-mono">{wordCount} 字</span>
                 <span className="h-3 w-px bg-white/10" />
                 <span className="font-mono">{charCount} 字符</span>
+                <span className="hidden h-3 w-px bg-white/10 md:inline-block" />
+                <span className="hidden font-mono text-zinc-500 md:inline">{shortcutSaveHint} 保存</span>
               </div>
             </div>
           </div>
@@ -2209,7 +2264,7 @@ export default function ChapterEditorPage() {
           )}
 
           <div className="custom-scrollbar flex-1 overflow-y-auto scroll-smooth">
-            <div className={`mx-auto w-full px-4 pb-24 pt-6 transition-all duration-500 md:px-8 lg:px-10 ${focusMode ? 'max-w-5xl' : 'max-w-[920px]'}`}>
+            <div className={`mx-auto w-full px-4 pb-24 pt-6 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
               <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
                 <div className="border-b border-white/10 bg-gradient-to-r from-emerald-500/10 via-sky-500/8 to-transparent px-6 py-5 md:px-8">
                   <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
@@ -2234,15 +2289,21 @@ export default function ChapterEditorPage() {
                 </div>
 
                 <div className="px-6 pb-8 pt-6 md:px-8">
-                  <textarea
-                    value={content}
-                    onChange={handleContentChange}
-                    onBlur={handleBlur}
-                    className="w-full min-h-[calc(100vh-420px)] resize-none border-none bg-transparent font-serif text-lg leading-9 tracking-[0.01em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-xl"
-                    placeholder="开始创作你的杰作..."
-                    aria-label="章节正文"
-                    spellCheck={false}
-                  />
+                  <div className="mx-auto w-full max-w-[780px]">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-2 text-[11px] text-zinc-500">
+                      <span>自动保存已开启，离开输入框会立即保存</span>
+                      <span className="font-mono">{shortcutSaveHint} 手动保存</span>
+                    </div>
+                    <textarea
+                      value={content}
+                      onChange={handleContentChange}
+                      onBlur={handleBlur}
+                      className="w-full min-h-[calc(100vh-470px)] resize-none border-none bg-transparent font-serif text-[1.06rem] leading-[2.05] tracking-[0.01em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-[1.15rem]"
+                      placeholder="开始创作你的章节内容..."
+                      aria-label="章节正文"
+                      spellCheck={false}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2260,49 +2321,74 @@ export default function ChapterEditorPage() {
               </span>
             </div>
 
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${saveStatusTone}`}>
-              {saveStatus === 'saved' ? (
-                <>
-                  <Icons.CheckCircle className="h-3 w-3" />
-                  所有更改已保存
-                </>
-              ) : saveStatus === 'saving' ? (
-                <>
-                  <Icons.Loader2 className="h-3 w-3 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Icons.X className="h-3 w-3" />
-                  等待保存
-                </>
-              )}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${saveStatusTone}`}>
+                {saveStatus === 'saved' ? (
+                  <>
+                    <Icons.CheckCircle className="h-3 w-3" />
+                    所有更改已保存
+                  </>
+                ) : saveStatus === 'saving' ? (
+                  <>
+                    <Icons.Loader2 className="h-3 w-3 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Icons.X className="h-3 w-3" />
+                    等待保存
+                  </>
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleManualSave()}
+                disabled={saveStatus === 'saving'}
+                className="h-7 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[11px] text-zinc-300 hover:bg-white/10 hover:text-white"
+                title={`手动保存（${shortcutSaveHint}）`}
+              >
+                <Icons.Save className="h-3 w-3" />
+                保存
+              </Button>
+            </div>
           </div>
         </motion.main>
 
         <motion.aside
           initial={false}
           animate={{
-            width: isSidebarOpen && !focusMode ? 340 : 0,
+            width: isSidebarOpen && !focusMode ? 320 : 0,
             opacity: isSidebarOpen && !focusMode ? 1 : 0,
           }}
           transition={{ ease: 'easeInOut', duration: 0.3 }}
           className="z-20 flex flex-col overflow-hidden border-l border-white/10 bg-[#121521]/95 shadow-2xl"
         >
-          <div className="min-w-[340px] border-b border-white/10 bg-white/[0.02] px-4 py-4">
+          <div className="min-w-[320px] border-b border-white/10 bg-white/[0.02] px-4 py-4">
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-zinc-100">
                 <Icons.History className="h-4 w-4 text-emerald-300" />
                 版本历史
               </h2>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
-                {versions.length}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void fetchVersions()}
+                  className="h-7 w-7 rounded-lg border border-white/10 bg-white/[0.03] px-0 text-zinc-400 hover:bg-white/10 hover:text-white"
+                  title="刷新版本历史"
+                  aria-label="刷新版本历史"
+                >
+                  <Icons.RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
+                  {versions.length}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="custom-scrollbar min-w-[340px] flex-1 space-y-3 overflow-y-auto p-4">
+          <div className="custom-scrollbar min-w-[320px] flex-1 space-y-3 overflow-y-auto p-4">
             {versions.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-10 text-center">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-zinc-600">
@@ -2310,6 +2396,16 @@ export default function ChapterEditorPage() {
                 </div>
                 <div className="text-sm text-zinc-500">暂无历史版本</div>
                 <div className="mt-1 text-xs text-zinc-600">系统会自动保存你的写作进度</div>
+                <div className="mt-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-xs text-zinc-300 hover:bg-white/10 hover:text-white"
+                  >
+                    收起侧栏
+                  </Button>
+                </div>
               </div>
             ) : (
               versions.map((version) => (
