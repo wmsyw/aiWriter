@@ -355,7 +355,7 @@ export async function handleReviewScore5Dim(prisma, job, { jobId, userId, input 
 
   const { config, adapter, defaultModel } = await getProviderAndAdapter(prisma, userId, agent?.providerConfigId);
 
-  const materials = await buildMaterialContext(chapter.novelId, ['character', 'worldbuilding']);
+  const materials = await buildMaterialContext(chapter.novelId, userId, ['character', 'worldbuilding']);
   const chapterContent = truncateText(chapter.content || '', 12000);
 
   const previousChapters = await prisma.chapter.findMany({
