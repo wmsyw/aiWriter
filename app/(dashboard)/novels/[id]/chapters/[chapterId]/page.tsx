@@ -2847,9 +2847,9 @@ export default function ChapterEditorPage() {
       className={`flex flex-col h-[calc(100vh-var(--dashboard-topbar-height))] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
     >
       <header className={`z-20 shrink-0 border-b border-white/10 bg-[#0d1017]/90 backdrop-blur-md transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
-        <div className="mx-auto flex w-full flex-col gap-3 px-4 py-3 lg:px-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-3">
+        <div className="mx-auto flex w-full flex-col gap-2 px-4 py-2 lg:px-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -2862,7 +2862,7 @@ export default function ChapterEditorPage() {
               </Button>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="hidden items-center gap-2 text-xs text-gray-500 lg:flex">
                   <span>小说列表</span>
                   <span>/</span>
                   <span className="truncate max-w-[180px]">章节编辑</span>
@@ -2902,14 +2902,14 @@ export default function ChapterEditorPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end md:self-start">
+            <div className="flex items-center gap-2 self-end md:self-auto">
               <Button
                 variant={saveStatus === 'unsaved' ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => void handleManualSave()}
                 isLoading={saveStatus === 'saving'}
                 loadingText="保存中..."
-                className={`h-9 rounded-xl px-3 text-xs ${saveStatus === 'unsaved' ? 'shadow-lg shadow-emerald-500/20' : ''}`}
+                className={`h-8 rounded-xl px-3 text-xs ${saveStatus === 'unsaved' ? 'shadow-lg shadow-emerald-500/20' : ''}`}
                 title={`手动保存（${shortcutSaveHint}）`}
               >
                 <Icons.Save className="h-3.5 w-3.5" />
@@ -2922,7 +2922,7 @@ export default function ChapterEditorPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setFocusMode(!focusMode)}
-                className="w-9 rounded-xl border border-white/10 bg-white/5 px-0 text-gray-300 hover:bg-white/10 hover:text-white"
+                className="h-8 w-8 rounded-xl border border-white/10 bg-white/5 px-0 text-gray-300 hover:bg-white/10 hover:text-white"
                 title={focusMode ? '退出专注模式' : '进入专注模式'}
                 aria-label={focusMode ? '退出专注模式' : '进入专注模式'}
               >
@@ -2933,7 +2933,7 @@ export default function ChapterEditorPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`w-9 rounded-xl border px-0 transition-colors ${
+                className={`h-8 w-8 rounded-xl border px-0 transition-colors ${
                   isSidebarOpen
                     ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-200 shadow-lg shadow-emerald-500/20'
                     : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
@@ -2946,12 +2946,12 @@ export default function ChapterEditorPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-white/10 bg-zinc-900/65 p-2.5 shadow-inner shadow-black/20 md:gap-3 md:p-3">
+          <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-start 2xl:justify-between">
+            <div className="no-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap rounded-2xl border border-white/10 bg-zinc-900/65 p-2 shadow-inner shadow-black/20">
               <Button
                 variant="primary"
                 size="sm"
-                className="min-w-[88px] shrink-0"
+                className="h-8 min-w-[88px] shrink-0"
                 onClick={() => createJob('CHAPTER_GENERATE')}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
                 loadingText="生成中..."
@@ -2963,7 +2963,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="min-w-[98px] shrink-0"
+                className="h-8 min-w-[96px] shrink-0"
                 onClick={() => void handleOpenBranchPanel()}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
                 loadingText="生成中..."
@@ -2975,7 +2975,7 @@ export default function ChapterEditorPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="min-w-[84px] shrink-0"
+                  className="h-8 min-w-[82px] shrink-0"
                   onClick={() => {
                     createJob('REVIEW_SCORE_5DIM');
                     if (shouldRunConsistencyCheck) {
@@ -2998,7 +2998,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="min-w-[84px] shrink-0"
+                className="h-8 min-w-[82px] shrink-0"
                 onClick={() => createJob('DEAI_REWRITE')}
                 isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
                 loadingText="润色中..."
@@ -3011,7 +3011,7 @@ export default function ChapterEditorPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="min-w-[132px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                  className="h-8 min-w-[128px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                   onClick={handleRollbackBeforeDeai}
                   disabled={activeJobs.some((job) => job.type === 'DEAI_REWRITE')}
                   title="回退到最近一次润色前的内容"
@@ -3023,7 +3023,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="min-w-[96px] shrink-0"
+                className="h-8 min-w-[92px] shrink-0"
                 onClick={handleMemoryExtract}
                 isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
                 loadingText="提取中..."
@@ -3037,7 +3037,7 @@ export default function ChapterEditorPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="min-w-[110px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
+                  className="h-8 min-w-[106px] shrink-0 border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                   onClick={() => {
                     setCanonCheckError(null);
                     createJob('CANON_CHECK');
@@ -3054,7 +3054,7 @@ export default function ChapterEditorPage() {
               <Button
                 variant="primary"
                 size="sm"
-                className="min-w-[88px] shrink-0 from-emerald-500 to-teal-500"
+                className="h-8 min-w-[86px] shrink-0 from-emerald-500 to-teal-500"
                 onClick={handleCompleteChapter}
                 disabled={!canComplete}
               >
@@ -3063,7 +3063,7 @@ export default function ChapterEditorPage() {
               </Button>
             </div>
 
-            <div className="w-full space-y-2.5 2xl:w-auto 2xl:min-w-[500px] 2xl:max-w-[760px]">
+            <div className="w-full space-y-2 2xl:w-auto 2xl:min-w-[500px] 2xl:max-w-[760px]">
               {postProcessWarning && (
                 <div className="inline-flex w-full min-w-0 items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
                   <span className="min-w-0 flex-1 truncate" title={postProcessWarning}>{postProcessWarning}</span>
@@ -3077,7 +3077,7 @@ export default function ChapterEditorPage() {
                 </div>
               )}
 
-              <div className={`rounded-2xl border px-3 py-2.5 ${
+              <div className={`rounded-2xl border px-3 py-2 ${
                 postProcessFailureCount > 0
                   ? 'border-red-500/25 bg-red-500/10'
                   : 'border-white/10 bg-zinc-900/60'
@@ -3164,10 +3164,10 @@ export default function ChapterEditorPage() {
             </div>
           )}
 
-          <div className="flex-1 overflow-hidden">
-            <div className={`mx-auto flex h-full w-full px-4 pb-14 pt-4 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className={`mx-auto flex h-full w-full px-4 pb-3 pt-2 transition-all duration-500 md:px-8 lg:px-10 ${editorContainerMaxWidthClass}`}>
               <div className="flex h-full w-full overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/70 shadow-[0_24px_70px_-28px_rgba(16,185,129,0.35)] backdrop-blur-md">
-                <div className="flex h-full w-full flex-col px-6 pb-5 pt-5 md:px-8">
+                <div className="flex h-full w-full flex-col px-6 pb-3 pt-3 md:px-8">
                   <div className={`mx-auto flex h-full w-full flex-col ${editorTextMaxWidthClass}`}>
                     <div className="mb-3 shrink-0 flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-1.5 text-[11px] text-zinc-500">
                       <span>自动保存已开启，离开输入框会立即保存</span>
@@ -3187,48 +3187,50 @@ export default function ChapterEditorPage() {
             </div>
           </div>
 
-          <div className={`absolute bottom-0 left-0 right-0 flex h-11 items-center justify-between border-t border-white/10 bg-[#0f1117]/92 px-4 text-xs text-zinc-500 backdrop-blur-md transition-all duration-300 sm:px-6 ${focusMode ? 'translate-y-full' : 'translate-y-0'}`}>
-            <div className="flex items-center gap-4 font-mono sm:gap-6">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-                {wordCount} 字
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-                {charCount} 字符
-              </span>
-            </div>
+          <div className={`shrink-0 overflow-hidden transition-all duration-300 ${focusMode ? 'max-h-0 opacity-0' : 'max-h-16 opacity-100'}`}>
+            <div className="flex h-11 items-center justify-between border-t border-white/10 bg-[#0f1117]/92 px-4 text-xs text-zinc-500 backdrop-blur-md sm:px-6">
+              <div className="flex items-center gap-4 font-mono sm:gap-6">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
+                  {wordCount} 字
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
+                  {charCount} 字符
+                </span>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${saveStatusTone}`}>
-                {saveStatus === 'saved' ? (
-                  <>
-                    <Icons.CheckCircle className="h-3 w-3" />
-                    所有更改已保存
-                  </>
-                ) : saveStatus === 'saving' ? (
-                  <>
-                    <Icons.Loader2 className="h-3 w-3 animate-spin" />
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Icons.X className="h-3 w-3" />
-                    等待保存
-                  </>
-                )}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleManualSave()}
-                disabled={saveStatus === 'saving'}
-                className="h-7 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[11px] text-zinc-300 hover:bg-white/10 hover:text-white"
-                title={`手动保存（${shortcutSaveHint}）`}
-              >
-                <Icons.Save className="h-3 w-3" />
-                保存
-              </Button>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${saveStatusTone}`}>
+                  {saveStatus === 'saved' ? (
+                    <>
+                      <Icons.CheckCircle className="h-3 w-3" />
+                      所有更改已保存
+                    </>
+                  ) : saveStatus === 'saving' ? (
+                    <>
+                      <Icons.Loader2 className="h-3 w-3 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    <>
+                      <Icons.X className="h-3 w-3" />
+                      等待保存
+                    </>
+                  )}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleManualSave()}
+                  disabled={saveStatus === 'saving'}
+                  className="h-7 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-[11px] text-zinc-300 hover:bg-white/10 hover:text-white"
+                  title={`手动保存（${shortcutSaveHint}）`}
+                >
+                  <Icons.Save className="h-3 w-3" />
+                  保存
+                </Button>
+              </div>
             </div>
           </div>
         </motion.main>
