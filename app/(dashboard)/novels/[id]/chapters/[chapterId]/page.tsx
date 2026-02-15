@@ -2844,7 +2844,7 @@ export default function ChapterEditorPage() {
       initial="initial"
       animate="animate"
       variants={fadeIn}
-      className={`flex flex-col h-[calc(100vh-var(--dashboard-topbar-height))] overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
+      className={`flex h-full min-h-0 flex-col overflow-hidden bg-[var(--color-dark-bg)] transition-all duration-500 ${focusMode ? 'fixed inset-0 z-50 h-screen' : ''}`}
     >
       <header className={`z-20 shrink-0 border-b border-white/10 bg-[#0d1017]/90 backdrop-blur-md transition-all duration-300 ${focusMode ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="mx-auto flex w-full flex-col gap-2 px-4 py-2 lg:px-6">

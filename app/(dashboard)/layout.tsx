@@ -224,6 +224,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     [pathname]
   );
   const isChapterEditorRoute = pathname.includes('/chapters/');
+  const pageWrapperClassName = isChapterEditorRoute
+    ? 'flex-1 min-h-0 p-0'
+    : 'flex-1 p-4 lg:p-7';
+  const pageClassName = isChapterEditorRoute
+    ? 'h-full'
+    : 'page-shell dashboard-page';
 
   const breadcrumb = useMemo(() => {
     const segments = pathname.split('/').filter(Boolean);
@@ -360,7 +366,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </Button>
       </aside>
 
-      <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-screen relative z-10 ${isChapterEditorRoute ? 'overflow-hidden' : 'overflow-y-auto'} transition-all duration-300`}>
+      <main className={`flex-1 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex flex-col min-h-0 relative z-10 ${isChapterEditorRoute ? 'overflow-hidden' : 'overflow-y-auto'} transition-all duration-300`}>
         <header className="h-[var(--dashboard-topbar-height)] min-h-[var(--dashboard-topbar-height)] flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-zinc-950/88 backdrop-blur-xl border-b border-zinc-800/60">
           <div className="flex items-center gap-4 min-w-0">
             <Button
@@ -457,8 +463,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <PageTransition
           mode="sync"
-          wrapperClassName="flex-1 p-4 lg:p-7"
-          pageClassName="page-shell dashboard-page"
+          wrapperClassName={pageWrapperClassName}
+          pageClassName={pageClassName}
         >
           {children}
         </PageTransition>
