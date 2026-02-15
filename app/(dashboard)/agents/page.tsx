@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { BUILT_IN_AGENTS, type AgentCategory, type BuiltInAgentDefinition } from '@/src/constants/agents';
 import { 
   Card, 
@@ -143,7 +143,6 @@ const BuiltInAgentCard = memo(({
   return (
     <motion.div
       variants={staggerItem}
-      layout
       className="col-span-1"
     >
       <Card variant="interactive" className="h-full flex flex-col">
@@ -807,19 +806,10 @@ export default function AgentsPage() {
     <div className="space-y-8 pb-8">
       <div className="page-header items-start gap-4">
         <div>
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="page-title"
-          >
+          <motion.h1 className="page-title">
             AI 助手
           </motion.h1>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="page-subtitle"
-          >
+          <motion.p className="page-subtitle">
             管理您的 AI 写作助手及其配置
           </motion.p>
         </div>
@@ -890,25 +880,23 @@ export default function AgentsPage() {
 
         <motion.div 
           variants={staggerContainer}
-          initial="hidden"
+          initial={false}
           animate="visible"
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
         >
-          <AnimatePresence mode="popLayout">
-            {filteredBuiltInAgents.map(([key, agent]) => (
-              <BuiltInAgentCard
-                key={key}
-                agentKey={key}
-                agent={agent}
-                instance={builtInInstanceMap.get(agent.name)}
-                providerName={getProviderName(builtInInstanceMap.get(agent.name)?.providerConfigId)}
-                hasTemplate={Boolean(getBuiltInAgentTemplate(agent.templateName))}
-                hasAnyProvider={providers.length > 0}
-                onViewTemplate={handleViewBuiltInAgent}
-                onCreateInstance={handleCreateInstance}
-              />
-            ))}
-          </AnimatePresence>
+          {filteredBuiltInAgents.map(([key, agent]) => (
+            <BuiltInAgentCard
+              key={key}
+              agentKey={key}
+              agent={agent}
+              instance={builtInInstanceMap.get(agent.name)}
+              providerName={getProviderName(builtInInstanceMap.get(agent.name)?.providerConfigId)}
+              hasTemplate={Boolean(getBuiltInAgentTemplate(agent.templateName))}
+              hasAnyProvider={providers.length > 0}
+              onViewTemplate={handleViewBuiltInAgent}
+              onCreateInstance={handleCreateInstance}
+            />
+          ))}
         </motion.div>
       </div>
 
@@ -921,7 +909,7 @@ export default function AgentsPage() {
         </h2>
         <motion.div 
           variants={staggerContainer}
-          initial="hidden"
+          initial={false}
           animate="visible"
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >

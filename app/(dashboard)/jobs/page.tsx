@@ -123,7 +123,7 @@ export default function JobsPage() {
     <div className="relative min-h-[calc(100vh-var(--dashboard-topbar-height)-2rem)]">
       <motion.div 
         className="space-y-6"
-        initial="hidden"
+        initial={false}
         animate="visible"
         variants={staggerContainer}
       >
@@ -185,13 +185,10 @@ export default function JobsPage() {
           className="space-y-3"
           variants={staggerContainer}
         >
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence mode="sync" initial={false}>
             {filteredJobs.length === 0 ? (
               <motion.div 
                 variants={fadeIn}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
                 className="text-center py-12 text-zinc-500 bg-zinc-900/55 rounded-2xl border border-white/10"
               >
                 没有符合筛选条件的任务
@@ -201,7 +198,6 @@ export default function JobsPage() {
                 <motion.div
                   key={job.id}
                   variants={staggerItem}
-                  layout
                 >
                   <Card 
                     variant="interactive"
