@@ -42,6 +42,16 @@ function isUnauthorizedError(error: unknown): boolean {
   return false;
 }
 
+function isJobsPayloadShape(payload: unknown): boolean {
+  if (Array.isArray(payload)) {
+    return true;
+  }
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  return Array.isArray((payload as { jobs?: unknown }).jobs);
+}
+
 export function useJobsQueue(
   options: UseJobsQueueOptions = {}
 ): UseJobsQueueResult {
@@ -109,6 +119,9 @@ export function useJobsQueue(
       }
 
       const payload = await res.json().catch(() => null);
+      if (!isJobsPayloadShape(payload)) {
+        throw new Error('jobs response malformed');
+      }
       return parseJobsListResponse(payload).jobs;
     } finally {
       clearTimeout(timer);

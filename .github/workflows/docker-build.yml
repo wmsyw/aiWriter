@@ -7,12 +7,6 @@ on:
   pull_request:
     branches: [main, master]
   workflow_dispatch:
-    inputs:
-      no_cache:
-        description: 'Build without cache'
-        required: false
-        default: 'false'
-        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -28,18 +22,19 @@ jobs:
             runner: ubuntu-latest
             suffix: amd64
           - platform: linux/arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-latest
             suffix: arm64
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
-    outputs:
-      image-name: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -108,8 +103,6 @@ jobs:
 
       - name: Create and push multi-arch manifest
         run: |
-          IMAGE_BASE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          
           # Process each tag from metadata
           echo "${{ steps.meta.outputs.tags }}" | while read -r TAG; do
             if [ -n "$TAG" ]; then

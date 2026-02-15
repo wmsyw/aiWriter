@@ -391,51 +391,61 @@ export default function AgentsPage() {
     }
   }, []);
 
-  const fetchJsonWithRetry = useCallback(async (url: string) => {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      let res: Response;
-      try {
-        res = await fetchJsonWithTimeout(url, 10000);
-      } catch (error) {
-        if (attempt === 0) {
+  const fetchJsonWithRetry = useCallback(
+    async (url: string, isValidPayload?: (payload: unknown) => boolean) => {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        let res: Response;
+        try {
+          res = await fetchJsonWithTimeout(url, 10000);
+        } catch (error) {
+          if (attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 220));
+            continue;
+          }
+          const message =
+            error instanceof Error && error.name === 'AbortError'
+              ? `${url} 请求超时`
+              : `${url} 网络异常`;
+          return {
+            ok: false as const,
+            status: 500,
+            error: message,
+          };
+        }
+
+        const payload = await res.json().catch(() => null);
+
+        if (res.ok) {
+          if (isValidPayload && !isValidPayload(payload)) {
+            return {
+              ok: false as const,
+              status: 502,
+              error: `${url} 响应格式异常`,
+            };
+          }
+          return { ok: true as const, data: payload };
+        }
+
+        if (res.status === 401 && attempt === 0) {
           await new Promise((resolve) => setTimeout(resolve, 220));
           continue;
         }
-        const message =
-          error instanceof Error && error.name === 'AbortError'
-            ? `${url} 请求超时`
-            : `${url} 网络异常`;
+
         return {
           ok: false as const,
-          status: 500,
-          error: message,
+          status: res.status,
+          error: extractErrorMessage(payload, `${url} 请求失败 (${res.status})`),
         };
-      }
-
-      const payload = await res.json().catch(() => null);
-
-      if (res.ok) {
-        return { ok: true as const, data: payload };
-      }
-
-      if (res.status === 401 && attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 220));
-        continue;
       }
 
       return {
         ok: false as const,
-        status: res.status,
-        error: extractErrorMessage(payload, `${url} 请求失败 (${res.status})`),
+        status: 500,
+        error: `${url} 请求失败`,
       };
-    }
-
-    return {
-      ok: false as const,
-      status: 500,
-      error: `${url} 请求失败`,
-    };
-  }, [fetchJsonWithTimeout]);
+    },
+    [fetchJsonWithTimeout]
+  );
 
   const redirectToLogin = useCallback(() => {
     if (redirectingToLoginRef.current) {
@@ -448,9 +458,15 @@ export default function AgentsPage() {
   const fetchData = useCallback(async () => {
     try {
       const [agentsResult, templatesResult, providersResult] = await Promise.all([
-        fetchJsonWithRetry('/api/agents'),
-        fetchJsonWithRetry('/api/templates'),
-        fetchJsonWithRetry('/api/providers'),
+        fetchJsonWithRetry('/api/agents', (payload) => Array.isArray(payload)),
+        fetchJsonWithRetry('/api/templates', (payload) => Array.isArray(payload)),
+        fetchJsonWithRetry('/api/providers', (payload) => {
+          if (!payload || typeof payload !== 'object') {
+            return false;
+          }
+          const configs = (payload as { configs?: unknown }).configs;
+          return configs === undefined || Array.isArray(configs);
+        }),
       ]);
 
       if (agentsResult.ok) {
