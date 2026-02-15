@@ -164,7 +164,7 @@ export const BUILT_IN_AGENTS: Record<string, BuiltInAgentDefinition> = {
   },
   INSPIRATION_GENERATOR: {
     name: '灵感生成器',
-    description: '根据用户选择的频道、目标字数和关键词，智能生成当下热门的小说主题灵感',
+    description: '根据用户选择的频道、目标字数、目标平台和关键词，智能生成当下热门的小说主题灵感',
     category: 'writing',
     templateName: '灵感生成',
     defaultParams: { temperature: 0.9, maxTokens: 4000, topP: 0.95 },

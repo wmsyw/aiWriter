@@ -208,7 +208,7 @@ export async function handleWizardWorldBuilding(prisma, job, { jobId, userId, in
  * @returns {Promise<Inspiration[]>}
  */
 export async function handleWizardInspiration(prisma, job, { jobId, userId, input }) {
-  const { genre, targetWords, targetAudience, keywords, count, agentId } = input;
+  const { genre, targetWords, targetAudience, targetPlatform, keywords, count, agentId } = input;
 
   const { agent, template } = await resolveAgentAndTemplate(prisma, {
     userId,
@@ -226,12 +226,13 @@ export async function handleWizardInspiration(prisma, job, { jobId, userId, inpu
   const context = {
     genre: genre || '玄幻',
     target_words: targetWords || 100,
+    target_platform: targetPlatform || '通用网文平台',
     target_audience: targetAudience || '男性读者',
     keywords: sanitizedKeywords,
     count: Math.min(Math.max(count || 5, 1), 10),
   };
 
-  const fallbackPrompt = `请生成${context.count}个${context.genre}类型小说灵感，目标字数${context.target_words}万字，目标读者${context.target_audience}。
+  const fallbackPrompt = `请生成${context.count}个${context.genre}类型小说灵感，目标字数${context.target_words}万字，目标平台${context.target_platform}，目标读者${context.target_audience}。
 
 <user_keywords>${context.keywords || '无'}</user_keywords>
 

@@ -36,37 +36,29 @@ export const INSPIRATION_AUDIENCE_OPTIONS: InspirationOption[] = [
   { value: '成年读者', label: '成年读者' },
 ];
 
-export const INSPIRATION_STYLE_OPTIONS: InspirationOption[] = [
-  { value: '', label: '不限风格' },
-  { value: '轻松幽默', label: '轻松幽默' },
-  { value: '热血燃向', label: '热血燃向' },
-  { value: '暗黑压抑', label: '暗黑压抑' },
-  { value: '温馨治愈', label: '温馨治愈' },
-  { value: '悬疑烧脑', label: '悬疑烧脑' },
-  { value: '史诗宏大', label: '史诗宏大' },
-  { value: '诙谐讽刺', label: '诙谐讽刺' },
-  { value: '细腻文艺', label: '细腻文艺' },
-  { value: '硬核写实', label: '硬核写实' },
-  { value: '荒诞离奇', label: '荒诞离奇' },
-  { value: '浪漫唯美', label: '浪漫唯美' },
-  { value: '冷峻凌厉', label: '冷峻凌厉' },
+export const INSPIRATION_GENRE_OPTIONS: InspirationOption[] = [
+  { value: '玄幻', label: '玄幻' },
+  { value: '仙侠', label: '仙侠' },
+  { value: '都市', label: '都市' },
+  { value: '历史', label: '历史' },
+  { value: '科幻', label: '科幻' },
+  { value: '游戏', label: '游戏' },
+  { value: '悬疑', label: '悬疑' },
+  { value: '奇幻', label: '奇幻' },
+  { value: '武侠', label: '武侠' },
+  { value: '言情', label: '言情' },
+  { value: '其他', label: '其他' },
 ];
 
-export const INSPIRATION_TONE_OPTIONS: InspirationOption[] = [
-  { value: '', label: '不限基调' },
-  { value: '爽文节奏', label: '爽文节奏' },
-  { value: '慢热养成', label: '慢热养成' },
-  { value: '虐心虐身', label: '虐心虐身' },
-  { value: '甜宠日常', label: '甜宠日常' },
-  { value: '权谋争斗', label: '权谋争斗' },
-  { value: '热血励志', label: '热血励志' },
-  { value: '沉郁悲壮', label: '沉郁悲壮' },
-  { value: '轻快欢脱', label: '轻快欢脱' },
-  { value: '紧张刺激', label: '紧张刺激' },
-  { value: '压抑窒息', label: '压抑窒息' },
-  { value: '豁达释然', label: '豁达释然' },
-  { value: '苦尽甘来', label: '苦尽甘来' },
-  { value: '黑色幽默', label: '黑色幽默' },
+export const INSPIRATION_PLATFORM_OPTIONS: InspirationOption[] = [
+  { value: '通用网文平台', label: '通用网文平台' },
+  { value: '起点中文网', label: '起点中文网' },
+  { value: '番茄小说', label: '番茄小说' },
+  { value: '晋江文学城', label: '晋江文学城' },
+  { value: '纵横中文网', label: '纵横中文网' },
+  { value: '七猫小说', label: '七猫小说' },
+  { value: 'QQ阅读', label: 'QQ阅读' },
+  { value: '17K小说网', label: '17K小说网' },
 ];
 
 export const INSPIRATION_PERSPECTIVE_OPTIONS: InspirationOption[] = [
@@ -289,10 +281,9 @@ export function getInspirationPresetsByGenre(genre: string): InspirationPreset[]
 export interface InspirationCacheKeyInput {
   genre: string;
   targetWords: number;
+  targetPlatform: string;
   audience: string;
   keywords: string;
-  style: string;
-  tone: string;
   perspective: string;
 }
 
@@ -302,10 +293,9 @@ export function buildInspirationCacheKey(input: InspirationCacheKeyInput): strin
   return [
     normalizeText(input.genre) || DEFAULT_GENRE,
     targetWords,
+    normalizeText(input.targetPlatform),
     normalizeText(input.audience),
     normalizeText(input.keywords),
-    normalizeText(input.style),
-    normalizeText(input.tone),
     normalizeText(input.perspective),
   ]
     .map((part) => part.toLowerCase())
@@ -314,15 +304,13 @@ export function buildInspirationCacheKey(input: InspirationCacheKeyInput): strin
 
 export interface InspirationKeywordPromptInput {
   keywords: string;
-  style: string;
-  tone: string;
+  targetPlatform: string;
   perspective: string;
 }
 
 export function buildInspirationKeywordsPrompt(input: InspirationKeywordPromptInput): string {
   const requirements = [
-    input.style && `写作风格：${normalizeText(input.style)}`,
-    input.tone && `情感基调：${normalizeText(input.tone)}`,
+    input.targetPlatform && `目标平台：${normalizeText(input.targetPlatform)}`,
     input.perspective && `叙事视角：${normalizeText(input.perspective)}`,
   ]
     .filter(Boolean)

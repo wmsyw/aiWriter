@@ -10,10 +10,10 @@ import { useJobPolling } from '@/app/lib/hooks/useJobPolling';
 import { parseJobResponse } from '@/src/shared/jobs';
 import {
   INSPIRATION_AUDIENCE_OPTIONS,
+  INSPIRATION_GENRE_OPTIONS,
+  INSPIRATION_PLATFORM_OPTIONS,
   INSPIRATION_PERSPECTIVE_OPTIONS,
   INSPIRATION_PROGRESS_MESSAGES,
-  INSPIRATION_STYLE_OPTIONS,
-  INSPIRATION_TONE_OPTIONS,
   buildInspirationCacheKey,
   buildInspirationKeywordsPrompt,
   normalizeInspirationList,
@@ -131,10 +131,13 @@ export default function InspirationModal({
 }: InspirationModalProps) {
   const [step, setStep] = useState<'settings' | 'generating' | 'results'>('settings');
   const [generateMode, setGenerateMode] = useState<'replace' | 'append'>('replace');
+  const [selectedGenre, setSelectedGenre] = useState(genre || '其他');
+  const [selectedTargetWords, setSelectedTargetWords] = useState(
+    Math.min(1000, Math.max(10, targetWords || 100)),
+  );
+  const [targetPlatform, setTargetPlatform] = useState('通用网文平台');
   const [count, setCount] = useState(5);
   const [audience, setAudience] = useState('全年龄');
-  const [style, setStyle] = useState('');
-  const [tone, setTone] = useState('');
   const [perspective, setPerspective] = useState('');
   const [keywords, setKeywords] = useState('');
   const [inspirations, setInspirations] = useState<Inspiration[]>([]);
@@ -149,12 +152,11 @@ export default function InspirationModal({
   const progressIndexRef = useRef(0);
   const inspirationsRef = useRef<Inspiration[]>([]);
   const criteriaRef = useRef({
-    genre,
-    targetWords,
+    genre: genre || '其他',
+    targetWords: Math.min(1000, Math.max(10, targetWords || 100)),
+    targetPlatform: '通用网文平台',
     audience,
     keywords,
-    style,
-    tone,
     perspective,
   });
 
@@ -166,18 +168,20 @@ export default function InspirationModal({
 
   useEffect(() => {
     criteriaRef.current = {
-      genre,
-      targetWords,
+      genre: selectedGenre,
+      targetWords: selectedTargetWords,
+      targetPlatform,
       audience,
       keywords,
-      style,
-      tone,
       perspective,
     };
-  }, [genre, targetWords, audience, keywords, style, tone, perspective]);
+  }, [selectedGenre, selectedTargetWords, targetPlatform, audience, keywords, perspective]);
 
-  const getCurrentCacheKey = useCallback(() => {
-    return buildInspirationCacheKey(criteriaRef.current);
+  const getCurrentCacheKey = useCallback((overrides?: Partial<typeof criteriaRef.current>) => {
+    return buildInspirationCacheKey({
+      ...criteriaRef.current,
+      ...(overrides || {}),
+    });
   }, []);
 
   const clearProgressInterval = useCallback(() => {
@@ -246,7 +250,16 @@ export default function InspirationModal({
   useEffect(() => {
     if (isOpen) {
       setGenerateMode('replace');
-      const cached = inspirationCache.get(getCurrentCacheKey());
+      const initialGenre = genre || '其他';
+      const initialTargetWords = Math.min(1000, Math.max(10, targetWords || 100));
+      setSelectedGenre(initialGenre);
+      setSelectedTargetWords(initialTargetWords);
+      const cached = inspirationCache.get(
+        getCurrentCacheKey({
+          genre: initialGenre,
+          targetWords: initialTargetWords,
+        }),
+      );
 
       if (cached && cached.items.length > 0) {
         const dedupedCachedItems = mergeInspirations([], cached.items);
@@ -283,8 +296,7 @@ export default function InspirationModal({
 
     const fullKeywords = buildInspirationKeywordsPrompt({
       keywords,
-      style,
-      tone,
+      targetPlatform,
       perspective,
     });
 
@@ -295,8 +307,9 @@ export default function InspirationModal({
         body: JSON.stringify({
           type: 'WIZARD_INSPIRATION',
           input: {
-            genre,
-            targetWords,
+            genre: selectedGenre,
+            targetWords: selectedTargetWords,
+            targetPlatform,
             targetAudience: audience,
             keywords: fullKeywords,
             count
@@ -403,7 +416,40 @@ export default function InspirationModal({
               exit={{ opacity: 0, x: 20 }}
               className="space-y-5"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-400">小说类别</label>
+                  <Select
+                    value={selectedGenre}
+                    onChange={setSelectedGenre}
+                    options={INSPIRATION_GENRE_OPTIONS}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-400">目标字数（万字）</label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={1000}
+                    value={selectedTargetWords}
+                    onChange={(e) =>
+                      setSelectedTargetWords(
+                        Math.min(1000, Math.max(10, parseInt(e.target.value, 10) || 100)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-400">目标小说平台</label>
+                  <Select
+                    value={targetPlatform}
+                    onChange={setTargetPlatform}
+                    options={INSPIRATION_PLATFORM_OPTIONS}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-zinc-400">生成数量</label>
                   <Input
@@ -411,7 +457,7 @@ export default function InspirationModal({
                     min={1}
                     max={10}
                     value={count}
-                    onChange={(e) => setCount(Math.min(10, Math.max(1, parseInt(e.target.value) || 5)))}
+                    onChange={(e) => setCount(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 5)))}
                   />
                 </div>
                 <div className="space-y-2">
@@ -420,25 +466,6 @@ export default function InspirationModal({
                     value={audience}
                     onChange={setAudience}
                     options={INSPIRATION_AUDIENCE_OPTIONS}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-400">写作风格</label>
-                  <Select
-                    value={style}
-                    onChange={setStyle}
-                    options={INSPIRATION_STYLE_OPTIONS}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-400">情感基调</label>
-                  <Select
-                    value={tone}
-                    onChange={setTone}
-                    options={INSPIRATION_TONE_OPTIONS}
                   />
                 </div>
                 <div className="space-y-2">

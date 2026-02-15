@@ -32,37 +32,33 @@ describe('inspiration helpers', () => {
     const keyA = buildInspirationCacheKey({
       genre: ' 玄幻 ',
       targetWords: 100,
+      targetPlatform: ' 起点中文网 ',
       audience: ' 全年龄 ',
       keywords: ' 赛博朋克  ',
-      style: ' 热血燃向',
-      tone: '爽文节奏 ',
       perspective: ' 第一人称 ',
     });
 
     const keyB = buildInspirationCacheKey({
       genre: '玄幻',
       targetWords: 100,
+      targetPlatform: '起点中文网',
       audience: '全年龄',
       keywords: '赛博朋克',
-      style: '热血燃向',
-      tone: '爽文节奏',
       perspective: '第一人称',
     });
 
     expect(keyA).toBe(keyB);
   });
 
-  it('builds keyword prompt with optional writing requirements', () => {
+  it('builds keyword prompt with platform and perspective requirements', () => {
     const prompt = buildInspirationKeywordsPrompt({
       keywords: '赛博朋克，复仇',
-      style: '热血燃向',
-      tone: '爽文节奏',
+      targetPlatform: '番茄小说',
       perspective: '',
     });
 
     expect(prompt).toContain('赛博朋克，复仇');
-    expect(prompt).toContain('写作风格：热血燃向');
-    expect(prompt).toContain('情感基调：爽文节奏');
+    expect(prompt).toContain('目标平台：番茄小说');
   });
 
   it('normalizes inspiration payload and ignores invalid entries', () => {
