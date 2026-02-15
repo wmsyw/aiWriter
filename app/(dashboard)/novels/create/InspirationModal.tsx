@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import Modal from '@/app/components/ui/Modal';
 import { Button } from '@/app/components/ui/Button';
@@ -49,14 +49,76 @@ const itemVariants: Variants = {
 };
 
 const CACHE_MAX_SIZE = 50;
-const inspirationCache = new Map<string, Inspiration[]>();
+const RESULT_MAX_SIZE = 24;
+const MAX_QUICK_FILTER_KEYWORDS = 10;
 
-function setCacheWithLimit(key: string, value: Inspiration[]): void {
+interface InspirationCacheEntry {
+  items: Inspiration[];
+  updatedAt: number;
+}
+
+const inspirationCache = new Map<string, InspirationCacheEntry>();
+
+function normalizeForSearch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function buildInspirationFingerprint(item: Inspiration): string {
+  return [
+    normalizeForSearch(item.name),
+    normalizeForSearch(item.theme),
+    normalizeForSearch(item.protagonist),
+    normalizeForSearch(item.worldSetting),
+  ].join('|');
+}
+
+function mergeInspirations(base: Inspiration[], incoming: Inspiration[]): Inspiration[] {
+  const merged: Inspiration[] = [];
+  const seen = new Set<string>();
+
+  const append = (list: Inspiration[]) => {
+    for (const item of list) {
+      const fingerprint = buildInspirationFingerprint(item);
+      if (!fingerprint || seen.has(fingerprint)) continue;
+      seen.add(fingerprint);
+      merged.push(item);
+    }
+  };
+
+  append(base);
+  append(incoming);
+
+  if (merged.length <= RESULT_MAX_SIZE) {
+    return merged;
+  }
+
+  return merged.slice(merged.length - RESULT_MAX_SIZE);
+}
+
+function formatElapsedTime(updatedAt: number): string {
+  const diff = Date.now() - updatedAt;
+  if (diff < 60_000) return '刚刚';
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  return `${days} 天前`;
+}
+
+function setCacheWithLimit(key: string, value: Inspiration[]): InspirationCacheEntry {
+  const entry: InspirationCacheEntry = {
+    items: value,
+    updatedAt: Date.now(),
+  };
+
   if (inspirationCache.size >= CACHE_MAX_SIZE) {
     const firstKey = inspirationCache.keys().next().value;
     if (firstKey) inspirationCache.delete(firstKey);
   }
-  inspirationCache.set(key, value);
+  inspirationCache.set(key, entry);
+
+  return entry;
 }
 
 export default function InspirationModal({
@@ -68,6 +130,7 @@ export default function InspirationModal({
   targetWords
 }: InspirationModalProps) {
   const [step, setStep] = useState<'settings' | 'generating' | 'results'>('settings');
+  const [generateMode, setGenerateMode] = useState<'replace' | 'append'>('replace');
   const [count, setCount] = useState(5);
   const [audience, setAudience] = useState('全年龄');
   const [style, setStyle] = useState('');
@@ -75,12 +138,16 @@ export default function InspirationModal({
   const [perspective, setPerspective] = useState('');
   const [keywords, setKeywords] = useState('');
   const [inspirations, setInspirations] = useState<Inspiration[]>([]);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [expandedFingerprint, setExpandedFingerprint] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeKeyword, setActiveKeyword] = useState('');
   const [progressMessage, setProgressMessage] = useState('');
+  const [resultMetaMessage, setResultMetaMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progressIndexRef = useRef(0);
+  const inspirationsRef = useRef<Inspiration[]>([]);
   const criteriaRef = useRef({
     genre,
     targetWords,
@@ -92,6 +159,10 @@ export default function InspirationModal({
   });
 
   const { data, status, error, startPolling, stopPolling } = useJobPolling<Inspiration[]>();
+
+  useEffect(() => {
+    inspirationsRef.current = inspirations;
+  }, [inspirations]);
 
   useEffect(() => {
     criteriaRef.current = {
@@ -138,10 +209,29 @@ export default function InspirationModal({
         setStep('settings');
         return;
       }
-      setInspirations(result);
-      
-      setCacheWithLimit(getCurrentCacheKey(), result);
-      
+
+      const currentList = inspirationsRef.current;
+      const nextList =
+        generateMode === 'append'
+          ? mergeInspirations(currentList, result)
+          : mergeInspirations([], result);
+
+      setInspirations(nextList);
+      setExpandedFingerprint(null);
+      setSearchQuery('');
+      setActiveKeyword('');
+
+      setCacheWithLimit(getCurrentCacheKey(), nextList);
+      const addedCount =
+        generateMode === 'append'
+          ? Math.max(0, nextList.length - currentList.length)
+          : nextList.length;
+      setResultMetaMessage(
+        generateMode === 'append'
+          ? `新增 ${addedCount} 条，可用 ${nextList.length} 条（已去重）`
+          : `已生成 ${nextList.length} 条（已去重）`
+      );
+
       setStep('results');
     } else if (status === 'failed' && error) {
       clearProgressInterval();
@@ -155,16 +245,22 @@ export default function InspirationModal({
 
   useEffect(() => {
     if (isOpen) {
+      setGenerateMode('replace');
       const cached = inspirationCache.get(getCurrentCacheKey());
 
-      if (cached && cached.length > 0) {
-        setInspirations(cached);
+      if (cached && cached.items.length > 0) {
+        const dedupedCachedItems = mergeInspirations([], cached.items);
+        setInspirations(dedupedCachedItems);
+        setResultMetaMessage(`已加载缓存 · ${formatElapsedTime(cached.updatedAt)}`);
         setStep('results');
       } else {
         setStep('settings');
         setInspirations([]);
+        setResultMetaMessage('');
       }
-      setExpandedIndex(null);
+      setExpandedFingerprint(null);
+      setSearchQuery('');
+      setActiveKeyword('');
       setErrorMessage('');
       setProgressMessage('');
     } else {
@@ -178,10 +274,11 @@ export default function InspirationModal({
     };
   }, [isOpen, stopPolling, clearProgressInterval, getCurrentCacheKey]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (mode: 'replace' | 'append' = 'replace') => {
+    setGenerateMode(mode);
     setStep('generating');
     setErrorMessage('');
-    setExpandedIndex(null);
+    setExpandedFingerprint(null);
     startProgressMessages();
 
     const fullKeywords = buildInspirationKeywordsPrompt({
@@ -225,7 +322,7 @@ export default function InspirationModal({
       clearProgressInterval();
       setErrorMessage(err instanceof Error ? err.message : '生成失败');
       setTimeout(() => {
-        setStep('settings');
+        setStep(mode === 'append' ? 'results' : 'settings');
         setErrorMessage('');
       }, 3000);
     }
@@ -233,19 +330,60 @@ export default function InspirationModal({
 
   const handleRetry = () => {
     inspirationCache.delete(getCurrentCacheKey());
-    setStep('settings');
-    setInspirations([]);
-    setExpandedIndex(null);
+    setResultMetaMessage('');
+    void handleGenerate('replace');
   };
 
-  const handleCardClick = (idx: number) => {
-    if (expandedIndex === idx) {
-      const selected = inspirations[idx];
+  const handleCardClick = (fingerprint: string, item: Inspiration) => {
+    if (expandedFingerprint === fingerprint) {
+      const selected = item;
       if (selected) onSelect(selected);
     } else {
-      setExpandedIndex(idx);
+      setExpandedFingerprint(fingerprint);
     }
   };
+
+  const quickFilterKeywords = useMemo(() => {
+    const counter = new Map<string, number>();
+    inspirations.forEach((item) => {
+      item.keywords.forEach((keyword) => {
+        const normalized = keyword.trim();
+        if (!normalized) return;
+        counter.set(normalized, (counter.get(normalized) || 0) + 1);
+      });
+    });
+    return [...counter.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_QUICK_FILTER_KEYWORDS)
+      .map(([keyword]) => keyword);
+  }, [inspirations]);
+
+  const filteredInspirations = useMemo(() => {
+    const normalizedQuery = normalizeForSearch(searchQuery);
+    const normalizedKeyword = normalizeForSearch(activeKeyword);
+
+    return inspirations.filter((item) => {
+      const keywordMatched =
+        !normalizedKeyword ||
+        item.keywords.some((keyword) => normalizeForSearch(keyword) === normalizedKeyword);
+      if (!keywordMatched) return false;
+
+      if (!normalizedQuery) return true;
+      const haystack = [
+        item.name,
+        item.theme,
+        item.protagonist,
+        item.worldSetting,
+        item.hook || '',
+        item.potential || '',
+        ...item.keywords,
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedQuery);
+    });
+  }, [inspirations, searchQuery, activeKeyword]);
 
   return (
     <Modal
@@ -325,7 +463,7 @@ export default function InspirationModal({
 
               <div className="pt-3">
                 <Button
-                  onClick={handleGenerate}
+                  onClick={() => void handleGenerate('replace')}
                   leftIcon="✨"
                   className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 hover:scale-[1.02]"
                 >
@@ -359,7 +497,9 @@ export default function InspirationModal({
                 </div>
               </div>
               <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-white">正在编织灵感...</h3>
+                <h3 className="text-xl font-bold text-white">
+                  {generateMode === 'append' ? '正在追加灵感...' : '正在编织灵感...'}
+                </h3>
                 <p className="text-zinc-400 animate-pulse min-h-[1.5em]">
                   {errorMessage || progressMessage || 'AI 正在头脑风暴'}
                 </p>
@@ -378,29 +518,87 @@ export default function InspirationModal({
               animate="visible"
               className="space-y-4"
             >
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-white">为你找到 {inspirations.length} 个灵感</h3>
-                  <p className="text-xs text-zinc-500 mt-1">点击卡片查看详情，再次点击应用灵感</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    当前筛选 {filteredInspirations.length} 条 · 点击卡片查看详情，再次点击应用灵感
+                    {resultMetaMessage ? ` · ${resultMetaMessage}` : ''}
+                  </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRetry}
-                  className="text-zinc-400 hover:text-white"
-                >
-                  重新生成
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setStep('settings')}
+                    className="text-zinc-400 hover:text-white"
+                  >
+                    调整条件
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleGenerate('append')}
+                    disabled={status === 'running'}
+                    className="border-emerald-500/30 text-emerald-200 hover:text-emerald-100"
+                  >
+                    追加生成
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRetry}
+                    disabled={status === 'running'}
+                    className="text-zinc-400 hover:text-white"
+                  >
+                    重新生成
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜索标题、主题、主角、世界观或关键词"
+                  className="h-9"
+                />
+                {quickFilterKeywords.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={activeKeyword ? 'ghost' : 'secondary'}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setActiveKeyword('')}
+                    >
+                      全部
+                    </Button>
+                    {quickFilterKeywords.map((keyword) => (
+                      <Button
+                        key={keyword}
+                        type="button"
+                        variant={activeKeyword === keyword ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setActiveKeyword(keyword)}
+                      >
+                        {keyword}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
-                {inspirations.map((item, idx) => {
-                  const isExpanded = expandedIndex === idx;
+                {filteredInspirations.map((item) => {
+                  const fingerprint = buildInspirationFingerprint(item);
+                  const isExpanded = expandedFingerprint === fingerprint;
                   return (
                     <motion.div
-                      key={idx}
+                      key={fingerprint}
                       variants={itemVariants}
-                      onClick={() => handleCardClick(idx)}
+                      onClick={() => handleCardClick(fingerprint, item)}
                       className={`group relative p-4 rounded-xl border transition-all duration-300 cursor-pointer overflow-hidden ${
                         isExpanded 
                           ? 'border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]' 
@@ -506,6 +704,12 @@ export default function InspirationModal({
                     </motion.div>
                   );
                 })}
+                {filteredInspirations.length === 0 && (
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-6 text-center">
+                    <p className="text-sm text-zinc-400">没有符合筛选条件的灵感</p>
+                    <p className="text-xs text-zinc-500 mt-2">可清空关键词筛选或重新生成一批</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
