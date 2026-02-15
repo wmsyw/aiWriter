@@ -24,6 +24,7 @@ interface UseJobsQueueResult {
   loading: boolean;
   isUsingSse: boolean;
   isUnauthorized: boolean;
+  error: string | null;
   refreshJobs: () => Promise<void>;
   cancelJob: (jobId: string) => Promise<void>;
 }
@@ -53,6 +54,7 @@ export function useJobsQueue(
   const [loading, setLoading] = useState(true);
   const [useSse, setUseSse] = useState(preferSse);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseBootstrapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasReceivedSseEventRef = useRef(false);
@@ -121,11 +123,13 @@ export function useJobsQueue(
           setJobs(nextJobs);
           persistJobsCache(nextJobs);
           setIsUnauthorized(false);
+          setError(null);
           return;
         } catch (error) {
           if (isUnauthorizedError(error)) {
             setIsUnauthorized(true);
             setUseSse(false);
+            setError('登录状态已失效，请重新登录');
             return;
           }
           if (attempt === 0) {
@@ -133,6 +137,7 @@ export function useJobsQueue(
             continue;
           }
           console.error('Failed to fetch jobs', error);
+          setError('任务数据加载失败，请稍后重试');
         }
       }
     } finally {
@@ -212,31 +217,17 @@ export function useJobsQueue(
           return merged;
         });
         setLoading(false);
+        setError(null);
       } catch (error) {
         console.error('SSE parse error', error);
       }
     };
 
     eventSource.addEventListener('jobs', handleJobs);
-    eventSource.onerror = async () => {
+    eventSource.onerror = () => {
       console.warn('SSE connection failed, fallback to polling');
       clearSseBootstrapTimer();
       eventSource.close();
-
-      try {
-        const res = await fetch('/api/jobs?limit=1', {
-          cache: 'no-store',
-          credentials: 'include',
-        });
-        if (res.status === 401) {
-          setIsUnauthorized(true);
-          setLoading(false);
-          return;
-        }
-      } catch {
-        // ignore probe error
-      }
-
       setUseSse(false);
       setLoading(false);
     };
@@ -266,6 +257,7 @@ export function useJobsQueue(
         if (!res.ok) {
           if (res.status === 401) {
             setIsUnauthorized(true);
+            setError('登录状态已失效，请重新登录');
           }
           return;
         }
@@ -278,12 +270,14 @@ export function useJobsQueue(
             persistJobsCache(merged);
             return merged;
           });
+          setError(null);
           return;
         }
 
         await fetchJobs();
       } catch (error) {
         console.error('Failed to cancel job', error);
+        setError('取消任务失败，请稍后重试');
       }
     },
     [fetchJobs, persistJobsCache]
@@ -294,6 +288,7 @@ export function useJobsQueue(
     loading,
     isUsingSse: useSse,
     isUnauthorized,
+    error,
     refreshJobs,
     cancelJob,
   };

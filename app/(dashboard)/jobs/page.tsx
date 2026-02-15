@@ -21,7 +21,7 @@ import type { JobQueueItem, JobQueueStatus } from '@/src/shared/jobs';
 
 export default function JobsPage() {
   const router = useRouter();
-  const { jobs, loading, cancelJob, isUnauthorized } = useJobsQueue();
+  const { jobs, loading, cancelJob, isUnauthorized, error, refreshJobs } = useJobsQueue();
   const [filterStatus, setFilterStatus] = useState<'all' | JobQueueStatus>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedJob, setSelectedJob] = useState<JobQueueItem | null>(null);
@@ -160,6 +160,26 @@ export default function JobsPage() {
             </select>
           </motion.div>
         </div>
+
+        {error && (
+          <motion.div
+            variants={fadeIn}
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>{error}</span>
+              {!isUnauthorized && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void refreshJobs()}
+                >
+                  重新加载
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         <motion.div 
           className="space-y-3"
