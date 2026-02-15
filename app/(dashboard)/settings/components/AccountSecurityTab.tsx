@@ -99,6 +99,7 @@ export function AccountSecurityTab({
               <Button
                 type="submit"
                 isLoading={changingPassword}
+                loadingText="修改中..."
                 className="w-full"
               >
                 修改密码

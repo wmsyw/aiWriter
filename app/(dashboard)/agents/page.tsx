@@ -14,6 +14,8 @@ import {
 import { Button } from '@/app/components/ui/Button';
 import { Badge } from '@/app/components/ui/Badge';
 import { Input, Textarea } from '@/app/components/ui/Input';
+import { Checkbox } from '@/app/components/ui/Checkbox';
+import { RangeSlider } from '@/app/components/ui/RangeSlider';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/app/components/ui/Tabs';
 import Modal, { ModalFooter } from '@/app/components/ui/Modal';
@@ -980,11 +982,11 @@ export default function AgentsPage() {
                             : 'border-white/10 bg-white/[0.02] hover:border-white/20'
                         }`}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={isSelected}
                           onChange={(event) => toggleBatchAgentSelection(agent.id, event.target.checked)}
                           className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-emerald-500"
+                          aria-label={`选择助手 ${agent.name}`}
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1089,6 +1091,7 @@ export default function AgentsPage() {
               type="submit"
               disabled={batchSaving || selectedBatchCount === 0}
               isLoading={batchSaving}
+              loadingText="保存中..."
             >
               批量保存
             </Button>
@@ -1257,27 +1260,22 @@ export default function AgentsPage() {
             <div className="border-t border-white/10 pt-6">
               <h3 className="text-sm font-medium text-gray-300 mb-4">参数设置</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-gray-400">
-                    <span>温度 (Temperature)</span>
-                    <span>{currentAgent.params?.temperature ?? 0.7}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    value={currentAgent.params?.temperature ?? 0.7}
-                    onChange={e => updateParam('temperature', parseFloat(e.target.value))}
-                    className="w-full accent-emerald-500"
-                  />
-                </div>
+                <RangeSlider
+                  label="温度 (Temperature)"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={currentAgent.params?.temperature ?? 0.7}
+                  onChange={e => updateParam('temperature', parseFloat(e.target.value))}
+                  valueFormatter={(value) => value.toFixed(1)}
+                  aria-label="温度参数"
+                />
                 <div className="space-y-2">
                   <Input
                     label="最大Token数"
                     type="number"
                     value={currentAgent.params?.maxTokens ?? 1000}
-                    onChange={e => updateParam('maxTokens', parseInt(e.target.value))}
+                    onChange={e => updateParam('maxTokens', Number.parseInt(e.target.value, 10) || 1000)}
                   />
                 </div>
               </div>
@@ -1299,6 +1297,7 @@ export default function AgentsPage() {
               type="submit"
               disabled={saving}
               isLoading={saving}
+              loadingText="保存中..."
             >
               保存助手
             </Button>

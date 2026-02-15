@@ -22,6 +22,8 @@ import {
   DialogTitle, 
   DialogFooter 
 } from '@/app/components/ui/Dialog';
+import { ConfirmModal } from '@/app/components/ui/Modal';
+import { useToast } from '@/app/components/ui/Toast';
 import {
   buildProviderVerifySignature,
 } from '@/src/shared/settings';
@@ -39,6 +41,7 @@ const PROVIDER_TYPES = [
 ];
 
 export default function SettingsPage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers');
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,15 @@ export default function SettingsPage() {
     model?: string;
     capabilities?: ProviderConfig['capabilities'];
   } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    providerId: string | null;
+    providerName: string;
+  }>({
+    isOpen: false,
+    providerId: null,
+    providerName: '',
+  });
   const [lastVerifiedSignature, setLastVerifiedSignature] = useState<string | null>(null);
   const {
     passwordForm,
@@ -212,15 +224,41 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个服务商配置吗?')) return;
+  const requestDelete = (provider: ProviderConfig) => {
+    setDeleteConfirm({
+      isOpen: true,
+      providerId: provider.id,
+      providerName: provider.name,
+    });
+  };
+
+  const closeDeleteConfirm = () => {
+    setDeleteConfirm({
+      isOpen: false,
+      providerId: null,
+      providerName: '',
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm.providerId) return;
 
     try {
-      const res = await fetch(`/api/providers/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/providers/${deleteConfirm.providerId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('删除失败');
       await fetchProviders();
+      toast({
+        variant: 'success',
+        description: `已删除服务商「${deleteConfirm.providerName}」`,
+      });
     } catch (err) {
       console.error('Delete failed', err);
+      toast({
+        variant: 'error',
+        description: err instanceof Error ? err.message : '删除失败，请稍后重试',
+      });
+    } finally {
+      closeDeleteConfirm();
     }
   };
 
@@ -421,7 +459,7 @@ export default function SettingsPage() {
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={(e) => { e.stopPropagation(); handleDelete(provider.id); }}
+                              onClick={(e) => { e.stopPropagation(); requestDelete(provider); }}
                               className="h-9 w-9 p-0 rounded-lg text-red-300 hover:text-red-200 hover:bg-red-500/15 border border-transparent hover:border-red-500/35 transition-all"
                               aria-label={`删除${provider.name}`}
                               title="删除服务商"
@@ -680,6 +718,7 @@ export default function SettingsPage() {
                 onClick={handleTestConnection}
                 disabled={testStatus === 'testing' || (!formData.apiKey.trim() && !editingProvider)}
                 isLoading={testStatus === 'testing'}
+                loadingText="测试中..."
                 className="border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                 leftIcon={!testStatus.includes('testing') && (
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -704,6 +743,7 @@ export default function SettingsPage() {
                   type="submit"
                   size="sm"
                   isLoading={saving}
+                  loadingText="保存中..."
                 >
                   保存
                 </Button>
@@ -712,6 +752,16 @@ export default function SettingsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={closeDeleteConfirm}
+        onConfirm={handleDelete}
+        title="确认删除服务商"
+        message={`确定要删除服务商配置「${deleteConfirm.providerName}」吗？此操作不可撤销。`}
+        confirmText="确认删除"
+        variant="danger"
+      />
     </motion.div>
   );
 }

@@ -14,8 +14,29 @@ export interface InputProps
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, label, helperText, error, leftIcon, rightIcon, id, showRequired, ...props }, ref) => {
+  (
+    {
+      className,
+      type,
+      label,
+      helperText,
+      error,
+      leftIcon,
+      rightIcon,
+      id,
+      showRequired,
+      required,
+      'aria-describedby': ariaDescribedBy,
+      'aria-invalid': ariaInvalid,
+      ...props
+    },
+    ref
+  ) => {
     const inputId = id || React.useId();
+    const helperId = helperText ? `${inputId}-helper` : undefined;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const describedBy = [ariaDescribedBy, errorId || helperId].filter(Boolean).join(' ') || undefined;
+    const invalid = typeof ariaInvalid === 'boolean' ? ariaInvalid : Boolean(error);
 
     return (
       <div className="w-full space-y-2">
@@ -45,22 +66,26 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               'disabled:cursor-not-allowed disabled:opacity-50',
               !!leftIcon && 'pl-10',
               !!rightIcon && 'pr-10',
-              error && 'border-red-500/50 focus-visible:ring-red-500/30',
+              invalid && 'border-red-500/50 focus-visible:ring-red-500/30',
               className
             )}
             ref={ref}
+            required={required}
+            aria-required={showRequired || required || undefined}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
               {rightIcon}
             </div>
           )}
         </div>
         {error ? (
-          <p className="text-xs text-red-400 animate-slide-up">{error}</p>
+          <p id={errorId} className="text-xs text-red-400 animate-slide-up">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-zinc-500">{helperText}</p>
+          <p id={helperId} className="text-xs text-zinc-500">{helperText}</p>
         ) : null}
       </div>
     );
@@ -77,8 +102,26 @@ export interface TextareaProps
 }
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, helperText, error, id, showRequired, ...props }, ref) => {
+  (
+    {
+      className,
+      label,
+      helperText,
+      error,
+      id,
+      showRequired,
+      required,
+      'aria-describedby': ariaDescribedBy,
+      'aria-invalid': ariaInvalid,
+      ...props
+    },
+    ref
+  ) => {
     const inputId = id || React.useId();
+    const helperId = helperText ? `${inputId}-helper` : undefined;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const describedBy = [ariaDescribedBy, errorId || helperId].filter(Boolean).join(' ') || undefined;
+    const invalid = typeof ariaInvalid === 'boolean' ? ariaInvalid : Boolean(error);
 
     return (
       <div className="w-full space-y-2">
@@ -99,16 +142,20 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:border-emerald-500/55',
             'hover:border-zinc-700/90 transition-all duration-200',
             'disabled:cursor-not-allowed disabled:opacity-50',
-            error && 'border-red-500/50 focus-visible:ring-red-500/30',
+            invalid && 'border-red-500/50 focus-visible:ring-red-500/30',
             className
           )}
           ref={ref}
+          required={required}
+          aria-required={showRequired || required || undefined}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
           {...props}
         />
         {error ? (
-          <p className="text-xs text-red-400 animate-slide-up">{error}</p>
+          <p id={errorId} className="text-xs text-red-400 animate-slide-up">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-zinc-500">{helperText}</p>
+          <p id={helperId} className="text-xs text-zinc-500">{helperText}</p>
         ) : null}
       </div>
     );

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, Button, Skeleton, Badge, Select } from '@/app/components/ui';
+import { Card, CardContent, Button, Skeleton, Badge, Select, SearchInput } from '@/app/components/ui';
 import { useFetch } from '@/src/hooks/useFetch';
 import { staggerContainer, staggerItem } from '@/app/lib/animations';
 import {
@@ -78,28 +78,14 @@ export default function NovelsPage() {
           <CardContent className="space-y-4 p-5 md:p-6">
             <div className="grid gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300">搜索作品</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className="glass-input h-10 w-full rounded-xl px-4 pr-10"
-                    placeholder="按标题、简介、题材搜索..."
-                  />
-                  {query && (
-                    <button
-                      type="button"
-                      onClick={() => setQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
-                      aria-label="清空搜索"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+                <SearchInput
+                  label="搜索作品"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onClear={() => setQuery('')}
+                  className="h-10 text-sm"
+                  placeholder="按标题、简介、题材搜索..."
+                />
               </div>
 
               <Select

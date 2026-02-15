@@ -6,6 +6,9 @@ import GlassCard from '@/app/components/ui/GlassCard';
 import Modal, { ConfirmModal, ModalFooter } from '@/app/components/ui/Modal';
 import { Button } from '@/app/components/ui/Button';
 import { Select } from '@/app/components/ui/Select';
+import { Input, Textarea } from '@/app/components/ui/Input';
+import { Checkbox } from '@/app/components/ui/Checkbox';
+import { SearchInput } from '@/app/components/ui/SearchInput';
 import HookTimeline from '@/app/components/HookTimeline';
 import { useFetch } from '@/src/hooks/useFetch';
 import {
@@ -526,28 +529,14 @@ export default function HooksPage({ params }: { params: Promise<{ id: string }> 
             ))}
           </div>
 
-          <div className="relative w-full xl:w-80 group">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-emerald-400 transition-colors"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="搜索描述、备注、角色..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:border-emerald-500/50 transition-colors"
-            />
-          </div>
+          <SearchInput
+            placeholder="搜索描述、备注、角色..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onClear={() => setSearchQuery('')}
+            className="h-10 w-full text-sm xl:w-80"
+            aria-label="搜索钩子"
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -861,11 +850,11 @@ function HookCard({
     >
       <div className="flex items-start gap-3 mb-4">
         <label className="inline-flex items-center gap-2 mt-1 cursor-pointer select-none">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
             onChange={(e) => onSelect(e.target.checked)}
             className="h-4 w-4 rounded border border-white/20 bg-transparent accent-emerald-500"
+            aria-label="选择钩子"
           />
           <span className="text-xs text-zinc-400">选择</span>
         </label>
@@ -1141,90 +1130,83 @@ function HookEditorModal({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">描述</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="glass-input w-full px-4 py-3 rounded-xl min-h-[96px] resize-none focus:border-emerald-500/50"
-            placeholder="描述这个钩子的内容..."
-            required
+        <Textarea
+          label="描述"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl min-h-[96px] resize-none"
+          placeholder="描述这个钩子的内容..."
+          required
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Input
+            type="number"
+            min="1"
+            label="埋设章节"
+            value={plantedInChapter}
+            onChange={(e) => setPlantedInChapter(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
+            className="w-full px-4 py-3 rounded-xl"
+          />
+
+          <Input
+            type="number"
+            min="1"
+            label="预期回收章节"
+            value={expectedResolutionBy}
+            onChange={(e) => setExpectedResolutionBy(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl"
+            placeholder="可留空"
+          />
+
+          <Input
+            type="number"
+            min="1"
+            label="提醒阈值(章)"
+            value={reminderThreshold}
+            onChange={(e) => setReminderThreshold(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl"
+          />
+
+          <Input
+            type="text"
+            label="关联角色"
+            value={relatedCharacters}
+            onChange={(e) => setRelatedCharacters(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl"
+            placeholder="逗号分隔"
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">埋设章节</label>
-            <input
-              type="number"
-              min="1"
-              value={plantedInChapter}
-              onChange={(e) => setPlantedInChapter(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
-              className="glass-input w-full px-4 py-3 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">预期回收章节</label>
-            <input
-              type="number"
-              min="1"
-              value={expectedResolutionBy}
-              onChange={(e) => setExpectedResolutionBy(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl"
-              placeholder="可留空"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">提醒阈值(章)</label>
-            <input
-              type="number"
-              min="1"
-              value={reminderThreshold}
-              onChange={(e) => setReminderThreshold(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">关联角色</label>
-            <input
-              type="text"
-              value={relatedCharacters}
-              onChange={(e) => setRelatedCharacters(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl"
-              placeholder="逗号分隔"
-            />
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">埋设上下文（可选）</label>
-            <textarea
-              value={plantedContext}
-              onChange={(e) => setPlantedContext(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl min-h-[90px] resize-none"
-              placeholder="埋设时的场景或对白..."
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">备注（可选）</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl min-h-[90px] resize-none"
-              placeholder="补充管理备注..."
-            />
-          </div>
+          <Textarea
+            label="埋设上下文（可选）"
+            value={plantedContext}
+            onChange={(e) => setPlantedContext(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl min-h-[90px] resize-none"
+            placeholder="埋设时的场景或对白..."
+          />
+          <Textarea
+            label="备注（可选）"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl min-h-[90px] resize-none"
+            placeholder="补充管理备注..."
+          />
         </div>
 
         <ModalFooter>
           <Button type="button" variant="secondary" size="sm" className="px-6" onClick={onClose} disabled={isSaving}>
             取消
           </Button>
-          <Button type="submit" variant="primary" size="sm" isLoading={isSaving} className="px-6">
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            isLoading={isSaving}
+            loadingText={hook ? '保存中...' : '创建中...'}
+            className="px-6"
+          >
             {hook ? '保存修改' : '创建钩子'}
           </Button>
         </ModalFooter>
@@ -1280,45 +1262,39 @@ function ActionModal({
 
         {action !== 'abandon' && (
           <>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">章节号</label>
-              <input
-                type="number"
-                min="1"
-                value={chapterNumber}
-                onChange={(e) => setChapterNumber(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
-                className="glass-input w-full px-4 py-3 rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">上下文（可选）</label>
-              <textarea
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                className="glass-input w-full px-4 py-3 rounded-xl min-h-[80px] resize-none"
-                placeholder={action === 'resolve' ? '如何解决的...' : '引用发生在什么场景...'}
-              />
-            </div>
+            <Input
+              type="number"
+              min="1"
+              label="章节号"
+              value={chapterNumber}
+              onChange={(e) => setChapterNumber(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
+              className="w-full px-4 py-3 rounded-xl"
+            />
+            <Textarea
+              label="上下文（可选）"
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl min-h-[80px] resize-none"
+              placeholder={action === 'resolve' ? '如何解决的...' : '引用发生在什么场景...'}
+            />
           </>
         )}
 
         {action === 'abandon' && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">放弃原因（可选）</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl min-h-[80px] resize-none"
-              placeholder="为什么放弃这个钩子..."
-            />
-          </div>
+          <Textarea
+            label="放弃原因（可选）"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl min-h-[80px] resize-none"
+            placeholder="为什么放弃这个钩子..."
+          />
         )}
 
         <ModalFooter>
           <Button variant="secondary" size="sm" className="px-6" onClick={onClose} disabled={isSubmitting}>
             取消
           </Button>
-          <Button variant="primary" size="sm" className="px-6" onClick={handleConfirm} isLoading={isSubmitting}>
+          <Button variant="primary" size="sm" className="px-6" onClick={handleConfirm} isLoading={isSubmitting} loadingText="处理中...">
             确认
           </Button>
         </ModalFooter>
@@ -1367,38 +1343,32 @@ function BatchActionModal({
 
         {action !== 'abandon' && (
           <>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">章节号</label>
-              <input
-                type="number"
-                min="1"
-                value={chapterNumber}
-                onChange={(e) => setChapterNumber(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
-                className="glass-input w-full px-4 py-3 rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">上下文（可选）</label>
-              <textarea
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                className="glass-input w-full px-4 py-3 rounded-xl min-h-[84px] resize-none"
-                placeholder={action === 'resolve' ? '统一解决说明...' : '统一引用说明...'}
-              />
-            </div>
+            <Input
+              type="number"
+              min="1"
+              label="章节号"
+              value={chapterNumber}
+              onChange={(e) => setChapterNumber(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
+              className="w-full px-4 py-3 rounded-xl"
+            />
+            <Textarea
+              label="上下文（可选）"
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl min-h-[84px] resize-none"
+              placeholder={action === 'resolve' ? '统一解决说明...' : '统一引用说明...'}
+            />
           </>
         )}
 
         {action === 'abandon' && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-300">放弃原因（可选）</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl min-h-[84px] resize-none"
-              placeholder="批量放弃原因..."
-            />
-          </div>
+          <Textarea
+            label="放弃原因（可选）"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl min-h-[84px] resize-none"
+            placeholder="批量放弃原因..."
+          />
         )}
 
         <ModalFooter>
@@ -1410,6 +1380,7 @@ function BatchActionModal({
             size="sm"
             className="px-6"
             isLoading={isSubmitting}
+            loadingText="处理中..."
             onClick={async () => {
               if (action === 'abandon') {
                 await onConfirm({ reason });

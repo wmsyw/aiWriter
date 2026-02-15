@@ -5,8 +5,9 @@ import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import * as Diff from 'diff';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogTrigger, Skeleton, Progress, Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/app/components/ui';
-import { ModalFooter } from '@/app/components/ui/Modal';
+import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogTrigger, Skeleton, Progress, Tooltip, TooltipProvider, TooltipTrigger, TooltipContent, Textarea, Checkbox, InlineInput } from '@/app/components/ui';
+import { ConfirmModal, ModalFooter } from '@/app/components/ui/Modal';
+import { useToast } from '@/app/components/ui/Toast';
 import { fadeIn, slideUp, scaleIn, staggerContainer } from '@/app/lib/animations';
 import {
   isJobForChapter,
@@ -236,6 +237,7 @@ const CANON_DIMENSION_LABELS: Record<string, string> = {
 };
 
 export default function ChapterEditorPage() {
+  const { toast } = useToast();
   const params = useParams();
   const router = useRouter();
   const { id: novelId, chapterId } = params as { id: string; chapterId: string };
@@ -277,6 +279,19 @@ export default function ChapterEditorPage() {
   const [reviewPanelActiveTab, setReviewPanelActiveTab] = useState<'review' | 'consistency'>('review');
   const [isIterating, setIsIterating] = useState(false);
   const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState<string[]>([]);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContent = useRef('');
@@ -516,7 +531,10 @@ export default function ChapterEditorPage() {
 
   const handleMemoryExtract = async () => {
     if (saveStatus !== 'saved') {
-      alert('请先保存章节内容');
+      toast({
+        variant: 'warning',
+        description: '请先保存章节内容',
+      });
       return;
     }
     createJob('MEMORY_EXTRACT', { content });
@@ -701,59 +719,94 @@ export default function ChapterEditorPage() {
 
 
 
-  const handleRestore = async (versionId: string) => {
-    if (!confirm('确定要恢复此版本吗？当前更改将被覆盖。')) return;
-    try {
-      const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/versions/${versionId}`, {
-        method: 'POST'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setContent(data.chapter.content);
-        setSaveStatus('saved');
-        setShowDiff(null);
-        lastSavedContent.current = data.chapter.content;
-      }
-    } catch (err) {
-      console.error('Restore failed', err);
-    }
+  const handleRestore = (versionId: string) => {
+    setConfirmState({
+      isOpen: true,
+      title: '确认恢复版本',
+      message: '确定要恢复此版本吗？当前更改将被覆盖。',
+      confirmText: '恢复版本',
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/versions/${versionId}`, {
+            method: 'POST'
+          });
+          if (!res.ok) {
+            throw new Error('恢复版本失败');
+          }
+
+          const data = await res.json();
+          setContent(data.chapter.content);
+          setSaveStatus('saved');
+          setShowDiff(null);
+          lastSavedContent.current = data.chapter.content;
+          toast({
+            variant: 'success',
+            description: '已恢复到所选版本',
+          });
+        } catch (err) {
+          console.error('Restore failed', err);
+          toast({
+            variant: 'error',
+            description: err instanceof Error ? err.message : '恢复版本失败',
+          });
+        }
+      },
+    });
   };
 
-  const handleApplyBranch = async (branch: Branch) => {
-    if (!confirm('确定要应用此分支吗？当前内容将被覆盖。')) return;
-    
-    try {
-      const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/branches`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ versionId: branch.id })
-      });
+  const handleApplyBranch = (branch: Branch) => {
+    setConfirmState({
+      isOpen: true,
+      title: '确认采用分支',
+      message: '确定要应用此分支吗？当前内容将被覆盖。',
+      confirmText: '采用分支',
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/branches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ versionId: branch.id })
+          });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.postProcess) {
-          applyQueuedPostProcess(data.postProcess);
+          if (!res.ok) {
+            throw new Error('采用分支失败');
+          }
+
+          const data = await res.json();
+          if (data?.postProcess) {
+            applyQueuedPostProcess(data.postProcess);
+          }
+          if (data?.analysisQueueError) {
+            setPostProcessWarning(`后处理派发失败：${data.analysisQueueError}`);
+          }
+          setContent(branch.content);
+          setShowBranchPanel(false);
+          setIterationRound(1);
+          setFeedback('');
+          setSelectedBranch(null);
+          setSaveStatus('unsaved');
+          setReviewResult(null);
+          setConsistencyResult(null);
+          setReviewState({ ...DEFAULT_CHAPTER_REVIEW_STATE });
+          await updateChapterMeta({
+            generationStage: 'generated',
+            reviewIterations: (chapter?.reviewIterations || 0) + 1,
+          });
+          toast({
+            variant: 'success',
+            description: '已采用所选分支内容',
+          });
+        } catch (err) {
+          console.error('Failed to apply branch', err);
+          toast({
+            variant: 'error',
+            description: err instanceof Error ? err.message : '采用分支失败',
+          });
         }
-        if (data?.analysisQueueError) {
-          setPostProcessWarning(`后处理派发失败：${data.analysisQueueError}`);
-        }
-        setContent(branch.content);
-        setShowBranchPanel(false);
-        setIterationRound(1);
-        setFeedback('');
-        setSelectedBranch(null);
-        setSaveStatus('unsaved');
-        setReviewResult(null);
-        setConsistencyResult(null);
-        setReviewState({ ...DEFAULT_CHAPTER_REVIEW_STATE });
-        await updateChapterMeta({
-          generationStage: 'generated',
-          reviewIterations: (chapter?.reviewIterations || 0) + 1,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to apply branch', err);
-    }
+      },
+    });
   };
 
   const handleIterate = async () => {
@@ -968,15 +1021,13 @@ export default function ChapterEditorPage() {
                       </div>
                       
                       <div className="space-y-4 border-t border-white/10 bg-zinc-900/75 p-6 backdrop-blur-xl">
-                        <div>
-                          <label className="mb-2 block text-xs font-medium text-zinc-400">迭代反馈 (告诉 AI 如何改进此版本)</label>
-                          <textarea 
-                            value={feedback}
-                            onChange={(e) => setFeedback(e.target.value)}
-                            placeholder="例如：稍微增加一些环境描写，或者让主角的语气更强硬一点..."
-                            className="glass-input h-24 w-full resize-none p-3 text-sm text-white placeholder-zinc-500"
-                          />
-                        </div>
+                        <Textarea
+                          label="迭代反馈 (告诉 AI 如何改进此版本)"
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          placeholder="例如：稍微增加一些环境描写，或者让主角的语气更强硬一点..."
+                          className="h-24 resize-none p-3 text-sm text-white placeholder-zinc-500"
+                        />
                         
                         <ModalFooter className="justify-stretch border-t-0 pt-0 [&>.inline-flex]:flex-1 [&>.inline-flex]:min-w-[160px]">
                           <Button 
@@ -993,6 +1044,7 @@ export default function ChapterEditorPage() {
                             className="flex-1"
                             onClick={handleIterate}
                             isLoading={isLoading}
+                            loadingText="迭代中..."
                           >
                             <Icons.RotateCcw className="w-4 h-4" /> 基于反馈迭代
                           </Button>
@@ -1335,8 +1387,7 @@ export default function ChapterEditorPage() {
                                         className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-zinc-400"
                                         onClick={(event) => event.stopPropagation()}
                                       >
-                                        <input
-                                          type="checkbox"
+                                        <Checkbox
                                           checked={selectedSuggestionKeys.includes(buildReviewSuggestionKey(suggestion, idx))}
                                           onChange={(event) => {
                                             const key = buildReviewSuggestionKey(suggestion, idx);
@@ -1349,6 +1400,7 @@ export default function ChapterEditorPage() {
                                           }}
                                           className="h-3.5 w-3.5 rounded border-white/20 bg-black/30 accent-emerald-500"
                                           disabled={isIterating}
+                                          aria-label={`采用建议 ${suggestion.aspect}`}
                                         />
                                         采用
                                       </label>
@@ -1506,12 +1558,12 @@ export default function ChapterEditorPage() {
                 <div className="space-y-4 border-t border-white/10 bg-zinc-900/75 p-4">
                   <div className="flex gap-4">
                     <div className="flex-1">
-                      <label className="mb-2 block text-xs font-medium text-zinc-400">补充修改意见（可选）</label>
-                      <textarea
+                      <Textarea
+                        label="补充修改意见（可选）"
                         value={reviewFeedback}
                         onChange={(e) => setReviewFeedback(e.target.value)}
                         placeholder="补充您的修改意见，将与 AI 建议一起作为迭代方向..."
-                        className="glass-input h-20 w-full resize-none p-3 text-sm text-white placeholder-zinc-500"
+                        className="h-20 resize-none p-3 text-sm text-white placeholder-zinc-500"
                         disabled={isIterating}
                       />
                     </div>
@@ -1536,6 +1588,7 @@ export default function ChapterEditorPage() {
                         onClick={handleOneClickIterate}
                         disabled={(!selectedSuggestionCount && !reviewFeedback.trim()) || isIterating}
                         isLoading={isIterating}
+                        loadingText="优化中..."
                       >
                         <Icons.RotateCcw className="w-4 h-4" /> 一键迭代优化
                       </Button>
@@ -1971,6 +2024,7 @@ export default function ChapterEditorPage() {
                 className="min-w-[88px]"
                 onClick={() => createJob('CHAPTER_GENERATE')}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE')}
+                loadingText="生成中..."
                 disabled={!canGenerate}
               >
                 <Icons.Sparkles className="h-3.5 w-3.5" />
@@ -1982,6 +2036,7 @@ export default function ChapterEditorPage() {
                 className="min-w-[98px]"
                 onClick={() => createJob('CHAPTER_GENERATE_BRANCHES', { branchCount: 3 })}
                 isLoading={activeJobs.some(j => j.type === 'CHAPTER_GENERATE_BRANCHES')}
+                loadingText="生成中..."
                 disabled={!canGenerateBranches}
               >
                 <Icons.GitBranch className="h-3.5 w-3.5 text-sky-300" />
@@ -1998,6 +2053,7 @@ export default function ChapterEditorPage() {
                     setReviewPanelActiveTab('review');
                   }}
                   isLoading={activeJobs.some(j => isReviewScoreJobType(j.type) || j.type === 'CONSISTENCY_CHECK')}
+                  loadingText="审阅中..."
                   disabled={!canReview}
                 >
                 <Icons.CheckCircle className="h-3.5 w-3.5 text-emerald-300" />
@@ -2009,6 +2065,7 @@ export default function ChapterEditorPage() {
                 className="min-w-[84px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                 onClick={() => createJob('DEAI_REWRITE')}
                 isLoading={activeJobs.some(j => j.type === 'DEAI_REWRITE')}
+                loadingText="润色中..."
                 disabled={!canDeai}
               >
                 <Icons.Wand2 className="h-3.5 w-3.5 text-violet-300" />
@@ -2020,6 +2077,7 @@ export default function ChapterEditorPage() {
                 className="min-w-[96px] border border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/10"
                 onClick={handleMemoryExtract}
                 isLoading={activeJobs.some(j => j.type === 'MEMORY_EXTRACT')}
+                loadingText="提取中..."
                 disabled={saveStatus !== 'saved'}
                 title="提取记忆到设定集"
               >
@@ -2036,6 +2094,7 @@ export default function ChapterEditorPage() {
                     createJob('CANON_CHECK');
                   }}
                   isLoading={activeJobs.some(j => j.type === 'CANON_CHECK')}
+                  loadingText="检查中..."
                   disabled={!canCanonCheck || saveStatus !== 'saved'}
                   title="检查章节内容是否符合原作设定（同人文专用）"
                 >
@@ -2156,7 +2215,7 @@ export default function ChapterEditorPage() {
                   <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
                     Chapter Workspace
                   </div>
-                  <input
+                  <InlineInput
                     type="text"
                     value={title}
                     onChange={(e) => {
@@ -2167,6 +2226,7 @@ export default function ChapterEditorPage() {
                     }}
                     className="w-full border-none bg-transparent font-serif text-3xl font-bold tracking-tight text-white placeholder-zinc-600 focus:outline-none focus:ring-0 md:text-[2.15rem]"
                     placeholder="章节标题"
+                    aria-label="章节标题"
                   />
                   <div className="mt-2 text-xs text-zinc-500">
                     最后更新：{new Date(chapter.updatedAt).toLocaleString()}
@@ -2180,6 +2240,7 @@ export default function ChapterEditorPage() {
                     onBlur={handleBlur}
                     className="w-full min-h-[calc(100vh-420px)] resize-none border-none bg-transparent font-serif text-lg leading-9 tracking-[0.01em] text-zinc-300 placeholder-zinc-700 selection:bg-emerald-500/30 focus:outline-none focus:ring-0 md:text-xl"
                     placeholder="开始创作你的杰作..."
+                    aria-label="章节正文"
                     spellCheck={false}
                   />
                 </div>
@@ -2298,6 +2359,15 @@ export default function ChapterEditorPage() {
       {renderBranchPanel()}
       {renderCanonCheckPanel()}
       {renderReviewPanel()}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        variant={confirmState.variant}
+      />
     </motion.div>
   );
 }

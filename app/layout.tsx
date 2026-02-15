@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import MobileBlocker from "./components/MobileBlocker";
+import { ToastProvider } from "./components/ui/Toast";
 
 export const metadata: Metadata = {
   title: "AI Writer - 创作你的杰作",
@@ -21,7 +22,9 @@ export default function RootLayout({
   return (
     <html lang={locale}>
       <body className="font-sans min-h-screen text-zinc-100">
-        <MobileBlocker>{children}</MobileBlocker>
+        <ToastProvider>
+          <MobileBlocker>{children}</MobileBlocker>
+        </ToastProvider>
       </body>
     </html>
   );

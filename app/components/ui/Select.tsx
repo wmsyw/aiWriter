@@ -12,6 +12,7 @@ interface Option {
 }
 
 interface SelectProps {
+  id?: string;
   label?: string;
   value: string;
   onChange: (value: string) => void;
@@ -20,6 +21,9 @@ interface SelectProps {
   className?: string;
   disabled?: boolean;
   showRequired?: boolean;
+  required?: boolean;
+  helperText?: string;
+  error?: string;
 }
 
 const SelectTrigger = React.forwardRef<
@@ -147,6 +151,7 @@ const SelectItem = React.forwardRef<
 SelectItem.displayName = SelectPrimitive.Item.displayName;
 
 export function Select({ 
+  id,
   label, 
   value, 
   onChange, 
@@ -154,10 +159,17 @@ export function Select({
   placeholder = '请选择...', 
   className = '',
   disabled = false,
-  showRequired = false
+  showRequired = false,
+  required = false,
+  helperText,
+  error,
 }: SelectProps) {
+  const triggerId = id || React.useId();
   const validOptions = options.filter(opt => opt.value !== '');
   const selectedOption = validOptions.find(opt => opt.value === value);
+  const helperId = helperText ? `${triggerId}-helper` : undefined;
+  const errorId = error ? `${triggerId}-error` : undefined;
+  const describedBy = errorId || helperId;
 
   const hasGroups = validOptions.some(opt => opt.group);
   
@@ -204,13 +216,20 @@ export function Select({
   return (
     <div className={cn('relative group/select', className)}>
       {label && (
-        <label className="block text-sm font-medium text-zinc-300 mb-2">
+        <label htmlFor={triggerId} className="block text-sm font-medium text-zinc-300 mb-2">
           {label}
           {showRequired && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
-      <SelectPrimitive.Root value={value || undefined} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger aria-label={label || placeholder}>
+      <SelectPrimitive.Root value={value || undefined} onValueChange={onChange} disabled={disabled || validOptions.length === 0}>
+        <SelectTrigger
+          id={triggerId}
+          aria-label={label || placeholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          aria-required={showRequired || required || undefined}
+          className={error ? 'border-red-500/50 focus:ring-red-500/30 focus:border-red-500/50 data-[state=open]:border-red-500/50 data-[state=open]:ring-red-500/20' : undefined}
+        >
           <SelectPrimitive.Value placeholder={placeholder}>
             <span className={cn("transition-colors", selectedOption ? 'text-zinc-100' : 'text-zinc-500')}>
               {selectedOption ? selectedOption.label : placeholder}
@@ -225,6 +244,11 @@ export function Select({
           ) : content}
         </SelectContent>
       </SelectPrimitive.Root>
+      {error ? (
+        <p id={errorId} className="mt-1.5 text-xs text-red-400">{error}</p>
+      ) : helperText ? (
+        <p id={helperId} className="mt-1.5 text-xs text-zinc-500">{helperText}</p>
+      ) : null}
     </div>
   );
 }

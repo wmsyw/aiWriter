@@ -6,8 +6,20 @@ export type { CardProps } from './Card';
 
 export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from './Dialog';
 
-export { Input } from './Input';
+export { Input, Textarea } from './Input';
 export type { InputProps } from './Input';
+
+export { Checkbox } from './Checkbox';
+export type { CheckboxProps } from './Checkbox';
+
+export { SearchInput } from './SearchInput';
+export type { SearchInputProps } from './SearchInput';
+
+export { RangeSlider } from './RangeSlider';
+export type { RangeSliderProps } from './RangeSlider';
+
+export { InlineInput } from './InlineInput';
+export type { InlineInputProps } from './InlineInput';
 
 export { Select, SelectTrigger, SelectContent, SelectItem } from './Select';
 
@@ -27,3 +39,4 @@ export { ScrollArea, ScrollBar } from './ScrollArea';
 
 export { default as GlassCard } from './GlassCard';
 export { default as Modal } from './Modal';
+export { ToastProvider, useToast } from './Toast';

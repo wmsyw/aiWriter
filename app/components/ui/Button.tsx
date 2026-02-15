@@ -10,12 +10,29 @@ export interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'>
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'ai';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
+  loadingText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  fullWidth?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', isLoading, leftIcon, rightIcon, children, disabled, ...props }, ref) => {
+  (
+    {
+      className,
+      variant = 'primary',
+      size = 'md',
+      isLoading,
+      loadingText,
+      leftIcon,
+      rightIcon,
+      children,
+      disabled,
+      fullWidth,
+      ...props
+    },
+    ref
+  ) => {
     
     const variants = {
       primary: 'btn-primary',
@@ -50,6 +67,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           'inline-flex items-center justify-center whitespace-nowrap leading-none gap-1.5 font-medium rounded-lg',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950',
           'disabled:opacity-50 disabled:pointer-events-none',
+          fullWidth && 'w-full',
           variants[variant],
           sizes[size],
           className
@@ -59,7 +77,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         whileHover={!disabled && !isLoading ? "hover" : "rest"}
         whileTap={!disabled && !isLoading ? "tap" : "rest"}
         disabled={disabled || isLoading}
+        aria-disabled={disabled || isLoading}
         aria-busy={isLoading || undefined}
+        data-loading={isLoading ? 'true' : 'false'}
+        data-variant={variant}
         {...props}
       >
         {isLoading && (
@@ -73,12 +94,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             {leftIcon}
           </span>
         )}
-        {children}
+        {!isLoading && children}
         {!isLoading && rightIcon && (
           <span className={cn('shrink-0 inline-flex items-center justify-center leading-none', iconSizes[size])}>
             {rightIcon}
           </span>
         )}
+        {isLoading && <span>{loadingText ?? children}</span>}
       </motion.button>
     );
   }

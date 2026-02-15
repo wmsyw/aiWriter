@@ -130,8 +130,8 @@ function ResetPasswordForm() {
           </div>
         )}
 
-        <Button type="submit" isLoading={loading} className="w-full h-11 text-base mt-1">
-          {loading ? '重置中...' : '重置密码'}
+        <Button type="submit" isLoading={loading} loadingText="重置中..." className="w-full h-11 text-base mt-1">
+          重置密码
         </Button>
       </form>
     </AuthShell>

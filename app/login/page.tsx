@@ -90,8 +90,8 @@ export default function LoginPage() {
           </div>
         )}
 
-        <Button type="submit" isLoading={loading} className="w-full h-11 text-base mt-1">
-          {loading ? '登录中...' : '立即登录'}
+        <Button type="submit" isLoading={loading} loadingText="登录中..." className="w-full h-11 text-base mt-1">
+          立即登录
         </Button>
       </form>
     </AuthShell>

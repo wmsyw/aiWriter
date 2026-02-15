@@ -107,8 +107,8 @@ export default function SetupPage() {
           </div>
         )}
 
-        <Button type="submit" isLoading={loading} className="w-full h-11 text-base mt-1">
-          {loading ? '创建中...' : '创建管理员账号'}
+        <Button type="submit" isLoading={loading} loadingText="创建中..." className="w-full h-11 text-base mt-1">
+          创建管理员账号
         </Button>
       </form>
     </AuthShell>

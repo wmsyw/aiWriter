@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Checkbox } from '@/app/components/ui/Checkbox';
+import { Textarea } from '@/app/components/ui/Input';
 
 export interface OutlineNode {
   id: string;
@@ -141,11 +143,11 @@ function OutlineTreeNode({
             <div className="flex items-start gap-2.5">
               {selectionMode && (
                 <div className="pt-1">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isSelected}
                     onChange={(event) => onSelect?.(node.id, event.target.checked)}
                     className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/50"
+                    aria-label={`选择节点 ${nodeTitle}`}
                   />
                 </div>
               )}
@@ -250,7 +252,7 @@ function OutlineTreeNode({
                       {nodeContent || `暂无${meta.label}内容`}
                     </p>
                   ) : (
-                    <textarea
+                    <Textarea
                       value={nodeContent}
                       onChange={(event) => onUpdateNode?.(node.id, event.target.value)}
                       rows={effectiveLevel === 'rough' ? 5 : effectiveLevel === 'detailed' ? 4 : 3}

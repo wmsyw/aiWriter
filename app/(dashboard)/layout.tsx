@@ -221,6 +221,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       <aside 
+        id="dashboard-sidebar"
         ref={sidebarRef}
         className={`${sidebarWidth} bg-zinc-900/90 backdrop-blur-xl border-r border-zinc-800/80 flex flex-col fixed top-0 left-0 h-screen z-40 transition-all duration-300 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -261,6 +262,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.name}
                 href={item.href}
                 title={sidebarCollapsed ? item.name : undefined}
+                aria-current={isActive ? 'page' : undefined}
                 className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-3'} py-2.5 rounded-lg transition-all duration-200 group relative ${
                   isActive 
                     ? 'bg-emerald-500/10 text-emerald-300 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]' 
@@ -344,6 +346,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden h-9 w-9 rounded-xl border border-zinc-700/70 bg-zinc-900/70 px-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
               aria-label="打开菜单"
+              aria-expanded={sidebarOpen}
+              aria-controls="dashboard-sidebar"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
@@ -373,6 +377,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative h-9 w-9 rounded-xl border border-zinc-700/70 bg-zinc-900/70 px-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
               aria-label="通知"
+              aria-expanded={showNotifications}
+              aria-controls="dashboard-notification-panel"
             >
               {unreadCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-zinc-950"></span>
@@ -383,7 +389,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Button>
              
             {showNotifications && (
-              <div className="absolute right-0 top-[calc(var(--dashboard-topbar-height)-0.5rem)] w-80 glass-card border border-zinc-800/80 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
+              <div
+                id="dashboard-notification-panel"
+                role="region"
+                aria-label="通知面板"
+                className="absolute right-0 top-[calc(var(--dashboard-topbar-height)-0.5rem)] w-80 glass-card border border-zinc-800/80 rounded-xl shadow-2xl overflow-hidden animate-fade-in"
+              >
                 <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
                   <h3 className="font-semibold text-zinc-100">通知</h3>
                   <Link href="/jobs" className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">

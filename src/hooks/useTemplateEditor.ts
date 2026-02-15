@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useToast } from '@/app/components/ui/Toast';
 import {
   NEW_TEMPLATE_ID,
   addVariableToTemplate,
@@ -27,6 +28,8 @@ interface UseTemplateEditorResult {
   isPreviewLoading: boolean;
   isSaving: boolean;
   hasChanges: boolean;
+  discardConfirmOpen: boolean;
+  discardConfirmMessage: string;
   draggedIndex: number | null;
   charCount: number;
   handleCreateNew: () => void;
@@ -47,7 +50,13 @@ interface UseTemplateEditorResult {
   updateTemplateName: (name: string) => void;
   updateTemplateContent: (content: string) => void;
   updatePreviewValue: (key: string, value: TemplateVariableValue) => void;
+  confirmDiscardChanges: () => void;
+  cancelDiscardChanges: () => void;
 }
+
+type PendingTemplateAction =
+  | { type: 'create' }
+  | { type: 'select'; template: TemplateItem };
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
@@ -75,6 +84,7 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
 }
 
 export function useTemplateEditor(): UseTemplateEditorResult {
+  const { toast } = useToast();
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +93,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingTemplateAction | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const charCount = useMemo(() => getTemplateCharCount(selectedTemplate), [selectedTemplate]);
@@ -108,30 +119,48 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     void fetchTemplates();
   }, [fetchTemplates]);
 
-  const canLeaveCurrentSelection = useCallback(() => {
-    if (!hasChanges) return true;
-    return window.confirm('有未保存的更改，确定要放弃吗？');
-  }, [hasChanges]);
+  const executeAction = useCallback((action: PendingTemplateAction) => {
+    if (action.type === 'create') {
+      const newTemplate = createTemplateDraft();
+      setSelectedTemplate(newTemplate);
+      setPreviewData({});
+      setPreviewResult('');
+      setHasChanges(true);
+      return;
+    }
 
-  const handleCreateNew = useCallback(() => {
-    if (!canLeaveCurrentSelection()) return;
-
-    const newTemplate = createTemplateDraft();
-    setSelectedTemplate(newTemplate);
-    setPreviewData({});
-    setPreviewResult('');
-    setHasChanges(true);
-  }, [canLeaveCurrentSelection]);
-
-  const handleSelectTemplate = useCallback((template: TemplateItem) => {
-    if (!canLeaveCurrentSelection()) return;
-
-    const cloned = cloneTemplate(template);
+    const cloned = cloneTemplate(action.template);
     setSelectedTemplate(cloned);
     setPreviewData(buildPreviewData(cloned.variables));
     setPreviewResult('');
     setHasChanges(false);
-  }, [canLeaveCurrentSelection]);
+  }, []);
+
+  const requestAction = useCallback((action: PendingTemplateAction) => {
+    if (!hasChanges) {
+      executeAction(action);
+      return;
+    }
+    setPendingAction(action);
+  }, [executeAction, hasChanges]);
+
+  const handleCreateNew = useCallback(() => {
+    requestAction({ type: 'create' });
+  }, [requestAction]);
+
+  const handleSelectTemplate = useCallback((template: TemplateItem) => {
+    requestAction({ type: 'select', template });
+  }, [requestAction]);
+
+  const confirmDiscardChanges = useCallback(() => {
+    if (!pendingAction) return;
+    executeAction(pendingAction);
+    setPendingAction(null);
+  }, [executeAction, pendingAction]);
+
+  const cancelDiscardChanges = useCallback(() => {
+    setPendingAction(null);
+  }, []);
 
   const updateTemplateName = useCallback((name: string) => {
     setSelectedTemplate((prev) => {
@@ -182,15 +211,22 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setHasChanges(false);
     } catch (error) {
       console.error('Failed to save template:', error);
-      alert(error instanceof Error ? error.message : '保存模板失败');
+      toast({
+        variant: 'error',
+        title: '保存模板失败',
+        description: error instanceof Error ? error.message : '保存模板失败',
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [selectedTemplate]);
+  }, [selectedTemplate, toast]);
 
   const handleRunPreview = useCallback(async () => {
     if (!selectedTemplate || !isPersistedTemplate(selectedTemplate)) {
-      alert('请先保存模板后再进行预览。');
+      toast({
+        variant: 'warning',
+        description: '请先保存模板后再进行预览。',
+      });
       return;
     }
 
@@ -216,7 +252,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     } finally {
       setIsPreviewLoading(false);
     }
-  }, [selectedTemplate, previewData]);
+  }, [selectedTemplate, previewData, toast]);
 
   const addVariable = useCallback(() => {
     setSelectedTemplate((prev) => {
@@ -345,6 +381,11 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     isPreviewLoading,
     isSaving,
     hasChanges,
+    discardConfirmOpen: pendingAction !== null,
+    discardConfirmMessage:
+      pendingAction?.type === 'select'
+        ? `当前模板有未保存更改，确定放弃并切换到「${pendingAction.template.name}」吗？`
+        : '当前模板有未保存更改，确定放弃并新建模板吗？',
     draggedIndex,
     charCount,
     handleCreateNew,
@@ -361,5 +402,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     updateTemplateName,
     updateTemplateContent,
     updatePreviewValue,
+    confirmDiscardChanges,
+    cancelDiscardChanges,
   };
 }

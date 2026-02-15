@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Modal, { ModalFooter } from '@/app/components/ui/Modal';
 import { Button } from '@/app/components/ui/Button';
+import { SearchInput } from '@/app/components/ui/SearchInput';
+import { useToast } from '@/app/components/ui/Toast';
 import { parseJobResponse } from '@/src/shared/jobs';
 import {
   DEFAULT_MATERIAL_SEARCH_CATEGORIES,
@@ -19,6 +21,7 @@ interface MaterialSearchModalProps {
 }
 
 export default function MaterialSearchModal({ isOpen, onClose, novelId, onComplete, onSearchStarted }: MaterialSearchModalProps) {
+  const { toast } = useToast();
   const [keyword, setKeyword] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<MaterialSearchCategory[]>([...DEFAULT_MATERIAL_SEARCH_CATEGORIES]);
   const [status, setStatus] = useState<'idle' | 'searching' | 'succeeded' | 'failed'>('idle');
@@ -61,7 +64,11 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
     } catch (error) {
       console.error('Search failed', error);
       setStatus('failed');
-      alert('搜索启动失败，请重试');
+      toast({
+        variant: 'error',
+        title: '搜索启动失败',
+        description: '请稍后重试',
+      });
     }
   };
 
@@ -78,18 +85,16 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
       showCloseButton={status !== 'searching'}
     >
       <div className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">搜索关键词</label>
-            <input
-              type="text"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              className="glass-input w-full px-4 py-3 rounded-xl"
-              placeholder="输入小说名、作品名或关键词..."
-              disabled={status === 'searching'}
-            />
-            <p className="text-xs text-gray-500">例如：斗破苍穹、哈利波特、三体...</p>
-          </div>
+        <SearchInput
+          label="搜索关键词"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onClear={() => setKeyword('')}
+          className="px-4 py-3 rounded-xl"
+          helperText="例如：斗破苍穹、哈利波特、三体..."
+          placeholder="输入小说名、作品名或关键词..."
+          disabled={status === 'searching'}
+        />
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">搜索内容类型</label>
@@ -146,16 +151,13 @@ export default function MaterialSearchModal({ isOpen, onClose, novelId, onComple
                 onClick={handleSearch}
                 disabled={status === 'searching' || !keyword.trim() || selectedCategories.length === 0}
                 isLoading={status === 'searching'}
+                loadingText="搜索中..."
                 className="px-6"
               >
-                {status !== 'searching' && (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </>
-                )}
-                {status === 'searching' ? '搜索中...' : '开始搜索'}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                开始搜索
               </Button>
             )}
           </ModalFooter>

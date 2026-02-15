@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useToast } from '@/app/components/ui/Toast';
 
 interface ReviewDimensions {
   standaloneQuality: {
@@ -73,6 +74,7 @@ interface Review5DimPanelProps {
 }
 
 export default function Review5DimPanel({ chapterId, onClose, onApprove, onReject }: Review5DimPanelProps) {
+  const { toast } = useToast();
   const [feedback, setFeedback] = useState<ReviewFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTriggering, setIsTriggering] = useState(false);
@@ -112,7 +114,11 @@ export default function Review5DimPanel({ chapterId, onClose, onApprove, onRejec
       });
       if (res.ok) {
         const data = await res.json();
-        alert(`审查任务已创建: ${data.jobId}`);
+        toast({
+          variant: 'success',
+          title: '审查任务已创建',
+          description: `任务 ID：${data.jobId}`,
+        });
       } else {
         const data = await res.json();
         setError(data.error || '创建审查任务失败');

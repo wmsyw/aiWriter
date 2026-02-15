@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/app/components/ui/Ca
 import { Input, Textarea } from '@/app/components/ui/Input';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/Tabs';
+import { ConfirmModal } from '@/app/components/ui/Modal';
 import { cn } from '@/app/lib/utils';
 import { useTemplateEditor } from '@/src/hooks/useTemplateEditor';
 
@@ -20,6 +21,8 @@ export default function TemplatesPage() {
     isPreviewLoading,
     isSaving,
     hasChanges,
+    discardConfirmOpen,
+    discardConfirmMessage,
     draggedIndex,
     charCount,
     handleCreateNew,
@@ -36,9 +39,12 @@ export default function TemplatesPage() {
     updateTemplateName,
     updateTemplateContent,
     updatePreviewValue,
+    confirmDiscardChanges,
+    cancelDiscardChanges,
   } = useTemplateEditor();
 
   return (
+    <>
     <motion.div 
       initial="hidden"
       animate="visible"
@@ -185,6 +191,7 @@ export default function TemplatesPage() {
                   onClick={handleSave}
                   disabled={!hasChanges || isSaving}
                   isLoading={isSaving}
+                  loadingText="保存中..."
                   className={cn(
                     "h-9 text-xs font-medium px-5 transition-all duration-200",
                     hasChanges 
@@ -192,7 +199,7 @@ export default function TemplatesPage() {
                       : "bg-zinc-800 text-zinc-500 hover:bg-zinc-800 cursor-not-allowed"
                   )}
                 >
-                  {isSaving ? '保存中...' : '保存'}
+                  保存
                 </Button>
               </div>
             </CardHeader>
@@ -393,14 +400,15 @@ export default function TemplatesPage() {
                 )}
               </div>
               
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRunPreview}
-                disabled={isPreviewLoading}
-                isLoading={isPreviewLoading}
-                className="w-full mt-4 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40"
-                rightIcon={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleRunPreview}
+                  disabled={isPreviewLoading}
+                  isLoading={isPreviewLoading}
+                  loadingText="生成中..."
+                  className="w-full mt-4 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40"
+                  rightIcon={
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -434,5 +442,15 @@ export default function TemplatesPage() {
         )}
       </Card>
     </motion.div>
+    <ConfirmModal
+      isOpen={discardConfirmOpen}
+      onClose={cancelDiscardChanges}
+      onConfirm={confirmDiscardChanges}
+      title="放弃未保存更改"
+      message={discardConfirmMessage}
+      confirmText="放弃并继续"
+      variant="warning"
+    />
+    </>
   );
 }

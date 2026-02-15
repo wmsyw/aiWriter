@@ -6,11 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { fadeIn, slideInRight, slideUp, staggerContainer, smoothTransition, scaleIn } from '@/app/lib/animations';
 import { Button } from '@/app/components/ui/Button';
 import { Input, Textarea } from '@/app/components/ui/Input';
+import { Checkbox } from '@/app/components/ui/Checkbox';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import { Select } from '@/app/components/ui/Select';
 import { Progress } from '@/app/components/ui/Progress';
 import Modal, { ConfirmModal } from '@/app/components/ui/Modal';
 import InspirationModal from './InspirationModal';
+import { useToast } from '@/app/components/ui/Toast';
 import {
   formatKeywordsInput,
   getInspirationPresetsByGenre,
@@ -65,6 +67,7 @@ interface SeedOutput {
 function NovelWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const presetTitle = searchParams.get('title') || '';
   const presetDescription = searchParams.get('description') || '';
 
@@ -405,7 +408,10 @@ function NovelWizardContent() {
 
   const handleAutoGenerateCoreSetup = async () => {
     if (!formData.title.trim()) {
-      alert('请先填写书名');
+      toast({
+        variant: 'warning',
+        description: '请先填写书名',
+      });
       return;
     }
 
@@ -423,7 +429,11 @@ function NovelWizardContent() {
     } catch (error) {
       const msg = error instanceof Error ? error.message : '一键生成失败';
       updateWizardPhase('error', msg);
-      alert(msg);
+      toast({
+        variant: 'error',
+        title: '一键生成失败',
+        description: msg,
+      });
     } finally {
       setAutoGenerating(false);
       if (success) {
@@ -547,9 +557,10 @@ function NovelWizardContent() {
                         onClick={handleAutoGenerateCoreSetup}
                         disabled={autoGenerating || isSaving || !formData.title.trim()}
                         isLoading={autoGenerating}
+                        loadingText="生成中..."
                         leftIcon="✨"
                       >
-                        {autoGenerating ? '生成中' : '统一生成基础设定'}
+                        统一生成基础设定
                       </Button>
                     </div>
                     <p className="text-xs text-emerald-300/80">
@@ -760,8 +771,7 @@ function NovelWizardContent() {
                         <div className="flex items-center justify-between">
                           <label className="text-xs text-gray-400">连续性门禁</label>
                           <label className="inline-flex items-center gap-2 text-xs text-gray-300">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={formData.continuityGateEnabled}
                               onChange={(e) => setField('continuityGateEnabled', e.target.checked)}
                               className="h-4 w-4 rounded border-zinc-600 bg-zinc-900 text-emerald-500"
@@ -868,9 +878,10 @@ function NovelWizardContent() {
                   className="px-8 shadow-emerald-500/20"
                   disabled={isSaving}
                   isLoading={isSaving}
+                  loadingText="创建中..."
                   onClick={handleSaveBasicInfo}
                 >
-                  {isSaving ? '创建中...' : '创建小说'}
+                  创建小说
                 </Button>
               </div>
             </Card>

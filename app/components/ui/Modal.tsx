@@ -1,8 +1,9 @@
 'use client';
 
-import { ReactNode, useEffect, useCallback, useState, HTMLAttributes } from 'react';
+import { ReactNode, useEffect, useCallback, useState, HTMLAttributes, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
+import { Input } from './Input';
 import { cn } from '@/app/lib/utils';
 
 interface ModalProps {
@@ -39,6 +40,17 @@ const SIZE_CLASSES = {
   '2xl': 'max-w-2xl',
 };
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+let activeModalCount = 0;
+
 export default function Modal({
   isOpen,
   onClose,
@@ -51,6 +63,9 @@ export default function Modal({
   className = '',
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -67,13 +82,55 @@ export default function Modal({
   );
 
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
+    if (!isOpen) return;
+
+    activeModalCount += 1;
+    document.body.style.overflow = 'hidden';
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const panel = panelRef.current;
+    if (panel) {
+      const focusable = panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (focusable || panel).focus();
     }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      handleEscape(event);
+
+      if (event.key !== 'Tab' || !panelRef.current) return;
+
+      const focusableElements = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        panelRef.current.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement as HTMLElement | null;
+
+      if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
     return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleKeyDown);
+      activeModalCount = Math.max(0, activeModalCount - 1);
+      if (activeModalCount === 0) {
+        document.body.style.overflow = '';
+      }
+      restoreFocusRef.current?.focus?.();
     };
   }, [isOpen, handleEscape]);
 
@@ -88,15 +145,17 @@ export default function Modal({
       />
 
       <div
+        ref={panelRef}
         className={`w-full ${SIZE_CLASSES[size]} relative z-10 animate-slide-up max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[26px] border border-white/10 bg-[#0d111a]/96 shadow-[0_30px_100px_-30px_rgba(0,0,0,0.85)] backdrop-blur-xl ${className}`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? 'modal-title' : undefined}
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
       >
         {(title || showCloseButton) && (
           <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/14 via-sky-500/8 to-transparent px-6 py-4">
             {title && (
-              <h2 id="modal-title" className="text-xl font-bold text-white">
+              <h2 id={titleId} className="text-xl font-bold text-white">
                 {title}
               </h2>
             )}
@@ -213,13 +272,17 @@ export function ConfirmModal({
             <p className="text-xs text-zinc-500">
               请输入 <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300">{requireConfirmation}</code> 以确认
             </p>
-            <input
+            <Input
               type="text"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
-              className={`w-full px-3 py-2 bg-zinc-950/60 border rounded-lg text-center text-white focus:outline-none focus:ring-2 ${styles.borderClass}`}
+              className={cn(
+                'h-10 rounded-lg border bg-zinc-950/60 text-center text-white',
+                styles.borderClass
+              )}
               placeholder={requireConfirmation}
               disabled={isLoading}
+              aria-label="确认输入"
             />
           </div>
         )}
@@ -232,6 +295,7 @@ export function ConfirmModal({
             variant="secondary"
             onClick={handleConfirm}
             isLoading={isLoading}
+            loadingText="处理中..."
             disabled={isConfirmDisabled || isLoading}
             size="sm"
             className={`min-w-[96px] border ${styles.confirmClass} disabled:opacity-50 disabled:cursor-not-allowed`}
