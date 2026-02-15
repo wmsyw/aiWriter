@@ -72,18 +72,45 @@ describe('inspiration helpers', () => {
           hero: '舰队指挥官',
           world_setting: '星门连接万千星域',
           golden_finger: '可迭代的舰队中枢系统，能解析敌方战术并有限次数回溯推演。',
+          genre: '科幻',
+          target_words: '180万字',
+          target_platform: '番茄小说',
         },
         {
           foo: 'bar',
         },
+        {
+          name: '深渊契约师',
+          主题: '规则交易，深渊博弈',
+          主角: '能听见代价低语的契约师',
+          世界观: '多层深渊与人间共振的末世都市',
+          简介: '主角在一次失控仪式后获得“代价账本”，每次借力都要支付等价损耗，只能在逐步揭开深渊真相的过程中反向利用规则。',
+          金手指: '代价账本：可记录并转移代价，短期爆发强，长期会累积反噬。',
+          所属频道: '都市',
+          目标字数: '220',
+          平台: '起点中文网',
+          tags: ['契约', '代价', '博弈'],
+        },
       ],
     });
 
-    expect(items).toHaveLength(1);
+    expect(items).toHaveLength(2);
     expect(items[0]?.name).toBe('星门文明');
     expect(items[0]?.keywords).toEqual(['星际', '文明', '舰队']);
     expect(items[0]?.synopsis).toContain('星门战争');
     expect(items[0]?.worldSetting).toBe('星门连接万千星域');
     expect(items[0]?.goldenFinger).toContain('舰队中枢系统');
+    expect(items[0]?.genre).toBe('科幻');
+    expect(items[0]?.targetWords).toBe(180);
+    expect(items[0]?.targetPlatform).toBe('番茄小说');
+
+    expect(items[1]?.name).toBe('深渊契约师');
+    expect(items[1]?.theme).toBe('规则交易，深渊博弈');
+    expect(items[1]?.protagonist).toContain('契约师');
+    expect(items[1]?.worldSetting).toContain('深渊');
+    expect(items[1]?.goldenFinger).toContain('代价账本');
+    expect(items[1]?.genre).toBe('都市');
+    expect(items[1]?.targetWords).toBe(220);
+    expect(items[1]?.targetPlatform).toBe('起点中文网');
   });
 });

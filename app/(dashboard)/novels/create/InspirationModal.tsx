@@ -350,9 +350,32 @@ export default function InspirationModal({
     void handleGenerate('replace');
   };
 
+  const composeSelectedInspiration = useCallback(
+    (item: Inspiration): Inspiration => {
+      const resolvedTargetWords =
+        typeof item.targetWords === 'number' && Number.isFinite(item.targetWords)
+          ? item.targetWords
+          : typeof selectedTargetWords === 'number' && Number.isFinite(selectedTargetWords)
+            ? selectedTargetWords
+            : undefined;
+
+      return {
+        ...item,
+        genre: selectedGenre || item.genre,
+        ...(typeof resolvedTargetWords === 'number'
+          ? {
+              targetWords: resolvedTargetWords,
+            }
+          : {}),
+        targetPlatform: targetPlatform || item.targetPlatform,
+      };
+    },
+    [selectedGenre, selectedTargetWords, targetPlatform],
+  );
+
   const handleCardClick = (fingerprint: string, item: Inspiration) => {
     if (expandedFingerprint === fingerprint) {
-      const selected = item;
+      const selected = composeSelectedInspiration(item);
       if (selected) onSelect(selected);
     } else {
       setExpandedFingerprint(fingerprint);
@@ -712,7 +735,7 @@ export default function InspirationModal({
                                     className="border-emerald-500/30 text-emerald-200 hover:text-emerald-100"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      onSelectAndCreate(item);
+                                      onSelectAndCreate(composeSelectedInspiration(item));
                                     }}
                                   >
                                     应用并创建
@@ -725,7 +748,7 @@ export default function InspirationModal({
                                   leftIcon="✓"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onSelect(item);
+                                    onSelect(composeSelectedInspiration(item));
                                   }}
                                 >
                                   应用此灵感

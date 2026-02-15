@@ -220,24 +220,38 @@ function NovelWizardContent() {
   const buildInspirationPatch = (
     inspiration: Inspiration,
     current: NovelFormState,
-  ): Partial<NovelFormState> => ({
-    title: current.title || inspiration.name,
-    theme: inspiration.theme,
-    ...(inspiration.synopsis
-      ? {
-          description: inspiration.synopsis,
-        }
-      : {}),
-    protagonist: inspiration.protagonist,
-    worldSetting: inspiration.worldSetting,
-    keywords: inspiration.keywords,
-    keywordsInput: formatKeywordsInput(inspiration.keywords),
-    ...(inspiration.goldenFinger
-      ? {
-          goldenFinger: inspiration.goldenFinger,
-        }
-      : {}),
-  });
+  ): Partial<NovelFormState> => {
+    const resolvedTargetWords =
+      typeof inspiration.targetWords === 'number' && Number.isFinite(inspiration.targetWords)
+        ? inspiration.targetWords
+        : current.targetWords;
+    const resolvedChapterCount =
+      Number.isFinite(resolvedTargetWords) && resolvedTargetWords > 0
+        ? Math.max(1, Math.round((resolvedTargetWords * 10000) / 3000))
+        : current.chapterCount;
+
+    return {
+      title: current.title || inspiration.name,
+      theme: inspiration.theme,
+      genre: inspiration.genre || current.genre,
+      targetWords: resolvedTargetWords,
+      chapterCount: resolvedChapterCount,
+      ...(inspiration.synopsis
+        ? {
+            description: inspiration.synopsis,
+          }
+        : {}),
+      protagonist: inspiration.protagonist,
+      worldSetting: inspiration.worldSetting,
+      keywords: inspiration.keywords,
+      keywordsInput: formatKeywordsInput(inspiration.keywords),
+      ...(inspiration.goldenFinger
+        ? {
+            goldenFinger: inspiration.goldenFinger,
+          }
+        : {}),
+    };
+  };
 
   const handleSelectCreationMode = (mode: CreationMode) => {
     setCreationMode(mode);

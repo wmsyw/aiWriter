@@ -6,6 +6,9 @@ export interface Inspiration {
   protagonist: string;
   worldSetting: string;
   goldenFinger?: string;
+  genre?: string;
+  targetWords?: number;
+  targetPlatform?: string;
   hook?: string;
   potential?: string;
 }
@@ -339,6 +342,29 @@ function toNormalizedString(value: unknown): string {
   return typeof value === 'string' ? normalizeText(value) : '';
 }
 
+function toNormalizedNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const matched = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!matched) {
+    return undefined;
+  }
+
+  const parsed = Number(matched[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function normalizeInspiration(payload: unknown, index = 0): Inspiration | null {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return null;
@@ -348,12 +374,20 @@ export function normalizeInspiration(payload: unknown, index = 0): Inspiration |
   const theme =
     toNormalizedString(source.theme) ||
     toNormalizedString(source.coreTheme) ||
-    toNormalizedString(source.sellingPoint);
-  const protagonist = toNormalizedString(source.protagonist) || toNormalizedString(source.hero);
+    toNormalizedString(source.sellingPoint) ||
+    toNormalizedString(source['主题']) ||
+    toNormalizedString(source['核心主题']);
+  const protagonist =
+    toNormalizedString(source.protagonist) ||
+    toNormalizedString(source.hero) ||
+    toNormalizedString(source['主角']) ||
+    toNormalizedString(source['主角设定']);
   const worldSetting =
     toNormalizedString(source.worldSetting) ||
     toNormalizedString(source.world_setting) ||
-    toNormalizedString(source.world);
+    toNormalizedString(source.world) ||
+    toNormalizedString(source['世界观']) ||
+    toNormalizedString(source['世界设定']);
 
   if (!theme && !protagonist && !worldSetting) {
     return null;
@@ -371,7 +405,9 @@ export function normalizeInspiration(payload: unknown, index = 0): Inspiration |
     toNormalizedString(source.synopsis) ||
     toNormalizedString(source.description) ||
     toNormalizedString(source.intro) ||
-    toNormalizedString(source.blurb);
+    toNormalizedString(source.blurb) ||
+    toNormalizedString(source['简介']) ||
+    toNormalizedString(source['小说简介']);
   if (synopsis) {
     normalized.synopsis = synopsis;
   }
@@ -380,9 +416,45 @@ export function normalizeInspiration(payload: unknown, index = 0): Inspiration |
     toNormalizedString(source.goldenFinger) ||
     toNormalizedString(source.golden_finger) ||
     toNormalizedString(source.cheat) ||
-    toNormalizedString(source.system);
+    toNormalizedString(source.system) ||
+    toNormalizedString(source['金手指']) ||
+    toNormalizedString(source['外挂']) ||
+    toNormalizedString(source['系统']);
   if (goldenFinger) {
     normalized.goldenFinger = goldenFinger;
+  }
+
+  const genre =
+    toNormalizedString(source.genre) ||
+    toNormalizedString(source.category) ||
+    toNormalizedString(source.channel) ||
+    toNormalizedString(source['所属频道']) ||
+    toNormalizedString(source['频道']) ||
+    toNormalizedString(source['类别']);
+  if (genre) {
+    normalized.genre = genre;
+  }
+
+  const targetWords = toNormalizedNumber(
+    source.targetWords ??
+      source.target_words ??
+      source.targetWordCount ??
+      source.wordCount ??
+      source['目标字数'] ??
+      source['字数'],
+  );
+  if (typeof targetWords === 'number') {
+    normalized.targetWords = targetWords;
+  }
+
+  const targetPlatform =
+    toNormalizedString(source.targetPlatform) ||
+    toNormalizedString(source.target_platform) ||
+    toNormalizedString(source.platform) ||
+    toNormalizedString(source['目标平台']) ||
+    toNormalizedString(source['平台']);
+  if (targetPlatform) {
+    normalized.targetPlatform = targetPlatform;
   }
 
   const hook = toNormalizedString(source.hook);
