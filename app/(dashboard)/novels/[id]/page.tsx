@@ -2255,9 +2255,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const workflowHealthLabel = workflowAlertCount > 0 ? '待处理风险' : '流程健康';
   const workflowHealthValue = workflowAlertCount > 0 ? `${workflowAlertCount} 项` : '正常';
   const activeTabLabel = (TAB_META as Record<string, { label: string }>)[activeTab]?.label || '小说详情';
-  const activeTabHint = (TAB_META as Record<string, { hint: string }>)[activeTab]?.hint || '管理当前作品与创作流程';
-  const pendingReviewCount = Math.max(chapterTotal - reviewDoneCount, 0);
-  const isSettingsTab = activeTab === 'settings';
   const synopsisText = (novel.description || novel.theme || '').trim();
   const canToggleSynopsis = synopsisText.length > 120 || synopsisText.includes('\n');
   const outlineStage = novel.outlineStage === 'rough' || novel.outlineStage === 'detailed' || novel.outlineStage === 'chapters'
@@ -2936,30 +2933,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           <aside className="self-start space-y-3">
             <Card className="relative overflow-visible rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-3.5">
               <div className="space-y-2.5">
-                <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">快速操作</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {tabs.map((tab) => {
-                    const meta = TAB_META[tab as DisplayTab];
-                    const isActiveTab = activeTab === tab;
-                    return (
-                      <Button
-                        key={tab}
-                        type="button"
-                        size="sm"
-                        variant={isActiveTab ? 'primary' : 'ghost'}
-                        onClick={() => setActiveTab(tab as typeof activeTab)}
-                        className={
-                          isActiveTab
-                            ? 'justify-start border border-emerald-500/35 bg-emerald-500/20 text-emerald-100'
-                            : 'justify-start border border-zinc-700/80 bg-zinc-900/80 text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100'
-                        }
-                      >
-                        <span className="text-sm">{meta.icon}</span>
-                        <span className="truncate">{meta.label}</span>
-                      </Button>
-                    );
-                  })}
-                </div>
                 <Button
                   variant={blockingInfo.hasBlocking ? 'secondary' : 'primary'}
                   onClick={handleCreateChapter}
@@ -3068,80 +3041,6 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                 );
               })}
             </TabsList>
-
-            {isSettingsTab ? (
-              <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3 md:px-5 md:py-3.5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">设置上下文</div>
-                    <div className="mt-1 truncate text-base font-semibold text-zinc-100">参数编辑模式</div>
-                    <p className="mt-0.5 text-xs text-zinc-400">聚焦作品参数与流程门禁，修改后点击保存即可生效。</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                      章节 {chapterTotal}
-                    </Badge>
-                    <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                      待评审 {pendingReviewCount}
-                    </Badge>
-                    <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                      定稿 {approvedCount}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={
-                        workflowAlertCount > 0
-                          ? 'border-red-500/35 bg-red-500/12 px-2.5 py-1 text-red-200'
-                          : 'border-emerald-500/35 bg-emerald-500/12 px-2.5 py-1 text-emerald-200'
-                      }
-                    >
-                      {workflowHealthLabel}
-                    </Badge>
-                  </div>
-                </div>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3 md:px-5 md:py-3.5">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">当前工作区</div>
-                      <div className="mt-1 truncate text-base font-semibold text-zinc-100">{activeTabLabel}</div>
-                      <p className="mt-0.5 text-xs text-zinc-400">{activeTabHint}</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                        章节 {chapterTotal}
-                      </Badge>
-                      <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                        评审 {reviewRate}%
-                      </Badge>
-                      <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                        定稿 {approvedRate}%
-                      </Badge>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3">
-                  <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">流程速览</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
-                      待评审 {pendingReviewCount}
-                    </div>
-                    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
-                      定稿 {approvedCount}
-                    </div>
-                    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
-                      钩子逾期 {workflowStats.overdueHooks}
-                    </div>
-                    <div className={`rounded-lg border px-2.5 py-2 ${blockingInfo.hasBlocking ? 'border-red-500/35 bg-red-500/10 text-red-200' : 'border-zinc-800/80 bg-zinc-900/70 text-zinc-300'}`}>
-                      实体阻塞 {blockingInfo.hasBlocking ? blockingInfo.count : 0}
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            )}
           </div>
 
           <AnimatePresence mode="wait">
