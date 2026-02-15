@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BUILT_IN_AGENTS, type AgentCategory, type BuiltInAgentDefinition } from '@/src/constants/agents';
 import { 
@@ -268,6 +269,7 @@ const CustomAgentCard = memo(({
 CustomAgentCard.displayName = 'CustomAgentCard';
 
 export default function AgentsPage() {
+  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -293,6 +295,7 @@ export default function AgentsPage() {
   const [activeCategory, setActiveCategory] = useState<AgentCategory | 'all'>('all');
   const [builtInTemplateCache, setBuiltInTemplateCache] = useState<Record<string, { name: string; content: string } | null>>({});
   const hasCacheBootstrapRef = useRef(false);
+  const redirectingToLoginRef = useRef(false);
   const activeTemplate = templates.find(t => t.id === currentAgent.templateId);
   const builtInInstances = useMemo(() => agents.filter(agent => agent.isBuiltIn), [agents]);
   const customAgents = useMemo(() => agents.filter(agent => !agent.isBuiltIn), [agents]);
@@ -434,6 +437,14 @@ export default function AgentsPage() {
     };
   }, [fetchJsonWithTimeout]);
 
+  const redirectToLogin = useCallback(() => {
+    if (redirectingToLoginRef.current) {
+      return;
+    }
+    redirectingToLoginRef.current = true;
+    router.replace('/login');
+  }, [router]);
+
   const fetchData = useCallback(async () => {
     try {
       const [agentsResult, templatesResult, providersResult] = await Promise.all([
@@ -468,6 +479,11 @@ export default function AgentsPage() {
       const failedRequests = [agentsResult, templatesResult, providersResult].filter(
         (result) => !result.ok
       );
+      const hasUnauthorized = failedRequests.some((result) => result.status === 401);
+      if (hasUnauthorized) {
+        redirectToLogin();
+        return;
+      }
       if (failedRequests.length > 0) {
         console.warn(
           'Agents page data partially failed:',
@@ -489,7 +505,7 @@ export default function AgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [fetchJsonWithRetry]);
+  }, [fetchJsonWithRetry, redirectToLogin]);
 
   useEffect(() => {
     let hasCachedData = false;

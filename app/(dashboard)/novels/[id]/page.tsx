@@ -74,6 +74,15 @@ interface Chapter {
   lastReviewAt?: string;
 }
 
+interface ChapterListResponse {
+  chapters?: Chapter[];
+}
+
+interface ChapterMutationResponse {
+  chapter?: Chapter;
+  error?: string;
+}
+
 interface ContinuityGateConfig {
   enabled: boolean;
   passScore: number;
@@ -261,6 +270,18 @@ function normalizeChapterStage(stage?: Chapter['generationStage']): ChapterStage
   return stage && stage in CHAPTER_STAGE_META ? stage : 'draft';
 }
 
+async function fetchChapterListNoStore(novelId: string): Promise<Chapter[] | null> {
+  try {
+    const res = await fetch(`/api/novels/${novelId}/chapters`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as ChapterListResponse;
+    return Array.isArray(data.chapters) ? data.chapters : [];
+  } catch (error) {
+    console.error('Failed to fetch chapter list:', error);
+    return null;
+  }
+}
+
 function resolveContinuityGateConfig(workflowConfig?: NovelWorkflowConfig | null): ContinuityGateConfig {
   const workflow = asRecord(workflowConfig);
   const review = asRecord(workflow.review);
@@ -434,7 +455,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       try {
         const [novelRes, chaptersRes, blockingRes, hooksReportRes, entitiesRes] = await Promise.all([
           fetch(`/api/novels/${id}`),
-          fetch(`/api/novels/${id}/chapters`),
+          fetch(`/api/novels/${id}/chapters`, { cache: 'no-store' }),
           fetch(`/api/novels/${id}/pending-entities/blocking`),
           fetch(`/api/novels/${id}/hooks/report`),
           fetch(`/api/novels/${id}/pending-entities?status=pending`),
@@ -470,8 +491,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         }
         
         if (chaptersRes.ok) {
-          const chaptersData = await chaptersRes.json();
-          setChapters(chaptersData.chapters || []);
+          const chaptersData = (await chaptersRes.json()) as ChapterListResponse;
+          setChapters(Array.isArray(chaptersData.chapters) ? chaptersData.chapters : []);
         }
 
         if (blockingRes.ok) {
@@ -527,10 +548,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         if (job.status === 'succeeded') {
           void (async () => {
             try {
-              const chaptersRes = await fetch(`/api/novels/${id}/chapters`);
-              if (!chaptersRes.ok) return;
-              const chaptersData = await chaptersRes.json();
-              setChapters(Array.isArray(chaptersData.chapters) ? chaptersData.chapters : []);
+              const latestChapters = await fetchChapterListNoStore(id);
+              if (latestChapters) {
+                setChapters([...latestChapters].sort((a, b) => a.order - b.order));
+              }
             } catch (error) {
               console.error('Failed to refresh chapters after generation:', error);
             }
@@ -734,7 +755,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         try {
           const res = await fetch(`/api/novels/${id}/chapters/${chapterId}`, { method: 'DELETE' });
           if (res.ok) {
-            setChapters(chapters.filter(c => c.id !== chapterId));
+            setChapters((prev) => prev.filter((chapter) => chapter.id !== chapterId));
           } else {
             setError('删除章节失败');
           }
@@ -829,8 +850,16 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setChapters([...chapters, data.chapter]);
+        const data = (await res.json()) as ChapterMutationResponse;
+        if (data.chapter) {
+          const createdChapter = data.chapter;
+          setChapters((prev) => [...prev, createdChapter].sort((a, b) => a.order - b.order));
+        } else {
+          const latestChapters = await fetchChapterListNoStore(id);
+          if (latestChapters) {
+            setChapters([...latestChapters].sort((a, b) => a.order - b.order));
+          }
+        }
       } else {
         setError('创建章节失败');
       }
@@ -948,17 +977,10 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
     if (chapterNodes.length === 0) return;
 
     try {
-      let latestChapters = chapters;
-      const latestListRes = await fetch(`/api/novels/${novel.id}/chapters`);
-      if (latestListRes.ok) {
-        const latestPayload = await latestListRes.json();
-        if (Array.isArray(latestPayload.chapters)) {
-          latestChapters = latestPayload.chapters as Chapter[];
-        }
-      }
-
+      const latestFromServer = await fetchChapterListNoStore(novel.id);
+      const latestChapters = latestFromServer ?? chapters;
       const orderedChapters = [...latestChapters].sort((a, b) => a.order - b.order);
-      const chapterByOrder = new Map(orderedChapters.map((chapter) => [chapter.order, chapter]));
+      const chapterByOrder = new Map<number, Chapter>(orderedChapters.map((chapter) => [chapter.order, chapter]));
 
       const chaptersToCreate: Array<{ title: string; order: number }> = [];
       const chaptersToRename: Array<{ id: string; title: string }> = [];
@@ -982,7 +1004,12 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
         }
       });
 
-      if (chaptersToCreate.length === 0 && chaptersToRename.length === 0) return;
+      if (chaptersToCreate.length === 0 && chaptersToRename.length === 0) {
+        if (latestFromServer) {
+          setChapters([...latestFromServer].sort((a, b) => a.order - b.order));
+        }
+        return;
+      }
 
       for (const chapterInput of chaptersToCreate) {
         const createRes = await fetch(`/api/novels/${novel.id}/chapters`, {
@@ -998,6 +1025,11 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           const createErr = await createRes.json().catch(() => ({}));
           throw new Error(createErr.error || '创建章节失败');
         }
+
+        const createPayload = (await createRes.json().catch(() => ({}))) as ChapterMutationResponse;
+        if (createPayload.chapter) {
+          chapterByOrder.set(createPayload.chapter.order, createPayload.chapter);
+        }
       }
 
       if (chaptersToRename.length > 0) {
@@ -1012,14 +1044,31 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               const renameErr = await renameRes.json().catch(() => ({}));
               throw new Error(renameErr.error || '更新章节标题失败');
             }
+
+            const renamePayload = (await renameRes.json().catch(() => ({}))) as ChapterMutationResponse;
+            if (renamePayload.chapter) {
+              chapterByOrder.set(renamePayload.chapter.order, renamePayload.chapter);
+              return;
+            }
+
+            const fallbackChapter = Array.from(chapterByOrder.values()).find(
+              (chapter) => chapter.id === chapterId
+            );
+            if (fallbackChapter) {
+              chapterByOrder.set(fallbackChapter.order, { ...fallbackChapter, title });
+            }
           })
         );
       }
 
-      const listRes = await fetch(`/api/novels/${novel.id}/chapters`);
-      if (listRes.ok) {
-        const listPayload = await listRes.json();
-        setChapters(Array.isArray(listPayload.chapters) ? listPayload.chapters : []);
+      const optimisticChapters = [...chapterByOrder.values()].sort((a, b) => a.order - b.order);
+      if (optimisticChapters.length > 0) {
+        setChapters(optimisticChapters);
+      }
+
+      const confirmedChapters = await fetchChapterListNoStore(novel.id);
+      if (confirmedChapters) {
+        setChapters([...confirmedChapters].sort((a, b) => a.order - b.order));
       }
     } catch (error) {
       console.error('Failed to sync chapter outlines to chapter list', error);
@@ -2207,6 +2256,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
   const workflowHealthValue = workflowAlertCount > 0 ? `${workflowAlertCount} 项` : '正常';
   const activeTabLabel = (TAB_META as Record<string, { label: string }>)[activeTab]?.label || '小说详情';
   const activeTabHint = (TAB_META as Record<string, { hint: string }>)[activeTab]?.hint || '管理当前作品与创作流程';
+  const pendingReviewCount = Math.max(chapterTotal - reviewDoneCount, 0);
+  const isSettingsTab = activeTab === 'settings';
   const synopsisText = (novel.description || novel.theme || '').trim();
   const canToggleSynopsis = synopsisText.length > 120 || synopsisText.includes('\n');
   const outlineStage = novel.outlineStage === 'rough' || novel.outlineStage === 'detailed' || novel.outlineStage === 'chapters'
@@ -2722,8 +2773,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
           </motion.div>
         )}
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <Card className="relative overflow-hidden rounded-3xl border border-zinc-800/70 bg-zinc-950/65 p-5 md:p-6">
+        <section className="grid grid-cols-1 items-start gap-4 xl:auto-rows-min xl:grid-cols-[minmax(0,1fr)_320px]">
+          <Card className="relative h-fit self-start overflow-hidden rounded-3xl border border-zinc-800/70 bg-zinc-950/65 p-5 md:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(56,189,248,0.13),transparent_48%),radial-gradient(circle_at_82%_22%,rgba(16,185,129,0.16),transparent_50%)]" />
             <div className="relative z-10 space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2882,7 +2933,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </Card>
 
-          <aside className="space-y-3">
+          <aside className="self-start space-y-3">
             <Card className="relative overflow-visible rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-3.5">
               <div className="space-y-2.5">
                 <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">快速操作</div>
@@ -3018,46 +3069,79 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
               })}
             </TabsList>
 
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+            {isSettingsTab ? (
               <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3 md:px-5 md:py-3.5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">当前工作区</div>
-                    <div className="mt-1 truncate text-base font-semibold text-zinc-100">{activeTabLabel}</div>
-                    <p className="mt-0.5 text-xs text-zinc-400">{activeTabHint}</p>
+                    <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">设置上下文</div>
+                    <div className="mt-1 truncate text-base font-semibold text-zinc-100">参数编辑模式</div>
+                    <p className="mt-0.5 text-xs text-zinc-400">聚焦作品参数与流程门禁，修改后点击保存即可生效。</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
                       章节 {chapterTotal}
                     </Badge>
                     <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                      评审 {reviewRate}%
+                      待评审 {pendingReviewCount}
                     </Badge>
                     <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
-                      定稿 {approvedRate}%
+                      定稿 {approvedCount}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        workflowAlertCount > 0
+                          ? 'border-red-500/35 bg-red-500/12 px-2.5 py-1 text-red-200'
+                          : 'border-emerald-500/35 bg-emerald-500/12 px-2.5 py-1 text-emerald-200'
+                      }
+                    >
+                      {workflowHealthLabel}
                     </Badge>
                   </div>
                 </div>
               </Card>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3 md:px-5 md:py-3.5">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">当前工作区</div>
+                      <div className="mt-1 truncate text-base font-semibold text-zinc-100">{activeTabLabel}</div>
+                      <p className="mt-0.5 text-xs text-zinc-400">{activeTabHint}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
+                        章节 {chapterTotal}
+                      </Badge>
+                      <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
+                        评审 {reviewRate}%
+                      </Badge>
+                      <Badge variant="outline" className="border-zinc-700/80 bg-zinc-900/60 px-2.5 py-1 text-zinc-300">
+                        定稿 {approvedRate}%
+                      </Badge>
+                    </div>
+                  </div>
+                </Card>
 
-              <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">流程速览</div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
-                    待评审 {Math.max(chapterTotal - reviewDoneCount, 0)}
+                <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">流程速览</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
+                      待评审 {pendingReviewCount}
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
+                      定稿 {approvedCount}
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
+                      钩子逾期 {workflowStats.overdueHooks}
+                    </div>
+                    <div className={`rounded-lg border px-2.5 py-2 ${blockingInfo.hasBlocking ? 'border-red-500/35 bg-red-500/10 text-red-200' : 'border-zinc-800/80 bg-zinc-900/70 text-zinc-300'}`}>
+                      实体阻塞 {blockingInfo.hasBlocking ? blockingInfo.count : 0}
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
-                    定稿 {approvedCount}
-                  </div>
-                  <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/70 px-2.5 py-2 text-zinc-300">
-                    钩子逾期 {workflowStats.overdueHooks}
-                  </div>
-                  <div className={`rounded-lg border px-2.5 py-2 ${blockingInfo.hasBlocking ? 'border-red-500/35 bg-red-500/10 text-red-200' : 'border-zinc-800/80 bg-zinc-900/70 text-zinc-300'}`}>
-                    实体阻塞 {blockingInfo.hasBlocking ? blockingInfo.count : 0}
-                  </div>
-                </div>
-              </Card>
-            </div>
+                </Card>
+              </div>
+            )}
           </div>
 
           <AnimatePresence mode="wait">
@@ -3285,7 +3369,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                         </div>
                       </div>
                     </Card>
-                    <aside className="order-last xl:order-none xl:sticky xl:top-24 max-h-[calc(100vh-6.5rem)] overflow-y-auto custom-scrollbar">
+                    <aside className="order-last xl:order-none xl:sticky xl:top-[11.5rem] max-h-[calc(100vh-12rem)] overflow-y-auto custom-scrollbar">
                       {outlineActionPanel}
                     </aside>
                     </div>
@@ -3977,16 +4061,22 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
             </TabsContent>
 
             <TabsContent value="settings" key="settings">
-              <div className="max-w-3xl mx-auto space-y-6">
-                <Card className="p-8 rounded-3xl space-y-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 bg-emerald-500 rounded-full"/>
-                      基本信息
-                    </h3>
+              <div className="mx-auto grid max-w-[1220px] grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="space-y-5">
+                  <Card className="rounded-3xl p-6 md:p-7 space-y-7">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-xl font-bold text-white">作品参数</h3>
+                        <p className="mt-1 text-sm text-zinc-400">基础信息与创作导向配置，决定后续生成风格和节奏。</p>
+                      </div>
+                      <Badge variant="outline" className="border-emerald-500/35 bg-emerald-500/10 text-emerald-200">
+                        高级设置
+                      </Badge>
+                    </div>
+
                     <div className="space-y-6">
-                      <Input 
-                        type="text" 
+                      <Input
+                        type="text"
                         label="标题"
                         value={editedTitle}
                         onChange={(e) => setEditedTitle(e.target.value)}
@@ -3999,8 +4089,8 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                         value={editedDescription}
                         onChange={(e) => setEditedDescription(e.target.value)}
                       />
-                      <div className="grid grid-cols-2 gap-4">
-                        <Input 
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <Input
                           type="number"
                           label="目标字数（万）"
                           value={editedTargetWords}
@@ -4009,7 +4099,7 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           max={1000}
                           className="w-full px-4 py-3 rounded-xl"
                         />
-                        <Input 
+                        <Input
                           type="number"
                           label="预计章节数"
                           value={editedChapterCount}
@@ -4019,17 +4109,29 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           className="w-full px-4 py-3 rounded-xl"
                         />
                       </div>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-8 rounded-3xl space-y-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 bg-purple-500 rounded-full"/>
-                      创作设定
-                    </h3>
-                    <div className="space-y-6">
+                      <Input
+                        type="text"
+                        label="核心主题/卖点"
+                        value={editedTheme}
+                        onChange={(e) => setEditedTheme(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl"
+                        placeholder="例如：废柴逆袭、穿越重生、系统流..."
+                      />
+                      <Textarea
+                        label="创作意图（作者目标）"
+                        value={editedCreativeIntent}
+                        onChange={(e) => setEditedCreativeIntent(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl min-h-24 resize-none"
+                        placeholder="例如：偏现实主义、强调角色弧光与群像推进，减少套路打脸桥段..."
+                      />
+                      <Input
+                        type="text"
+                        label="关键词/灵感"
+                        value={editedKeywords}
+                        onChange={(e) => setEditedKeywords(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl"
+                        placeholder="用逗号分隔多个关键词..."
+                      />
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-400">小说类型</label>
                         <div className="flex flex-wrap gap-2">
@@ -4051,89 +4153,44 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                           ))}
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Input 
-                          type="text"
-                          label="核心主题/卖点"
-                          value={editedTheme}
-                          onChange={(e) => setEditedTheme(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl"
-                          placeholder="例如：废柴逆袭、穿越重生、系统流..."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Textarea
-                          label="创作意图（作者目标）"
-                          value={editedCreativeIntent}
-                          onChange={(e) => setEditedCreativeIntent(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl min-h-24 resize-none"
-                          placeholder="例如：偏现实主义、强调角色弧光与群像推进，减少套路打脸桥段..."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Input 
-                          type="text"
-                          label="关键词/灵感"
-                          value={editedKeywords}
-                          onChange={(e) => setEditedKeywords(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl"
-                          placeholder="用逗号分隔多个关键词..."
-                        />
-                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="p-8 rounded-3xl space-y-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 bg-blue-500 rounded-full"/>
-                      世界观与角色
-                    </h3>
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <Textarea 
-                          label="主角设定"
-                          value={editedProtagonist}
-                          onChange={(e) => setEditedProtagonist(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl min-h-28 resize-none"
-                          placeholder="主角的背景、性格、金手指..."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Textarea
-                          label="世界观设定"
-                          value={editedWorldSetting}
-                          onChange={(e) => setEditedWorldSetting(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl min-h-28 resize-none"
-                          placeholder="修炼体系、势力分布、时代背景..."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Textarea 
-                          label="特殊要求"
-                          value={editedSpecialRequirements}
-                          onChange={(e) => setEditedSpecialRequirements(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl min-h-20 resize-none"
-                          placeholder="其他要求或注意事项..."
-                        />
-                      </div>
+                  <Card className="rounded-3xl p-6 md:p-7 space-y-6">
+                    <h3 className="text-xl font-bold text-white">世界观与角色</h3>
+                    <div className="space-y-5">
+                      <Textarea
+                        label="主角设定"
+                        value={editedProtagonist}
+                        onChange={(e) => setEditedProtagonist(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl min-h-28 resize-none"
+                        placeholder="主角的背景、性格、金手指..."
+                      />
+                      <Textarea
+                        label="世界观设定"
+                        value={editedWorldSetting}
+                        onChange={(e) => setEditedWorldSetting(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl min-h-28 resize-none"
+                        placeholder="修炼体系、势力分布、时代背景..."
+                      />
+                      <Textarea
+                        label="特殊要求"
+                        value={editedSpecialRequirements}
+                        onChange={(e) => setEditedSpecialRequirements(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl min-h-20 resize-none"
+                        placeholder="其他要求或注意事项..."
+                      />
                     </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="p-8 rounded-3xl space-y-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 bg-amber-500 rounded-full"/>
-                      连续性门禁
-                    </h3>
+                  <Card className="rounded-3xl p-6 md:p-7 space-y-6">
+                    <h3 className="text-xl font-bold text-white">连续性门禁</h3>
                     <div className="space-y-6">
                       <div className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                         <div>
                           <p className="text-sm font-medium text-zinc-100">启用章节连续性门禁</p>
                           <p className="mt-1 text-xs text-zinc-500">
-                            章节生成后会自动评分，低分将触发修复或拦截，减少前后文断层。
+                            章节生成后自动评分，低分会触发修复或拦截，减少前后文断层。
                           </p>
                         </div>
                         <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
@@ -4182,57 +4239,77 @@ export default function NovelDetailPage({ params }: { params: Promise<{ id: stri
                       </div>
 
                       <p className="text-xs text-zinc-500">
-                        建议：通过阈值设为 6.5-7.2；拒绝阈值比通过阈值低至少 0.4；自动修复次数 1-2 次。
+                        建议：通过阈值 6.5-7.2；拒绝阈值比通过阈值低至少 0.4；自动修复次数 1-2 次。
                       </p>
                     </div>
-                  </div>
-                </Card>
-
-                <div className="flex justify-end">
-                  <Button 
-                    variant="primary"
-                    onClick={handleSaveSettings}
-                    isLoading={isSavingSettings}
-                    loadingText="保存中..."
-                    disabled={isSavingSettings}
-                    className="px-8"
-                  >
-                    保存设置
-                  </Button>
+                  </Card>
                 </div>
 
-                <Card className="p-8 rounded-3xl space-y-8">
-                  <div className="pt-0">
-                    <h3 className="text-xl font-bold text-red-400 mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 bg-red-500 rounded-full"/>
-                      危险区域
-                    </h3>
-                    <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                      <div>
-                        <h4 className="text-white font-medium mb-1">删除小说</h4>
-                        <p className="text-sm text-gray-400">
-                          一旦删除，所有章节、素材和设定都将永久丢失，无法恢复。
-                        </p>
+                <aside className="space-y-4 xl:sticky xl:top-[11.5rem]">
+                  <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">操作中心</div>
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                      修改参数后点击保存，后续章节生成与流程门禁将按新设置执行。
+                    </p>
+                    <Button
+                      variant="primary"
+                      onClick={handleSaveSettings}
+                      isLoading={isSavingSettings}
+                      loadingText="保存中..."
+                      disabled={isSavingSettings}
+                      className="mt-4 w-full"
+                    >
+                      保存设置
+                    </Button>
+                  </Card>
+
+                  <Card className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">当前参数快照</div>
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between rounded-lg border border-zinc-800/80 bg-zinc-950/35 px-3 py-2">
+                        <span className="text-zinc-500">小说类型</span>
+                        <span className="text-zinc-200">{editedGenre || '未设置'}</span>
                       </div>
-                      <Button 
-                        variant="danger"
-                        onClick={() =>
-                          setConfirmState({
-                            isOpen: true,
-                            title: '确认删除小说',
-                            message: `确定要删除《${novel.title}》吗？此操作不可撤销。`,
-                            confirmText: '确认删除',
-                            variant: 'danger',
-                            onConfirm: handleDeleteNovel,
-                          })
-                        }
-                        className="whitespace-nowrap"
-                      >
-                        删除小说
-                      </Button>
+                      <div className="flex items-center justify-between rounded-lg border border-zinc-800/80 bg-zinc-950/35 px-3 py-2">
+                        <span className="text-zinc-500">目标字数</span>
+                        <span className="text-zinc-200">{editedTargetWords} 万</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-zinc-800/80 bg-zinc-950/35 px-3 py-2">
+                        <span className="text-zinc-500">预计章节</span>
+                        <span className="text-zinc-200">{editedChapterCount} 章</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-zinc-800/80 bg-zinc-950/35 px-3 py-2">
+                        <span className="text-zinc-500">连续门禁</span>
+                        <span className={editedContinuityGateEnabled ? 'text-emerald-300' : 'text-zinc-300'}>
+                          {editedContinuityGateEnabled ? '已启用' : '已关闭'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+
+                  <Card className="rounded-2xl border border-red-500/25 bg-red-500/5 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-red-300/80">危险操作</div>
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                      删除作品后，章节、素材和设定会被永久清空，且无法恢复。
+                    </p>
+                    <Button
+                      variant="danger"
+                      onClick={() =>
+                        setConfirmState({
+                          isOpen: true,
+                          title: '确认删除小说',
+                          message: `确定要删除《${novel.title}》吗？此操作不可撤销。`,
+                          confirmText: '确认删除',
+                          variant: 'danger',
+                          onConfirm: handleDeleteNovel,
+                        })
+                      }
+                      className="mt-4 w-full"
+                    >
+                      删除小说
+                    </Button>
+                  </Card>
+                </aside>
               </div>
             </TabsContent>
           </AnimatePresence>

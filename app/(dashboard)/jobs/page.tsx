@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type MouseEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getJobStatusLabel, 
@@ -19,12 +20,20 @@ import { useJobsQueue } from '@/app/lib/hooks/useJobsQueue';
 import type { JobQueueItem, JobQueueStatus } from '@/src/shared/jobs';
 
 export default function JobsPage() {
-  const { jobs, loading, cancelJob } = useJobsQueue();
+  const router = useRouter();
+  const { jobs, loading, cancelJob, isUnauthorized } = useJobsQueue();
   const [filterStatus, setFilterStatus] = useState<'all' | JobQueueStatus>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedJob, setSelectedJob] = useState<JobQueueItem | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const selectedJobId = selectedJob?.id;
+
+  useEffect(() => {
+    if (!isUnauthorized) {
+      return;
+    }
+    router.replace('/login');
+  }, [isUnauthorized, router]);
 
   useEffect(() => {
     if (!selectedJobId) {

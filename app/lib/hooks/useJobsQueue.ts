@@ -23,8 +23,22 @@ interface UseJobsQueueResult {
   jobs: JobQueueItem[];
   loading: boolean;
   isUsingSse: boolean;
+  isUnauthorized: boolean;
   refreshJobs: () => Promise<void>;
   cancelJob: (jobId: string) => Promise<void>;
+}
+
+function createUnauthorizedError(): Error & { status: number } {
+  const error = new Error('jobs unauthorized') as Error & { status: number };
+  error.status = 401;
+  return error;
+}
+
+function isUnauthorizedError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'status' in error) {
+    return (error as { status?: unknown }).status === 401;
+  }
+  return false;
 }
 
 export function useJobsQueue(
@@ -38,6 +52,7 @@ export function useJobsQueue(
   const [jobs, setJobs] = useState<JobQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [useSse, setUseSse] = useState(preferSse);
+  const [isUnauthorized, setIsUnauthorized] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sseBootstrapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasReceivedSseEventRef = useRef(false);
@@ -85,6 +100,9 @@ export function useJobsQueue(
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          throw createUnauthorizedError();
+        }
         throw new Error(`jobs fetch failed (${res.status})`);
       }
 
@@ -102,8 +120,14 @@ export function useJobsQueue(
           const nextJobs = await fetchJobsOnce();
           setJobs(nextJobs);
           persistJobsCache(nextJobs);
+          setIsUnauthorized(false);
           return;
         } catch (error) {
+          if (isUnauthorizedError(error)) {
+            setIsUnauthorized(true);
+            setUseSse(false);
+            return;
+          }
           if (attempt === 0) {
             await new Promise((resolve) => setTimeout(resolve, 220));
             continue;
@@ -130,6 +154,15 @@ export function useJobsQueue(
         sseBootstrapTimerRef.current = null;
       }
     };
+
+    if (isUnauthorized) {
+      clearSseBootstrapTimer();
+      clearPolling();
+      return () => {
+        clearSseBootstrapTimer();
+        clearPolling();
+      };
+    }
 
     if (!useSse) {
       void fetchJobs();
@@ -185,10 +218,25 @@ export function useJobsQueue(
     };
 
     eventSource.addEventListener('jobs', handleJobs);
-    eventSource.onerror = () => {
+    eventSource.onerror = async () => {
       console.warn('SSE connection failed, fallback to polling');
       clearSseBootstrapTimer();
       eventSource.close();
+
+      try {
+        const res = await fetch('/api/jobs?limit=1', {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        if (res.status === 401) {
+          setIsUnauthorized(true);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // ignore probe error
+      }
+
       setUseSse(false);
       setLoading(false);
     };
@@ -198,11 +246,14 @@ export function useJobsQueue(
       eventSource.removeEventListener('jobs', handleJobs);
       eventSource.close();
     };
-  }, [fetchJobs, persistJobsCache, pollIntervalMs, useSse]);
+  }, [fetchJobs, isUnauthorized, persistJobsCache, pollIntervalMs, useSse]);
 
   const refreshJobs = useCallback(async () => {
+    if (isUnauthorized) {
+      return;
+    }
     await fetchJobs();
-  }, [fetchJobs]);
+  }, [fetchJobs, isUnauthorized]);
 
   const cancelJob = useCallback(
     async (jobId: string) => {
@@ -213,6 +264,9 @@ export function useJobsQueue(
           credentials: 'include',
         });
         if (!res.ok) {
+          if (res.status === 401) {
+            setIsUnauthorized(true);
+          }
           return;
         }
 
@@ -239,6 +293,7 @@ export function useJobsQueue(
     jobs,
     loading,
     isUsingSse: useSse,
+    isUnauthorized,
     refreshJobs,
     cancelJob,
   };

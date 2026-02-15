@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJobStatusLabel, getJobStatusClassName, getJobTypeLabel } from '@/app/components/JobStatusBadge';
 import { Button } from '@/app/components/ui/Button';
 import PageTransition from '@/app/components/PageTransition';
@@ -50,6 +50,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+  const redirectingToLoginRef = useRef(false);
+
+  const redirectToLogin = useCallback(() => {
+    if (redirectingToLoginRef.current) {
+      return;
+    }
+    redirectingToLoginRef.current = true;
+    router.replace('/login');
+  }, [router]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -93,7 +102,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await fetch('/api/jobs');
+        const res = await fetch('/api/jobs', {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        if (res.status === 401) {
+          redirectToLogin();
+          return;
+        }
         if (res.ok) {
           const payload = await res.json();
           const parsed = parseJobsListResponse(payload);
@@ -132,12 +148,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [redirectToLogin]);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const res = await fetch('/api/user/me');
+        const res = await fetch('/api/user/me', {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        if (res.status === 401) {
+          redirectToLogin();
+          return;
+        }
         if (res.ok) {
           const user = await res.json();
           setUserInfo(user);
@@ -147,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     };
     fetchUserInfo();
-  }, []);
+  }, [redirectToLogin]);
 
   const handleLogout = async () => {
     try {
