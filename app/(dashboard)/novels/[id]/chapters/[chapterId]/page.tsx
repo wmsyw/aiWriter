@@ -2113,8 +2113,8 @@ export default function ChapterEditorPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="no-scrollbar flex items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/65 p-2 shadow-inner shadow-black/20">
+          <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between">
+            <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-white/10 bg-zinc-900/65 p-2.5 shadow-inner shadow-black/20 md:gap-3 md:p-3">
               <Button
                 variant="primary"
                 size="sm"
@@ -2211,7 +2211,7 @@ export default function ChapterEditorPage() {
               </Button>
             </div>
 
-            <div className="w-full space-y-2 xl:w-auto xl:min-w-[460px] xl:max-w-[680px]">
+            <div className="w-full space-y-2.5 2xl:w-auto 2xl:min-w-[500px] 2xl:max-w-[760px]">
               {postProcessWarning && (
                 <div className="inline-flex w-full min-w-0 items-center gap-2 rounded-2xl border border-red-500/35 bg-red-500/12 px-3 py-2 text-[11px] text-red-200">
                   <span className="min-w-0 flex-1 truncate" title={postProcessWarning}>{postProcessWarning}</span>
@@ -2225,12 +2225,12 @@ export default function ChapterEditorPage() {
                 </div>
               )}
 
-              <div className={`rounded-2xl border px-2.5 py-2 ${
+              <div className={`rounded-2xl border px-3 py-2.5 ${
                 postProcessFailureCount > 0
                   ? 'border-red-500/25 bg-red-500/10'
                   : 'border-white/10 bg-zinc-900/60'
               }`}>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-zinc-400">
                     后处理
                   </span>
@@ -2238,7 +2238,7 @@ export default function ChapterEditorPage() {
                     postProcessEntries.map((item) => (
                       <span
                         key={item.type}
-                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] ${postProcessBadgeTone[item.status]}`}
+                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] ${postProcessBadgeTone[item.status]}`}
                         title={item.error || `${POST_PROCESS_LABELS[item.type]}${postProcessStatusLabel[item.status]}`}
                       >
                         {POST_PROCESS_LABELS[item.type]}·{postProcessStatusLabel[item.status]}
@@ -2248,7 +2248,7 @@ export default function ChapterEditorPage() {
                     <span className="text-[11px] text-zinc-500">暂无后处理任务</span>
                   )}
 
-                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:ml-auto sm:w-auto">
                     {hasReviewArtifacts && (
                       <div className="flex flex-wrap items-center gap-1.5">
                         {(reviewState.hasReview || reviewResult || consistencyResult) && (
@@ -2279,7 +2279,7 @@ export default function ChapterEditorPage() {
                         )}
                       </div>
                     )}
-                    <div className="inline-flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-zinc-400">
+                    <div className="inline-flex items-center gap-2.5 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-zinc-400">
                       <span className="font-mono">{wordCount} 字</span>
                       <span className="h-3 w-px bg-white/10" />
                       <span className="font-mono">{charCount} 字符</span>
