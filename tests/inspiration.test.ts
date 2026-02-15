@@ -67,9 +67,11 @@ describe('inspiration helpers', () => {
         {
           title: '星门文明',
           coreTheme: '星际探索，文明对决',
+          synopsis: '舰队指挥官在星门战争中接管残破文明中枢，必须在内忧外患里重建秩序并阻止虫群侵蚀核心星域。',
           tags: '星际, 文明, 舰队',
           hero: '舰队指挥官',
           world_setting: '星门连接万千星域',
+          golden_finger: '可迭代的舰队中枢系统，能解析敌方战术并有限次数回溯推演。',
         },
         {
           foo: 'bar',
@@ -80,6 +82,8 @@ describe('inspiration helpers', () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.name).toBe('星门文明');
     expect(items[0]?.keywords).toEqual(['星际', '文明', '舰队']);
+    expect(items[0]?.synopsis).toContain('星门战争');
     expect(items[0]?.worldSetting).toBe('星门连接万千星域');
+    expect(items[0]?.goldenFinger).toContain('舰队中枢系统');
   });
 });

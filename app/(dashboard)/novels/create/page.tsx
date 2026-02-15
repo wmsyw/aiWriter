@@ -15,10 +15,8 @@ import InspirationModal from './InspirationModal';
 import { useToast } from '@/app/components/ui/Toast';
 import {
   formatKeywordsInput,
-  getInspirationPresetsByGenre,
   parseKeywordsInput,
   type Inspiration,
-  type InspirationPreset,
 } from '@/src/shared/inspiration';
 import {
   WIZARD_PHASE_LABEL,
@@ -225,22 +223,21 @@ function NovelWizardContent() {
   ): Partial<NovelFormState> => ({
     title: current.title || inspiration.name,
     theme: inspiration.theme,
+    ...(inspiration.synopsis
+      ? {
+          description: inspiration.synopsis,
+        }
+      : {}),
     protagonist: inspiration.protagonist,
     worldSetting: inspiration.worldSetting,
     keywords: inspiration.keywords,
     keywordsInput: formatKeywordsInput(inspiration.keywords),
+    ...(inspiration.goldenFinger
+      ? {
+          goldenFinger: inspiration.goldenFinger,
+        }
+      : {}),
   });
-
-  const applyPreset = (preset: InspirationPreset) => {
-    setFormData(prev => ({
-      ...prev,
-      theme: preset.theme,
-      protagonist: preset.protagonist,
-      worldSetting: preset.worldSetting,
-      keywords: preset.keywords,
-      keywordsInput: formatKeywordsInput(preset.keywords),
-    }));
-  };
 
   const handleSelectCreationMode = (mode: CreationMode) => {
     setCreationMode(mode);
@@ -294,8 +291,6 @@ function NovelWizardContent() {
     });
   };
   
-  const currentGenrePresets = getInspirationPresetsByGenre(formData.genre);
-
   const persistWizardStep = async (nextStep: number, overrideStatus?: 'draft' | 'in_progress' | 'completed') => {
     if (!novelId) {
       setStep(nextStep);
@@ -998,57 +993,6 @@ function NovelWizardContent() {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between px-1">
-                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
-                        灵感预设 {formData.genre && <span className="text-emerald-400 normal-case">· {formData.genre}</span>}
-                      </h4>
-                      {formData.genre && formData.targetWords > 0 && (
-                        <Button
-                          type="button"
-                          variant="ai"
-                          size="sm"
-                          onClick={() => setIsInspirationModalOpen(true)}
-                          leftIcon="✨"
-                        >
-                          AI 生成灵感
-                        </Button>
-                      )}
-                    </div>
-                    {!formData.genre ? (
-                      <div className="glass-panel p-4 rounded-xl text-center text-gray-500 text-sm">
-                        请先选择频道以查看热门题材预设
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-3">
-                        {currentGenrePresets.map(preset => (
-                          <Button
-                            key={preset.name}
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => applyPreset(preset)}
-                            className="group relative h-auto w-full justify-start overflow-hidden glass-panel rounded-xl border border-white/10 p-4 text-left hover:-translate-y-1 hover:border-emerald-500/50"
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 to-purple-500/0 group-hover:from-emerald-500/10 group-hover:to-purple-500/10 transition-all duration-500"/>
-                            <div className="relative z-10">
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-white font-medium group-hover:text-emerald-300 transition-colors">{preset.name}</span>
-                              </div>
-                              <div className="text-xs text-gray-500 line-clamp-2">{preset.theme}</div>
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {preset.keywords.slice(0, 3).map(kw => (
-                                  <span key={kw} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    {kw}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
 

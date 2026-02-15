@@ -232,13 +232,36 @@ export async function handleWizardInspiration(prisma, job, { jobId, userId, inpu
     count: Math.min(Math.max(count || 5, 1), 10),
   };
 
-  const fallbackPrompt = `请生成${context.count}个${context.genre}类型小说灵感，目标字数${context.target_words}万字，目标平台${context.target_platform}，目标读者${context.target_audience}。
+  const fallbackPrompt = `你是资深网文策划。请基于以下约束生成 ${context.count} 个可直接开书的高质量灵感方案。
 
-<user_keywords>${context.keywords || '无'}</user_keywords>
+【硬性约束】
+- 类型：${context.genre}
+- 目标字数：${context.target_words} 万字
+- 目标平台：${context.target_platform}
+- 目标读者：${context.target_audience}
+- 用户关键词：${context.keywords || '无'}
 
-每个灵感包含：name（书名风格标题）、theme（核心主题）、keywords（关键词数组）、protagonist（主角设定）、worldSetting（世界观）、hook（核心卖点）。
+【内容质量要求】
+1. 不能用一句话敷衍，每个字段都要有信息密度和可写性。
+2. 每个灵感都要可支撑长篇连载，包含成长空间与持续冲突。
+3. 灵感之间必须明显差异化（主角路径、金手指机制、世界规则至少两项不同）。
 
-返回JSON数组格式。`;
+【每个灵感必须包含以下字段】
+- name：书名风格标题，12-24字，强记忆点。
+- theme：核心主题与主冲突，80-140字，写清“主角想要什么、对手/阻力是什么、故事长期驱动力是什么”。
+- synopsis：小说简介，约 200 字（建议 180-230 字），需包含开场钩子、主线冲突、阶段目标与悬念收束。
+- keywords：6-10个关键词，避免泛词。
+- protagonist：主角详细设定，180-260字，至少包含 身份背景/性格缺陷/核心目标/成长弧线/关键关系。
+- worldSetting：世界观详细设定，180-260字，至少包含 时代与地理格局/力量或规则体系/主要势力结构/核心矛盾。
+- goldenFinger：金手指详细描写，220-320字，必须包含 机制说明/升级路径/触发条件/限制与代价/中后期天花板与反制风险。
+- hook：开篇钩子与追读驱动，120-180字，写清第一章抓手与前三卷持续爽点。
+- potential：商业潜力分析，80-140字，结合目标平台与目标读者说明卖点与风险点。
+
+【输出格式要求】
+- 只返回 JSON 数组，不要 Markdown，不要注释，不要额外说明。
+- 严格使用字段名：name, theme, synopsis, keywords, protagonist, worldSetting, goldenFinger, hook, potential。
+- keywords 必须是字符串数组。
+`;
 
   const prompt = template ? renderTemplateString(template.content, context) : fallbackPrompt;
 

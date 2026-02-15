@@ -3477,35 +3477,10 @@ ID：{{target_id}}
 ## 用户需求
 频道类型：{{genre}}
 目标字数：{{target_words}}万字
+目标平台：{{target_platform}}
 目标读者：{{target_audience}}
 用户关键词：{{keywords}}
 生成数量：{{count}}个灵感
-
-## 当前热门趋势参考
-
-### 玄幻/仙侠热门元素
-- 诡异流、规则怪谈、序列体系
-- 模拟器、推演、完美人生流
-- 万古大帝、天骄争霸
-- 剑道独尊、以力证道
-
-### 都市热门元素
-- 系统流逆袭、草根崛起
-- 都市异能觉醒、守护者
-- 重生商战、科技创业
-- 医道/厨道/各行业巅峰
-
-### 科幻热门元素
-- 赛博朋克、义体改造
-- 星际文明、星门探索
-- AI觉醒、虚拟现实
-- 末日废土、生存进化
-
-### 历史热门元素
-- 皇子争霸、权谋宫斗
-- 科技种田、工业革命
-- 穿越发展、文明跃升
-- 架空历史、争霸天下
 
 ## 生成原则
 
@@ -3521,24 +3496,28 @@ ID：{{target_id}}
 [
   {
     "name": "灵感标题（吸引眼球的书名风格）",
-    "theme": "核心主题/卖点（一句话概括，要有吸引力）",
-    "keywords": ["关键词1", "关键词2", "关键词3", "关键词4"],
-    "protagonist": "主角人设简述（包含金手指/优势）",
-    "worldSetting": "世界观一句话（独特且有画面感）",
-    "hook": "核心爽点/卖点（为什么读者会追）",
-    "potential": "商业潜力分析（目标读者、预期表现）"
+    "theme": "核心主题与主冲突（80-140字，包含长期驱动力）",
+    "synopsis": "小说简介（约200字，建议180-230字，包含开场钩子、主线冲突、阶段目标与悬念收束）",
+    "keywords": ["关键词1", "关键词2", "关键词3", "关键词4", "关键词5", "关键词6"],
+    "protagonist": "主角详细设定（180-260字：身份背景、性格缺陷、核心目标、成长弧线、关键关系）",
+    "worldSetting": "世界观详细设定（180-260字：时代格局、规则体系、势力结构、核心矛盾）",
+    "goldenFinger": "金手指详细描写（220-320字：机制、升级、触发条件、限制代价、反制风险）",
+    "hook": "开篇钩子与追读驱动（120-180字，第一章抓手+前三卷爽点）",
+    "potential": "商业潜力分析（80-140字，结合平台与读者说明卖点与风险）"
   }
 ]
 
 注意：
-- 每个灵感要有独特性，避免雷同
-- 结合{{genre}}类型的特点设计
-- 考虑{{target_words}}万字的篇幅需求
-- 针对{{target_audience}}读者群体优化
+- 所有字段都要写实，不要一句话敷衍。
+- 灵感之间要显著差异化：主角路线、世界规则、金手指机制至少两项不同。
+- 必须结合{{genre}}、{{target_platform}}、{{target_audience}}与{{target_words}}万字规模设计。
+- synopsis 需控制在约200字，不要短于150字，也不要超过260字。
+- 仅输出 JSON 数组，不输出任何解释文本或 Markdown。
 `,
     variables: [
       { name: 'genre', type: 'string' as const, required: true, description: '频道类型' },
       { name: 'target_words', type: 'number' as const, required: true, description: '目标字数（万）' },
+      { name: 'target_platform', type: 'string' as const, description: '目标平台' },
       { name: 'target_audience', type: 'string' as const, description: '目标读者人群' },
       { name: 'keywords', type: 'string' as const, description: '用户关键词' },
       { name: 'count', type: 'number' as const, required: true, description: '生成数量' },

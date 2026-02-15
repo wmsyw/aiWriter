@@ -1,9 +1,11 @@
 export interface Inspiration {
   name: string;
   theme: string;
+  synopsis?: string;
   keywords: string[];
   protagonist: string;
   worldSetting: string;
+  goldenFinger?: string;
   hook?: string;
   potential?: string;
 }
@@ -364,6 +366,24 @@ export function normalizeInspiration(payload: unknown, index = 0): Inspiration |
     protagonist,
     worldSetting,
   };
+
+  const synopsis =
+    toNormalizedString(source.synopsis) ||
+    toNormalizedString(source.description) ||
+    toNormalizedString(source.intro) ||
+    toNormalizedString(source.blurb);
+  if (synopsis) {
+    normalized.synopsis = synopsis;
+  }
+
+  const goldenFinger =
+    toNormalizedString(source.goldenFinger) ||
+    toNormalizedString(source.golden_finger) ||
+    toNormalizedString(source.cheat) ||
+    toNormalizedString(source.system);
+  if (goldenFinger) {
+    normalized.goldenFinger = goldenFinger;
+  }
 
   const hook = toNormalizedString(source.hook);
   if (hook) {

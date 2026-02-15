@@ -67,8 +67,10 @@ function buildInspirationFingerprint(item: Inspiration): string {
   return [
     normalizeForSearch(item.name),
     normalizeForSearch(item.theme),
+    normalizeForSearch(item.synopsis || ''),
     normalizeForSearch(item.protagonist),
     normalizeForSearch(item.worldSetting),
+    normalizeForSearch(item.goldenFinger || ''),
   ].join('|');
 }
 
@@ -386,8 +388,10 @@ export default function InspirationModal({
       const haystack = [
         item.name,
         item.theme,
+        item.synopsis || '',
         item.protagonist,
         item.worldSetting,
+        item.goldenFinger || '',
         item.hook || '',
         item.potential || '',
         ...item.keywords,
@@ -674,6 +678,18 @@ export default function InspirationModal({
                                   <span className="text-zinc-500 font-medium">世界观：</span>
                                   <p className="mt-1 text-zinc-200">{item.worldSetting}</p>
                                 </div>
+                                {item.synopsis && (
+                                  <div>
+                                    <span className="text-zinc-500 font-medium">简介：</span>
+                                    <p className="mt-1 text-zinc-200">{item.synopsis}</p>
+                                  </div>
+                                )}
+                                {item.goldenFinger && (
+                                  <div>
+                                    <span className="text-zinc-500 font-medium">金手指：</span>
+                                    <p className="mt-1 text-zinc-200">{item.goldenFinger}</p>
+                                  </div>
+                                )}
                                 {item.hook && (
                                   <div>
                                     <span className="text-zinc-500 font-medium">核心卖点：</span>
